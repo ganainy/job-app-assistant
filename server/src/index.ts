@@ -3,35 +3,43 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import mongoose from 'mongoose';
 
-dotenv.config(); 
+// Import routes
+import jobApplicationRoutes from './routes/jobApplications'; // <-- Import the routes
+
+dotenv.config();
 
 const app: Express = express();
-const port = process.env.PORT || 5001; 
+const port = process.env.PORT || 5001;
 
 // Middleware
-app.use(cors()); // Enable CORS for all origins (adjust in production)
-app.use(express.json()); // Parse JSON request bodies
+app.use(cors());
+app.use(express.json()); // Important: must come before routes to parse body
 
-// Basic Route
+// --- Mount Routes ---
+app.use('/api/jobs', jobApplicationRoutes); // <-- Mount the job routes under /api/jobs
+
+// Basic root route (optional)
 app.get('/', (req: Request, res: Response) => {
   res.send('Job App Assistant Backend is Running!');
 });
 
-// TODO: Add other routes (auth, jobs, cv generation, etc.)
-
-// TODO: Connect to MongoDB
+// --- MongoDB Connection ---
 const mongoUri = process.env.MONGODB_URI;
 
 if (!mongoUri) {
   console.error("FATAL ERROR: MONGODB_URI is not defined in .env file.");
-  process.exit(1); // Exit if DB connection string is missing
+  process.exit(1);
 }
 
 mongoose.connect(mongoUri)
-  .then(() => console.log('MongoDB Connected Successfully'))
-  .catch(err => console.error('MongoDB Connection Error:', err));
-
-
-app.listen(port, () => {
-  console.log(`[server]: Server is running at http://localhost:${port}`);
-});
+  .then(() => {
+     console.log('MongoDB Connected Successfully');
+     // Start listening only after successful DB connection
+     app.listen(port, () => {
+       console.log(`[server]: Server is running at http://localhost:${port}`);
+     });
+  })
+  .catch(err => {
+    console.error('MongoDB Connection Error:', err);
+    process.exit(1); // Exit if DB connection fails on startup
+  });
