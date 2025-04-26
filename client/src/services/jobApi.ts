@@ -47,7 +47,7 @@ export const getJobs = async (): Promise<JobApplication[]> => {
 
 // Function to create a new job application
 // We need the data to send (Payload Type) - excluding _id, createdAt, updatedAt
-type CreateJobPayload = Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt'>;
+export type CreateJobPayload = Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt'>;
 export const createJob = async (jobData: CreateJobPayload): Promise<JobApplication> => {
     try {
         const response = await apiClient.post('/jobs', jobData);
