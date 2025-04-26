@@ -35,10 +35,12 @@ export interface JobApplication {
 
 // Function to get all job applications
 export const getJobs = async (): Promise<JobApplication[]> => {
-  try {
-    const response = await apiClient.get('/jobs');
-    return response.data; // Axios automatically parses JSON
-  } catch (error) {
+    try {
+        // Use axios directly - Auth header is set by AuthProvider
+        const response = await axios.get(`${API_BASE_URL}/jobs`);
+        return response.data;
+      } 
+ catch (error) {
     console.error("Error fetching jobs:", error);
     // Handle or throw error appropriately for UI feedback
     throw error;
@@ -50,7 +52,7 @@ export const getJobs = async (): Promise<JobApplication[]> => {
 export type CreateJobPayload = Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt'>;
 export const createJob = async (jobData: CreateJobPayload): Promise<JobApplication> => {
     try {
-        const response = await apiClient.post('/jobs', jobData);
+        const response = await axios.post(`${API_BASE_URL}/jobs`, jobData);
         return response.data;
     } catch (error) {
         console.error("Error creating job:", error);
@@ -63,7 +65,7 @@ export const createJob = async (jobData: CreateJobPayload): Promise<JobApplicati
 type UpdateJobPayload = Partial<Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt'>>;
 export const updateJob = async (id: string, updates: UpdateJobPayload): Promise<JobApplication> => {
     try {
-        const response = await apiClient.put(`/jobs/${id}`, updates);
+        const response = await axios.put(`${API_BASE_URL}/jobs/${id}`, updates);
         return response.data;
     } catch (error) {
         console.error(`Error updating job ${id}:`, error);
@@ -80,7 +82,7 @@ interface DeleteResponse {
 }
 export const deleteJob = async (id: string): Promise<DeleteResponse> => {
     try {
-        const response = await apiClient.delete(`/jobs/${id}`);
+        const response = await axios.delete(`${API_BASE_URL}/jobs/${id}`);
         return response.data;
     } catch (error) {
         console.error(`Error deleting job ${id}:`, error);
@@ -91,7 +93,7 @@ export const deleteJob = async (id: string): Promise<DeleteResponse> => {
 // Get single job (optional, if needed)
 export const getJobById = async (id: string): Promise<JobApplication> => {
     try {
-        const response = await apiClient.get(`/jobs/${id}`);
+        const response = await axios.get(`${API_BASE_URL}/jobs/${id}`);
         return response.data;
     } catch (error) {
         console.error(`Error fetching job ${id}:`, error);
