@@ -3,10 +3,12 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import mongoose from 'mongoose';
 
-// Import routes
-import jobApplicationRoutes from './routes/jobApplications'; // <-- Import the routes
-
 dotenv.config();
+
+// Import routes
+import jobApplicationRoutes from './routes/jobApplications'; 
+import authRoutes from './routes/auth'; 
+
 
 const app: Express = express();
 const port = process.env.PORT || 5001;
@@ -17,6 +19,7 @@ app.use(express.json()); // Important: must come before routes to parse body
 
 // --- Mount Routes ---
 app.use('/api/jobs', jobApplicationRoutes); // <-- Mount the job routes under /api/jobs
+app.use('/api/auth', authRoutes); // <-- Mount the auth routes under /api/auth
 
 // Basic root route (optional)
 app.get('/', (req: Request, res: Response) => {

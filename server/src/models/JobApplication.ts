@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 // Interface defining the structure of a Job Application document
 export interface IJobApplication extends Document {
+  userId: mongoose.Schema.Types.ObjectId;
   jobTitle: string;
   companyName: string;
   status: 'Applied' | 'Not Applied' | 'Interview' | 'Assessment' | 'Rejected' | 'Closed' | 'Offer'; // Example statuses
@@ -19,6 +20,12 @@ export interface IJobApplication extends Document {
 // Mongoose Schema definition
 const JobApplicationSchema: Schema = new Schema(
   {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User', // Reference to the User model
+      required: true,
+      index: true // Add index for faster querying by user
+    },
     jobTitle: { type: String, required: true, trim: true },
     companyName: { type: String, required: true, trim: true },
     status: {
