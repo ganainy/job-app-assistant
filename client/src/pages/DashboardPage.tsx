@@ -1,5 +1,5 @@
 // client/src/pages/DashboardPage.tsx
-import React, { useState, useEffect ,useMemo} from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   getJobs,
   createJob,
@@ -107,6 +107,10 @@ const DashboardPage: React.FC = () => {
   const [sortKey, setSortKey] = useState<SortableJobKeys>('createdAt'); // Default sort
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc'); // Default direction
 
+  // ---  State for Language Selection Modal ---
+  const [isLangModalOpen, setIsLangModalOpen] = useState<boolean>(false);
+  const [langModalJobId, setLangModalJobId] = useState<string | null>(null); // Job ID for which modal is open
+  const [selectedLang, setSelectedLang] = useState<'en' | 'de'>('en'); // Default language
 
   // --- useEffect: Fetch initial job data (keep as is) ---
   useEffect(() => {
@@ -281,7 +285,7 @@ const DashboardPage: React.FC = () => {
   // --- Generator Event Handler ---
 
   // Handles triggering the document generation process
-  const handleGenerateDocs = async (jobId: string) => {
+  const handleGenerateDocs = async (jobId: string, language: 'en' | 'de') => {
     setGeneratingId(jobId); // Set loading state for this specific job row
     setGeneratorError(prev => ({ ...prev, [jobId]: null })); // Clear previous errors for this job
     setGeneratedFiles(prev => { // Clear previous generated file links for this job
@@ -292,7 +296,7 @@ const DashboardPage: React.FC = () => {
     setError(null); // Clear general page errors
 
     try {
-      const response = await generateDocuments(jobId); // Call the generator API
+      const response = await generateDocuments(jobId, language); // Call the generator API with language parameter
       // Store the filenames returned by the backend
       setGeneratedFiles(prev => ({
         ...prev,
@@ -317,6 +321,26 @@ const DashboardPage: React.FC = () => {
     }
   };
 
+
+  // ---  Handlers for Language Modal ---
+  const openLangModal = (jobId: string) => {
+    setLangModalJobId(jobId); // Set the job ID we're working with
+    setSelectedLang('en'); // Reset to default language
+    setIsLangModalOpen(true); // Open the modal
+  };
+
+  const closeLangModal = () => {
+    setIsLangModalOpen(false);
+    setLangModalJobId(null);
+  };
+
+  // This function is called when 'Confirm' in the language modal is clicked
+  const confirmGenerateWithLang = () => {
+    if (langModalJobId) {
+      handleGenerateDocs(langModalJobId, selectedLang); // Call the actual handler
+    }
+    closeLangModal(); // Close the modal
+  };
 
   // ---  Scrape Handler ---
   const handleScrapeDescription = async (job: JobApplication) => {
@@ -409,6 +433,14 @@ const DashboardPage: React.FC = () => {
           <button onClick={() => window.location.reload()} className='ml-4 underline text-xs'>Try Reloading</button>
         </div>
         <h1 className="text-3xl font-bold mb-6">Job Application Dashboard</h1>
+        {/* Show disabled inputs/buttons even on error */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div> <button className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded opacity-50 cursor-not-allowed" disabled > Add New Job Manually </button> </div>
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-2 md:space-y-0 md:flex md:gap-2">
+            <input type="url" placeholder="Paste Job URL to auto-create..." required disabled className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md opacity-50 cursor-not-allowed" />
+            <button type="submit" className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded opacity-50 cursor-not-allowed" disabled > Create from URL </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -419,7 +451,7 @@ const DashboardPage: React.FC = () => {
 
   // Main dashboard content
   return (
-    <div className="container mx-auto p-4 relative">
+    <div className="container mx-auto p-4 relative"> {/* Ensure parent is relative for absolute/fixed children positioning */}
       <h1 className="text-3xl font-bold mb-6">Job Application Dashboard</h1>
 
       {/* --- Add Job Section --- */}
@@ -487,7 +519,14 @@ const DashboardPage: React.FC = () => {
                       <div className='flex gap-2 justify-center flex-wrap'>
                         <button onClick={() => handleOpenEditModal(job)} className="text-blue-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={!!deletingId || !!generatingId || !!scrapingId} > Edit </button>
                         <button onClick={() => handleDeleteJob(job._id)} className="text-red-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={deletingId === job._id || !!generatingId || !!scrapingId} > {deletingId === job._id ? 'Deleting...' : 'Delete'} </button>
-                        <button onClick={() => handleGenerateDocs(job._id)} className="text-green-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={!job.jobDescriptionText || !user?.cvJson || !!deletingId || generatingId === job._id || !!scrapingId} title={!job.jobDescriptionText ? "Scrape or add job description first" : !user?.cvJson ? "Upload your base CV first" : "Generate CV & Cover Letter"} > {generatingId === job._id ? 'Generating...' : 'Generate Docs'} </button>
+                        <button
+                          onClick={() => openLangModal(job._id)} // <-- Trigger lang modal open
+                          className="text-green-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1"
+                          disabled={!job.jobDescriptionText || !user?.cvJson || !!deletingId || generatingId === job._id || !!scrapingId}
+                          title={!job.jobDescriptionText ? "Scrape or add job description first" : !user?.cvJson ? "Upload your base CV first" : "Generate CV & Cover Letter"}
+                        >
+                          {generatingId === job._id ? 'Generating...' : 'Generate Docs'}
+                        </button>
                       </div>
                       <div className='mt-1 text-xs w-full text-center'>
                         {generatorError[job._id] && (<p className="text-red-600 bg-red-50 p-1 rounded my-1">Error: {generatorError[job._id]}</p>)}
@@ -508,12 +547,14 @@ const DashboardPage: React.FC = () => {
       )}
 
       {/* --- Reusable Add/Edit Job Modal --- */}
+      {/* This modal renders conditionally based on modalMode state */}
       {modalMode && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 transition-opacity duration-300 ease-in-out">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 sm:mx-0">
             <h2 className="text-2xl font-semibold mb-5 text-gray-800"> {modalMode === 'add' ? 'Add New Job Manually' : 'Edit Job Application'} </h2>
             <form onSubmit={handleFormSubmit}>
               {modalError && <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300">{modalError}</div>}
+              {/* Form fields (Job Title, Company, Status, URL, Description*, Language*, Notes*) */}
               {/* Job Title */}
               <div className="mb-4">
                 <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 mb-1">Job Title <span className="text-red-500">*</span></label>
@@ -559,12 +600,50 @@ const DashboardPage: React.FC = () => {
                 <button type="button" onClick={handleCloseModal} disabled={isSubmitting} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-400"> Cancel </button>
                 <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"> {isSubmitting ? (modalMode === 'add' ? 'Adding...' : 'Updating...') : (modalMode === 'add' ? 'Add Job' : 'Update Job')} </button>
               </div>
+              {/* *** Language Selection Modal was incorrectly placed inside here *** */}
             </form>
           </div>
         </div>
       )}
-    </div>
+
+      {/* --- NEW Language Selection Modal --- */}
+      {/* *** This is now correctly placed at the top level of the component's return *** */}
+      {isLangModalOpen && langModalJobId && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-xs mx-4 sm:mx-0">
+            <h3 className="text-lg font-medium mb-4 text-gray-800">Select Generation Language</h3>
+            <div className="mb-4">
+              <label htmlFor="languageSelect" className="block text-sm font-medium text-gray-700 mb-1">Language:</label>
+              <select
+                id="languageSelect"
+                value={selectedLang}
+                onChange={(e) => setSelectedLang(e.target.value as 'en' | 'de')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                <option value="en">English</option>
+                <option value="de">German</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                type="button"
+                onClick={closeLangModal}
+                className="px-3 py-1 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 text-sm"
+              > Cancel </button>
+              <button
+                type="button"
+                onClick={confirmGenerateWithLang} // Calls the handler with selected lang
+                className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+              > Generate </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div> // End of main container div
   );
 };
 
 export default DashboardPage;
+
+

@@ -11,13 +11,13 @@ interface GenerateResponse {
 }
 
 // Function to trigger document generation for a specific job ID
-export const generateDocuments = async (jobId: string): Promise<GenerateResponse> => {
+export const generateDocuments = async (jobId: string, language: 'en' | 'de'): Promise<GenerateResponse> => {
     try {
         // Auth token is handled by the default axios instance via AuthContext
-        const response = await axios.post<GenerateResponse>(`${API_BASE_URL}/${jobId}`);
+        const response = await axios.post<GenerateResponse>(`${API_BASE_URL}/${jobId}`, { language });
         return response.data;
     } catch (error: any) {
-        console.error(`Error generating documents for job ${jobId}:`, error);
+        console.error(`Error generating documents for job ${jobId} in ${language}:`, error);
         if (axios.isAxiosError(error) && error.response) {
             throw error.response.data; // Throw backend error message
         }
