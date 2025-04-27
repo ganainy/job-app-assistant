@@ -13,6 +13,7 @@ export interface IJobApplication extends Document {
   jobDescriptionText?: string; // Store the scraped text
   // Consider adding fields for generated CV/Cover Letter references later
   // Add user reference later when auth is implemented: userId: mongoose.Schema.Types.ObjectId;
+  language?: string; // Language of the job
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +39,7 @@ const JobApplicationSchema: Schema = new Schema(
     jobUrl: { type: String, trim: true },
     notes: { type: String, trim: true },
     jobDescriptionText: { type: String }, // Text from scraping
+    language: { type: String, trim: true },
     // userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Add later
   },
   {

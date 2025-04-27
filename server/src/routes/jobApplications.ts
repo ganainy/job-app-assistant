@@ -2,6 +2,8 @@
 import express, { Router, Request, Response, RequestHandler } from 'express';
 import JobApplication from '../models/JobApplication';
 import authMiddleware from '../middleware/authMiddleware'; // Import the middleware
+import { scrapeJobDescription } from '../utils/scraper';
+import { extractJobDataFromUrl, ExtractedJobData } from '../utils/aiExtractor';
 
 const router: Router = express.Router();
 
@@ -155,5 +157,121 @@ const deleteJobHandler: RequestHandler = async (req, res) => {
 };
 router.delete('/:id', deleteJobHandler);
 
+
+// ---  Scrape Job Description Endpoint ---
+// PATCH /api/jobs/:id/scrape - Using PATCH as we're partially updating
+const scrapeJobHandler: RequestHandler = async (req, res) => {
+  if (!req.user) {
+    res.status(401).json({ message: 'User not authenticated correctly.' });
+    return;
+  }
+  const { id: jobId } = req.params; // Get jobId from route parameters
+  const userId = req.user._id;
+  let jobUrlToScrape = req.body.url; // Optionally allow passing URL in body
+
+  try {
+    // 1. Find the job application
+    const job = await JobApplication.findOne({ _id: jobId, userId: userId });
+    if (!job) {
+      res.status(404).json({ message: 'Job application not found or access denied.' });
+      return;
+    }
+
+    // 2. Determine URL to scrape (use stored URL if not provided in body)
+    if (!jobUrlToScrape) {
+      jobUrlToScrape = job.jobUrl;
+    }
+    if (!jobUrlToScrape) {
+      res.status(400).json({ message: 'No Job URL found for this application to scrape.' });
+      return;
+    }
+
+    // Optional: Validate if the provided URL matches the stored one if both exist?
+
+    // 3. Call the scraper utility
+    console.log(`Attempting to scrape description for job ${jobId} from URL: ${jobUrlToScrape}`);
+    const extractedText = await scrapeJobDescription(jobUrlToScrape); // This can throw errors
+
+    // 4. Update the job application in the database
+    const updatedJob = await JobApplication.findOneAndUpdate(
+      { _id: jobId, userId: userId },
+      { $set: { jobDescriptionText: extractedText, jobUrl: jobUrlToScrape } }, // Update description AND URL (if passed in body)
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedJob) {
+      // Should not happen if findOne worked, but good safeguard
+      res.status(404).json({ message: 'Job application could not be updated after scraping.' });
+      return;
+    }
+
+    console.log(`Successfully scraped and updated job description for job ${jobId}`);
+    res.status(200).json({
+      message: 'Job description scraped and updated successfully.',
+      job: updatedJob // Send back the updated job object
+    });
+
+  } catch (error: any) {
+    console.error(`Scraping failed for job ${jobId}:`, error);
+    // Send back specific error message from scraper or generic one
+    res.status(500).json({
+      message: 'Failed to scrape job description.',
+      error: error.message || 'Unknown scraping error.'
+    });
+  }
+};
+router.patch('/:id/scrape', scrapeJobHandler);
+
+
+// ---  Create Job From URL Endpoint ---
+// POST /api/jobs/create-from-url
+const createJobFromUrlHandler: RequestHandler = async (req, res) => {
+  if (!req.user) {
+    res.status(401).json({ message: 'User not authenticated.' });
+    return;
+  }
+  const { url } = req.body; // Expect URL in the request body
+  if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+     res.status(400).json({ message: 'Valid URL is required in the request body.' });
+     return;
+  }
+
+  const userId = req.user._id;
+
+  try {
+    console.log(`Attempting to create job from URL for user ${userId}: ${url}`);
+    // 1. Call the AI extractor utility
+    const extractedData: ExtractedJobData = await extractJobDataFromUrl(url);
+
+    // 2. Create a new JobApplication document
+    // Note: We trust the extractor threw an error if essential fields were null
+    const newJob = new JobApplication({
+      userId: userId,
+      jobTitle: extractedData.jobTitle,
+      companyName: extractedData.companyName,
+      jobDescriptionText: extractedData.jobDescriptionText,
+      language: extractedData.language,
+      notes: extractedData.notes || '', // Use extracted notes or empty string
+      jobUrl: url, // Save the original URL
+      status: 'Not Applied', // Default status
+    });
+
+    // 3. Save the document
+    const savedJob = await newJob.save();
+    console.log(`Successfully created job ${savedJob._id} from URL ${url}`);
+
+    // 4. Return the created job
+    res.status(201).json(savedJob);
+
+  } catch (error: any) {
+    console.error(`Failed to create job from URL ${url}:`, error);
+    // Provide more specific feedback based on the error thrown by the extractor
+    res.status(500).json({
+      message: 'Failed to create job from URL.',
+      error: error.message || 'Unknown server error during URL processing.'
+    });
+  }
+};
+router.post('/create-from-url', createJobFromUrlHandler); // Add the new route
 
 export default router; // Export the configured router

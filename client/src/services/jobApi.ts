@@ -26,10 +26,17 @@ export interface JobApplication {
   jobUrl?: string;
   notes?: string;
   jobDescriptionText?: string;
+  language?: string;
   createdAt: string; // Dates are often strings in JSON
   updatedAt: string; // Dates are often strings in JSON
   // userId?: string; // Add later
 }
+
+interface ScrapeResponse {
+    message: string;
+    job: JobApplication; // Return the updated job
+}
+
 
 // --- API Functions ---
 
@@ -98,5 +105,37 @@ export const getJobById = async (id: string): Promise<JobApplication> => {
     } catch (error) {
         console.error(`Error fetching job ${id}:`, error);
         throw error;
+    }
+};
+
+// ---  Scrape Function ---
+export const scrapeJobDescriptionApi = async (jobId: string, url?: string): Promise<ScrapeResponse> => {
+    try {
+        // Auth header should be included by default axios instance
+        const payload = url ? { url } : {}; // Send URL in body if provided
+        const response = await axios.patch<ScrapeResponse>(`${API_BASE_URL}/jobs/${jobId}/scrape`, payload);
+        return response.data;
+    } catch (error: any) {
+        console.error(`Error scraping description for job ${jobId}:`, error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data;
+        }
+        throw { message: 'An unknown error occurred during scraping.' };
+    }
+};
+
+
+// ---  Create Job From URL Function ---
+export const createJobFromUrlApi = async (url: string): Promise<JobApplication> => {
+    try {
+        // Auth header automatically included
+        const response = await axios.post<JobApplication>(`${API_BASE_URL}/jobs/create-from-url`, { url });
+        return response.data;
+    } catch (error: any) {
+        console.error(`Error creating job from URL ${url}:`, error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data;
+        }
+        throw { message: 'An unknown error occurred while creating job from URL.' };
     }
 };

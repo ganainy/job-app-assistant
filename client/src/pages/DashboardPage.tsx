@@ -6,7 +6,8 @@ import {
   deleteJob,
   updateJob,
   JobApplication,
-  CreateJobPayload
+  CreateJobPayload,
+  scrapeJobDescriptionApi
 } from '../services/jobApi';
 // Import generator service functions
 import {
@@ -15,6 +16,7 @@ import {
 } from '../services/generatorApi';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { createJobFromUrlApi } from '../services/jobApi';
 
 // Define type for the form data used in the Add/Edit modal
 type JobFormData = Partial<Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt'>>;
@@ -23,7 +25,7 @@ const DashboardPage: React.FC = () => {
   const { user } = useAuth();
 
 
-  // --- New Download Handler ---
+  // ---  Download Handler ---
   const handleDownloadFile = async (filename: string) => {
     if (!filename) return;
     console.log(`Attempting to download: ${filename}`);
@@ -85,6 +87,15 @@ const DashboardPage: React.FC = () => {
   const [generatingId, setGeneratingId] = useState<string | null>(null); // ID of job currently generating documents
   const [generatedFiles, setGeneratedFiles] = useState<{ [jobId: string]: { cv: string, cl: string } }>({}); // Stores filenames of generated PDFs per job ID
   const [generatorError, setGeneratorError] = useState<{ [jobId: string]: string | null }>({}); // Stores generation errors per job ID
+
+  // ---  Scraper State ---
+  const [scrapingId, setScrapingId] = useState<string | null>(null);
+  const [scrapeError, setScrapeError] = useState<{ [jobId: string]: string | null }>({});
+
+  // ---  State for Create Job from URL ---
+  const [urlInput, setUrlInput] = useState<string>('');
+  const [isCreatingFromUrl, setIsCreatingFromUrl] = useState<boolean>(false);
+  const [createFromUrlError, setCreateFromUrlError] = useState<string | null>(null);
 
   // --- useEffect: Fetch initial job data on component mount ---
   useEffect(() => {
@@ -225,6 +236,62 @@ const DashboardPage: React.FC = () => {
     }
   };
 
+
+  // --- NEW Scrape Handler ---
+  const handleScrapeDescription = async (job: JobApplication) => {
+    if (!job.jobUrl) {
+      console.warn("No URL to scrape for job:", job._id);
+      // Maybe set a specific error?
+      setScrapeError(prev => ({ ...prev, [job._id]: "No URL available for scraping." }));
+      return;
+    }
+    setScrapingId(job._id);
+    setScrapeError(prev => ({ ...prev, [job._id]: null })); // Clear previous error
+    setError(null); // Clear general error
+
+    try {
+      // Pass the job's URL to the API service function
+      const response = await scrapeJobDescriptionApi(job._id, job.jobUrl);
+      // Update the specific job in the state with the new description
+      setJobs(prevJobs => prevJobs.map(j =>
+        j._id === job._id ? response.job : j // Replace with the updated job from response
+      ));
+      // Optionally show success feedback
+      console.log("Scraping successful for job:", job._id);
+
+    } catch (err: any) {
+      console.error(`Failed to scrape description for job ${job._id}:`, err);
+      setScrapeError(prev => ({ ...prev, [job._id]: err.message || 'Scraping failed.' }));
+    } finally {
+      setScrapingId(null);
+    }
+  };
+
+
+  // --- NEW Handler for Create from URL ---
+  const handleCreateFromUrlSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!urlInput || !urlInput.startsWith('http')) {
+      setCreateFromUrlError('Please enter a valid job URL.');
+      return;
+    }
+    setIsCreatingFromUrl(true);
+    setCreateFromUrlError(null);
+    setError(null); // Clear general errors
+
+    try {
+      const newJob = await createJobFromUrlApi(urlInput);
+      setJobs(prevJobs => [newJob, ...prevJobs]); // Prepend the new job
+      setUrlInput(''); // Clear the input field on success
+      // Show success feedback? (e.g., toast)
+    } catch (err: any) {
+      console.error("Failed to create job from URL:", err);
+      setCreateFromUrlError(err.message || 'Failed to process URL.');
+    } finally {
+      setIsCreatingFromUrl(false);
+    }
+  };
+
   // --- Render Logic ---
 
   // Display loading indicator during initial data fetch
@@ -241,6 +308,16 @@ const DashboardPage: React.FC = () => {
           <span className="font-medium">Error:</span> {error}
         </div>
         <h1 className="text-3xl font-bold mb-6">Job Application Dashboard</h1>
+        {/* Still show Add Job options even if fetch failed? Maybe */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div>
+            <button onClick={handleOpenAddModal} className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50" disabled={true} > Add New Job Manually </button>
+          </div>
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-2 md:space-y-0 md:flex md:gap-2">
+            <input type="url" placeholder="Paste Job URL to auto-create..." required disabled className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent" />
+            <button type="submit" className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled={true} > Create from URL </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -250,18 +327,44 @@ const DashboardPage: React.FC = () => {
     <div className="container mx-auto p-4 relative">
       <h1 className="text-3xl font-bold mb-6">Job Application Dashboard</h1>
 
-      {/* Add New Job Button */}
-      <button
-        onClick={handleOpenAddModal}
-        className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-        disabled={isLoading || isSubmitting}
-      >
-        Add New Job
-      </button>
+      {/* --- Add Job Section --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Manual Add Button */}
+        <div>
+          <button
+            onClick={handleOpenAddModal}
+            className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            disabled={isLoading || isSubmitting || isCreatingFromUrl} // Disable during relevant loadings
+          > Add New Job Manually </button>
+        </div>
 
-      {/* Table or message if no jobs */}
+        {/* Create from URL Form */}
+        <form onSubmit={handleCreateFromUrlSubmit} className="space-y-2 md:space-y-0 md:flex md:gap-2">
+          <input
+            type="url"
+            value={urlInput}
+            onChange={(e) => { setUrlInput(e.target.value); setCreateFromUrlError(null); }} // Update state and clear error on change
+            placeholder="Paste Job URL to auto-create..."
+            required
+            className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            disabled={isCreatingFromUrl} // Disable input while processing
+          />
+          <button
+            type="submit"
+            className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isCreatingFromUrl || !urlInput} // Disable if processing or no input
+          >
+            {isCreatingFromUrl ? 'Processing URL...' : 'Create from URL'}
+          </button>
+        </form>
+      </div>
+      {/* Display Create from URL Error */}
+      {createFromUrlError && <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300">{createFromUrlError}</div>}
+
+
+      {/* Job list table or message if no jobs */}
       {jobs.length === 0 && !isLoading ? (
-        <p>No job applications found. Click "Add New Job" to get started.</p>
+        <p>No job applications found. Add one manually or paste a URL above.</p>
       ) : (
         <div className="overflow-x-auto shadow-md sm:rounded-lg">
           <table className="min-w-full bg-white border border-gray-200 text-sm">
@@ -271,12 +374,15 @@ const DashboardPage: React.FC = () => {
                 <th className="py-3 px-4 border-b border-gray-200 text-left">Company</th>
                 <th className="py-3 px-4 border-b border-gray-200 text-left">Status</th>
                 <th className="py-3 px-4 border-b border-gray-200 text-left">Date Added</th>
+                <th className="py-3 px-4 border-b border-gray-200 text-left">Language</th> {/* Added Language Header */}
+                <th className="py-3 px-4 border-b border-gray-200 text-left">Description Status</th>
                 <th className="py-3 px-4 border-b border-gray-200 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="text-gray-700">
               {jobs.map((job) => (
                 <tr key={job._id} className="border-b border-gray-200 hover:bg-gray-50">
+                  {/* Job Title, Company, Status, Date Added */}
                   <td className="py-3 px-4">{job.jobTitle}</td>
                   <td className="py-3 px-4">{job.companyName}</td>
                   <td className="py-3 px-4">
@@ -285,51 +391,59 @@ const DashboardPage: React.FC = () => {
                   <td className="py-3 px-4">
                     {new Date(job.createdAt).toLocaleDateString()}
                   </td>
+                  {/* Language Cell */}
+                  <td className="py-3 px-4">
+                    {job.language ? (
+                      <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 font-medium uppercase">{job.language}</span>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">-</span>
+                    )}
+                  </td>
+                  {/* Description Status / Scrape Button */}
+                  <td className="py-3 px-4 text-left align-top">
+                    {/* Show "OK" if description exists */}
+                    {job.jobDescriptionText && job.jobDescriptionText.length > 10 ? (
+                      <span
+                        className="text-xs text-green-600 bg-green-50 p-1 rounded inline-block"
+                        title={job.jobDescriptionText.substring(0, 150) + '...'} // Show preview on hover
+                      > Description OK </span>
+                      // Show "Scrape" button if URL exists but description doesn't
+                    ) : job.jobUrl ? (
+                      <button
+                        onClick={() => handleScrapeDescription(job)} // Still keep manual scrape? Maybe remove if create-from-url works well
+                        className="text-purple-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={scrapingId === job._id || !!deletingId || !!generatingId}
+                        title={`Re-Scrape from: ${job.jobUrl}`}
+                      > {scrapingId === job._id ? 'Scraping...' : 'Re-Scrape'} </button> // Renamed button?
+                      // Show "No URL" otherwise
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">No URL/Desc</span>
+                    )}
+                    {/* Display scrape error for this row */}
+                    {scrapeError[job._id] && (
+                      <p className="text-red-600 text-xs mt-1">Error: {scrapeError[job._id]}</p>
+                    )}
+                  </td>
+
+                  {/* Actions Column */}
                   <td className="py-3 px-4 text-center align-top">
-                    {/* Container for Actions & Links */}
-                    <div className="flex flex-col items-center gap-2">
+                    <div className="flex flex-col items-center gap-2"> {/* Vertical layout */}
                       {/* Row for Action Buttons */}
-                      <div className='flex gap-2 justify-center flex-wrap'> {/* Added flex-wrap */}
-                        <button
-                          onClick={() => handleOpenEditModal(job)}
-                          className="text-blue-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" // Added padding
-                          disabled={deletingId === job._id || generatingId === job._id}
-                        > Edit </button>
-                        <button
-                          onClick={() => handleDeleteJob(job._id)}
-                          className="text-red-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" // Added padding
-                          disabled={deletingId === job._id || generatingId === job._id}
-                        > {deletingId === job._id ? 'Deleting...' : 'Delete'} </button>
-                        <button
-                          onClick={() => handleGenerateDocs(job._id)}
-                          className="text-green-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" // Added padding
-                          disabled={!job.jobDescriptionText || !user?.cvJson || deletingId === job._id || generatingId === job._id} // Also disable if user has no CV
-                          title={!job.jobDescriptionText ? "Add job description text first" : !user?.cvJson ? "Upload your base CV first" : "Generate CV & Cover Letter"}
-                        > {generatingId === job._id ? 'Generating...' : 'Generate Docs'} </button>
+                      <div className='flex gap-2 justify-center flex-wrap'>
+                        <button onClick={() => handleOpenEditModal(job)} className="text-blue-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={!!deletingId || !!generatingId || !!scrapingId} > Edit </button>
+                        <button onClick={() => handleDeleteJob(job._id)} className="text-red-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={deletingId === job._id || !!generatingId || !!scrapingId} > {deletingId === job._id ? 'Deleting...' : 'Delete'} </button>
+                        <button onClick={() => handleGenerateDocs(job._id)} className="text-green-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={!job.jobDescriptionText || !user?.cvJson || !!deletingId || generatingId === job._id || !!scrapingId} title={!job.jobDescriptionText ? "Scrape or add job description first" : !user?.cvJson ? "Upload your base CV first" : "Generate CV & Cover Letter"} > {generatingId === job._id ? 'Generating...' : 'Generate Docs'} </button>
                       </div>
 
-                      {/* Area for displaying errors or download links for this job row */}
+                      {/* Area for displaying generator errors or download links */}
                       <div className='mt-1 text-xs w-full text-center'>
                         {/* Display generation error if exists */}
-                        {generatorError[job._id] && (
-                          <p className="text-red-600 bg-red-50 p-1 rounded my-1">Error: {generatorError[job._id]}</p>
-                        )}
+                        {generatorError[job._id] && (<p className="text-red-600 bg-red-50 p-1 rounded my-1">Error: {generatorError[job._id]}</p>)}
                         {/* Display download links if files were generated successfully */}
                         {generatedFiles[job._id] && !generatorError[job._id] && (
                           <div className="flex flex-col items-center gap-1 text-blue-700 mt-1">
-                            {/* CHANGE Links to Buttons that call the handler */}
-                            <button
-                              onClick={() => handleDownloadFile(generatedFiles[job._id].cv)}
-                              className="hover:underline text-blue-700 text-xs font-medium"
-                            >
-                              Download CV
-                            </button>
-                            <button
-                              onClick={() => handleDownloadFile(generatedFiles[job._id].cl)}
-                              className="hover:underline text-blue-700 text-xs font-medium"
-                            >
-                              Download Cover Letter
-                            </button>
+                            <button onClick={() => handleDownloadFile(generatedFiles[job._id].cv)} className="hover:underline text-blue-700 text-xs font-medium" > Download CV </button>
+                            <button onClick={() => handleDownloadFile(generatedFiles[job._id].cl)} className="hover:underline text-blue-700 text-xs font-medium" > Download Cover Letter </button>
                           </div>
                         )}
                       </div>
@@ -349,7 +463,7 @@ const DashboardPage: React.FC = () => {
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 sm:mx-0">
             {/* Dynamic Title */}
             <h2 className="text-2xl font-semibold mb-5 text-gray-800">
-              {modalMode === 'add' ? 'Add New Job Application' : 'Edit Job Application'}
+              {modalMode === 'add' ? 'Add New Job Manually' : 'Edit Job Application'}
             </h2>
             {/* Form uses unified submit handler */}
             <form onSubmit={handleFormSubmit}>
@@ -383,16 +497,23 @@ const DashboardPage: React.FC = () => {
               <div className="mb-4">
                 <label htmlFor="jobUrl" className="block text-sm font-medium text-gray-700 mb-1">Job URL</label>
                 <input type="url" id="jobUrl" name="jobUrl" value={formData.jobUrl || ''} onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="https://..." />
               </div>
-              {/* Optionally add jobDescriptionText to the EDIT modal */}
+              {/* Allow editing description/language/notes in Edit mode */}
               {modalMode === 'edit' && (
-                <div className="mb-4">
-                  <label htmlFor="jobDescriptionText" className="block text-sm font-medium text-gray-700 mb-1">Job Description</label>
-                  <textarea id="jobDescriptionText" name="jobDescriptionText" rows={5} value={formData.jobDescriptionText || ''} onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Paste job description here if needed..." />
-                </div>
+                <>
+                  <div className="mb-4">
+                    <label htmlFor="language" className="block text-sm font-medium text-gray-700 mb-1">Language (e.g., en, de)</label>
+                    <input type="text" id="language" name="language" value={formData.language || ''} onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" maxLength={5} />
+                  </div>
+                  <div className="mb-4">
+                    <label htmlFor="jobDescriptionText" className="block text-sm font-medium text-gray-700 mb-1">Job Description</label>
+                    <textarea id="jobDescriptionText" name="jobDescriptionText" rows={5} value={formData.jobDescriptionText || ''} onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Scraped or manually pasted job description..." />
+                  </div>
+                </>
               )}
               <div className="mb-4">
                 <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
