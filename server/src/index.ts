@@ -8,7 +8,7 @@ dotenv.config();
 // Import routes
 import jobApplicationRoutes from './routes/jobApplications'; 
 import authRoutes from './routes/auth'; 
-
+import cvRoutes from './routes/cv'; 
 
 const app: Express = express();
 const port = process.env.PORT || 5001;
@@ -20,6 +20,7 @@ app.use(express.json()); // Important: must come before routes to parse body
 // --- Mount Routes ---
 app.use('/api/jobs', jobApplicationRoutes); // <-- Mount the job routes under /api/jobs
 app.use('/api/auth', authRoutes); // <-- Mount the auth routes under /api/auth
+app.use('/api/cv', cvRoutes);  // <-- Mount CV routes
 
 // Basic root route (optional)
 app.get('/', (req: Request, res: Response) => {

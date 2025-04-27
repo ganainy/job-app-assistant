@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 export interface IUser extends Document {
   email: string;
   passwordHash: string; // Store hash, not the plain password
+  cvJson?: mongoose.Schema.Types.Mixed;
   // Add other fields like name later if needed
   comparePassword(candidatePassword: string): Promise<boolean>; // Method to compare passwords
 }
@@ -22,6 +23,10 @@ const UserSchema: Schema = new Schema(
     passwordHash: {
       type: String,
       required: true,
+    },
+    cvJson: {
+        type: Schema.Types.Mixed,
+        required: false // Not required on registration
     },
     // Add 'name: { type: String }' etc. if desired
   },

@@ -1,16 +1,21 @@
 // client/src/App.tsx
-import { Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom'; // Import useNavigate and Navigate here
+import React from 'react'; // Import React
+import { Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom'; // Ensure all necessary imports from react-router-dom
 import { useAuth } from './context/AuthContext';
 
 // Import Pages
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import ProtectedRoute from './components/ProtectedRoute'; 
+import CVManagementPage from './pages/CVManagementPage'; // Ensure CVManagementPage is imported
+import ProtectedRoute from './components/ProtectedRoute';
+
+// Example: Placeholder for ProfilePage if you were to use the commented route
+// import ProfilePage from './pages/ProfilePage';
 
 function App() {
   const { isAuthenticated, user, logout } = useAuth();
-  const navigate = useNavigate(); // Now this should work
+  const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
@@ -18,19 +23,23 @@ function App() {
   };
 
  return (
-    // Use a container that doesn't center everything for non-auth pages
-    // Apply different layouts if needed based on auth state or route
+    // Main container div
     <div>
-      {/* Basic Navigation */}
+      {/* Navigation Bar */}
       <nav className="bg-gray-800 text-white p-4 shadow-md">
         <div className="container mx-auto flex justify-between items-center">
+          {/* Logo/Brand Link */}
           <Link to={isAuthenticated ? "/dashboard" : "/"} className="text-xl font-bold hover:text-gray-300">
              Job App Assistant
           </Link>
+          {/* Auth Links / User Info */}
           <div>
             {isAuthenticated ? (
+              // Links shown when logged in
               <>
-                <span className="mr-4">Welcome, {user?.email}</span>
+                <Link to="/dashboard" className="hover:text-gray-300 mr-4 text-sm sm:text-base">Dashboard</Link>
+                <Link to="/manage-cv" className="hover:text-gray-300 mr-4 text-sm sm:text-base">Manage CV</Link>
+                <span className="mr-4 text-sm hidden sm:inline">Welcome, {user?.email}</span> {/* Hide email on small screens if needed */}
                 <button
                   onClick={handleLogout}
                   className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
@@ -39,6 +48,7 @@ function App() {
                 </button>
               </>
             ) : (
+              // Links shown when logged out
               <>
                 <Link to="/login" className="hover:text-gray-300 mr-4">Login</Link>
                 <Link to="/register" className="hover:text-gray-300">Register</Link>
@@ -48,17 +58,15 @@ function App() {
         </div>
       </nav>
 
-      {/* Main content area */}
-      <main className="mt-4"> {/* Add some margin */}
+      {/* Main Content Area */}
+      <main className="mt-4"> {/* Add some margin for content below nav */}
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* If logged in, "/" redirects to dashboard, otherwise shows landing/login */}
-          {/* You might want a dedicated Landing Page component later */}
-           <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} /> {/* Also ensure Navigate is imported */}
-
+          {/* Root Path Logic: Redirect to dashboard if logged in, else show Login */}
+          <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
 
           {/* Protected Routes */}
           <Route
@@ -69,21 +77,35 @@ function App() {
               </ProtectedRoute>
             }
           />
-          {/* Add other protected routes here later */}
-          {/* Example:
-           <Route
-            path="/profile"
+          <Route
+            path="/manage-cv"
             element={
               <ProtectedRoute>
-                <ProfilePage />
+                <CVManagementPage />
               </ProtectedRoute>
             }
-          /> */}
+          />
+          {/* --- End of actual Routes --- */}
 
           {/* Optional: Catch-all route for 404 Not Found */}
           <Route path="*" element={<div className="text-center p-10">404 - Page Not Found</div>} />
 
         </Routes>
+
+        {/* You can keep commented-out examples outside the <Routes> block for reference */}
+        {/*
+          // Example of another protected route:
+          <Routes> // This would actually need to be inside the main <Routes> above
+           <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage /> // Assuming ProfilePage component exists and is imported
+              </ProtectedRoute>
+            }
+           />
+          </Routes>
+        */}
       </main>
     </div>
   );
