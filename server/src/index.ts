@@ -2,13 +2,14 @@ import express, { Express, Request, Response } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import mongoose from 'mongoose';
+import { closeBrowser } from './utils/pdfGenerator';
 
 dotenv.config();
 
 // Import routes
-import jobApplicationRoutes from './routes/jobApplications'; 
-import authRoutes from './routes/auth'; 
-import cvRoutes from './routes/cv'; 
+import jobApplicationRoutes from './routes/jobApplications';
+import authRoutes from './routes/auth';
+import cvRoutes from './routes/cv';
 import generatorRoutes from './routes/generator';
 
 
@@ -40,12 +41,40 @@ if (!mongoUri) {
 
 mongoose.connect(mongoUri)
   .then(() => {
-     console.log('MongoDB Connected Successfully');
-     // Start listening only after successful DB connection
-     app.listen(port, () => {
-       console.log(`[server]: Server is running at http://localhost:${port}`);
-     });
-  })
+    console.log('MongoDB Connected Successfully');
+    // Start listening only after successful DB connection
+    app.listen(port, () => {
+      const server = app.listen(port, () => { // Store server instance
+        console.log(`[server]: Server is running at http://localhost:${port}`);
+      });
+
+    // --- Graceful Shutdown ---
+    const shutdown = async (signal: string) => {
+      console.log(`\n${signal} signal received. Shutting down gracefully...`);
+      await closeBrowser(); // Close Puppeteer browser
+      server.close(() => { // Close HTTP server
+        console.log('HTTP server closed.');
+        mongoose.connection.close(false).then(() => { // Close DB connection
+          console.log('MongoDB connection closed.');
+          process.exit(0); // Exit process
+        }).catch(err => {
+          console.error("Error closing MongoDB connection:", err);
+          process.exit(1);
+        });
+      });
+      // Force shutdown if graceful fails after timeout
+      setTimeout(() => {
+        console.error('Could not close connections in time, forcing shutdown.');
+        process.exit(1);
+      }, 10000); // 10 seconds timeout
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT')); // Catches Ctrl+C
+
+
+  });
+})
   .catch(err => {
     console.error('MongoDB Connection Error:', err);
     process.exit(1); // Exit if DB connection fails on startup

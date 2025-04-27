@@ -102,7 +102,8 @@ router.post('/login', async (req: Request, res: Response) => {
             token: token,
             user: { // Send back some user info (excluding password hash!)
                 id: user._id,
-                email: user.email
+                email: user.email,
+                cvJson: user.cvJson || null
             }
         });
 

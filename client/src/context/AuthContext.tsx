@@ -7,6 +7,7 @@ import axios from 'axios'; // Import axios to set default header
 interface User {
   id: string;
   email: string;
+  cvJson?: any;
 }
 
 // Define the shape of the context value
