@@ -8,6 +8,7 @@ interface User {
   id: string;
   email: string;
   cvJson?: any;
+  preferredTheme?: string; // Add this line
 }
 
 // Define the shape of the context value

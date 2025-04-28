@@ -1,11 +1,13 @@
 // server/src/models/User.ts
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { JsonResumeSchema } from '../types/jsonresume'; 
 
 export interface IUser extends Document {
   email: string;
   passwordHash: string; // Store hash, not the plain password
-  cvJson?: mongoose.Schema.Types.Mixed;
+  cvJson?: JsonResumeSchema | mongoose.Schema.Types.Mixed; 
+  preferredTheme ?: string; // New field for theme preference
   // Add other fields like name later if needed
   comparePassword(candidatePassword: string): Promise<boolean>; // Method to compare passwords
 }
@@ -28,7 +30,13 @@ const UserSchema: Schema = new Schema(
         type: Schema.Types.Mixed,
         required: false // Not required on registration
     },
-    // Add 'name: { type: String }' etc. if desired
+    // --- Add preferredTheme field ---
+    preferredTheme: {
+        type: String,
+        required: false,
+        trim: true,
+        default: 'class' // Set a default theme ID 
+    }
   },
   {
     timestamps: true, // Adds createdAt and updatedAt

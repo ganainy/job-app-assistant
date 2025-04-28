@@ -3,25 +3,68 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5001/api/generator'; // Generator specific endpoint
 
-// Expected response from the POST /api/generator/:jobId endpoint
-interface GenerateResponse {
+// Response from initial generation or finalization (success case)
+interface GenerateSuccessResponse {
+    status: "success"; // Added status
     message: string;
     cvFilename: string;
     coverLetterFilename: string;
 }
 
-// Function to trigger document generation for a specific job ID
-export const generateDocuments = async (jobId: string, language: 'en' | 'de'): Promise<GenerateResponse> => {
+
+
+// Response when input is pending
+interface GeneratePendingResponse {
+     status: "pending_input";
+     message: string;
+     requiredInputs: string[];
+     intermediateData: {
+         tailoredCvJson: any; // Consider using JsonResumeSchema type if imported/shared
+         coverLetterTemplate: string;
+         language: 'en' | 'de';
+         theme: string;
+         jobId: string;
+         userId: string;
+         cvFilenamePrefix: string;
+         clFilenamePrefix: string;
+     };
+}
+
+// Union type for the response from the initial POST /:jobId endpoint
+type GenerateInitialResponse = GenerateSuccessResponse | GeneratePendingResponse;
+
+// --- Function to trigger initial document generation ---
+export const generateDocuments = async (jobId: string, language: 'en' | 'de', theme: string): Promise<GenerateInitialResponse> => { // Return union type
     try {
-        // Auth token is handled by the default axios instance via AuthContext
-        const response = await axios.post<GenerateResponse>(`${API_BASE_URL}/${jobId}`, { language });
+        const response = await axios.post<GenerateInitialResponse>(`${API_BASE_URL}/${jobId}`, { language, theme });
         return response.data;
     } catch (error: any) {
         console.error(`Error generating documents for job ${jobId} in ${language}:`, error);
         if (axios.isAxiosError(error) && error.response) {
-            throw error.response.data; // Throw backend error message
+            throw error.response.data;
         }
         throw { message: 'An unknown error occurred during document generation.' };
+    }
+};
+
+// ---  Function to finalize generation with user input ---
+export const finalizeGeneration = async (
+    intermediateData: GeneratePendingResponse['intermediateData'], // Use type from pending response
+    userInputData: { [key: string]: string }
+): Promise<GenerateSuccessResponse> => { // Expect success response on finalize
+    try {
+         // Send intermediate data AND user input to the finalize endpoint
+         const response = await axios.post<GenerateSuccessResponse>(`${API_BASE_URL}/finalize`, {
+             intermediateData,
+             userInputData
+         });
+         return response.data;
+    } catch (error: any) {
+        console.error(`Error finalizing generation for job ${intermediateData?.jobId}:`, error);
+         if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data;
+        }
+        throw { message: 'An unknown error occurred during document finalization.' };
     }
 };
 

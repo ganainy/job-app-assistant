@@ -1,5 +1,5 @@
 // client/src/pages/DashboardPage.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import {
   getJobs,
   createJob,
@@ -12,11 +12,13 @@ import {
 // Import generator service functions
 import {
   generateDocuments,
-  getDownloadUrl
+  getDownloadUrl,
+  finalizeGeneration
 } from '../services/generatorApi';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { createJobFromUrlApi } from '../services/jobApi';
+import UserInputModal from '../components/UserInputModal';
 
 // Define type for the form data used in the Add/Edit modal
 type JobFormData = Partial<Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt'>>;
@@ -111,6 +113,13 @@ const DashboardPage: React.FC = () => {
   const [isLangModalOpen, setIsLangModalOpen] = useState<boolean>(false);
   const [langModalJobId, setLangModalJobId] = useState<string | null>(null); // Job ID for which modal is open
   const [selectedLang, setSelectedLang] = useState<'en' | 'de'>('en'); // Default language
+
+
+  // ---  State for Placeholder Handling ---
+  const [isUserInputModalOpen, setIsUserInputModalOpen] = useState<boolean>(false);
+  const [requiredInputs, setRequiredInputs] = useState<string[]>([]);
+  const [intermediateGenData, setIntermediateGenData] = useState<any | null>(null); // Store intermediate data
+  const [isFinalizing, setIsFinalizing] = useState<boolean>(false); // Loading state for finalize step
 
   // --- useEffect: Fetch initial job data (keep as is) ---
   useEffect(() => {
@@ -284,42 +293,43 @@ const DashboardPage: React.FC = () => {
 
   // --- Generator Event Handler ---
 
-  // Handles triggering the document generation process
-  const handleGenerateDocs = async (jobId: string, language: 'en' | 'de') => {
-    setGeneratingId(jobId); // Set loading state for this specific job row
-    setGeneratorError(prev => ({ ...prev, [jobId]: null })); // Clear previous errors for this job
-    setGeneratedFiles(prev => { // Clear previous generated file links for this job
-      const newState = { ...prev };
-      delete newState[jobId];
-      return newState;
-    });
-    setError(null); // Clear general page errors
+   // --- NEW Handler for Finalizing Generation after User Input ---
+   const handleFinalizeGeneration = async (userInputData: { [key: string]: string }) => {
+    if (!intermediateGenData) {
+        console.error("Cannot finalize: intermediate generation data is missing.");
+        // Maybe show an error to the user
+        setModalError("Something went wrong, intermediate data missing. Please try generating again."); // Use modalError or a specific one
+        setIsUserInputModalOpen(false); // Close the input modal
+        return;
+    }
+
+    const jobIdToFinalize = intermediateGenData.jobId; // Get jobId from stored data
+    setIsFinalizing(true); // Set loading state for this step
+    setGeneratorError(prev => ({ ...prev, [jobIdToFinalize]: null })); // Clear previous errors
 
     try {
-      const response = await generateDocuments(jobId, language); // Call the generator API with language parameter
-      // Store the filenames returned by the backend
-      setGeneratedFiles(prev => ({
-        ...prev,
-        [jobId]: {
-          cv: response.cvFilename,
-          cl: response.coverLetterFilename
-        }
-      }));
-      console.log(`Docs generated for ${jobId}:`, response);
-      // Optionally show a success toast notification here
+        const response = await finalizeGeneration(intermediateGenData, userInputData);
+
+        // Handle success (should always be 'success' status from finalize endpoint)
+         setGeneratedFiles(prev => ({
+            ...prev,
+            [jobIdToFinalize]: { cv: response.cvFilename, cl: response.coverLetterFilename }
+        }));
+        console.log(`Docs finalized for ${jobIdToFinalize}:`, response);
+        setIsUserInputModalOpen(false); // Close input modal
+        setIntermediateGenData(null); // Clear intermediate data
+        setRequiredInputs([]);
+
     } catch (err: any) {
-      console.error(`Failed to generate documents for job ${jobId}:`, err);
-      // Set error specific to this job row
-      setGeneratorError(prev => ({
-        ...prev,
-        [jobId]: err.message || 'Document generation failed.'
-      }));
-      // Optionally set the general page error as well
-      // setError(`Failed to generate documents for job ${jobId}.`);
+        console.error(`Failed to finalize documents for job ${jobIdToFinalize}:`, err);
+        // Set error specific to the user input modal or the job row?
+         setGeneratorError(prev => ({ ...prev, [jobIdToFinalize]: err.message || 'Finalization failed.' }));
+        // Keep the input modal open on error? Or close it? Let's close it.
+         setIsUserInputModalOpen(false);
     } finally {
-      setGeneratingId(null); // Clear loading state for this job row
+        setIsFinalizing(false); // Clear loading state
     }
-  };
+ };
 
 
   // ---  Handlers for Language Modal ---
@@ -335,12 +345,49 @@ const DashboardPage: React.FC = () => {
   };
 
   // This function is called when 'Confirm' in the language modal is clicked
-  const confirmGenerateWithLang = () => {
-    if (langModalJobId) {
-      handleGenerateDocs(langModalJobId, selectedLang); // Call the actual handler
+  const confirmGenerateWithLang = async () => { // Make async if not already
+    if (!langModalJobId) return;
+
+    const jobIdToGenerate = langModalJobId; // Store locally before closing modal resets state
+    const languageToUse = selectedLang;
+    const themeToUse = user?.preferredTheme || 'class'; // Fetch user's preferred theme or default (needs theme selection UI later)
+
+    closeLangModal(); // Close language modal first
+
+    setGeneratingId(jobIdToGenerate);
+    setGeneratorError(prev => ({ ...prev, [jobIdToGenerate]: null }));
+    setGeneratedFiles(prev => { const newState = {...prev}; delete newState[jobIdToGenerate]; return newState; });
+    setError(null);
+
+    try {
+        // Pass theme along with language
+        const response = await generateDocuments(jobIdToGenerate, languageToUse, themeToUse);
+
+        // --- Check response status ---
+        if (response.status === "success") {
+            setGeneratedFiles(prev => ({
+                ...prev,
+                [jobIdToGenerate]: { cv: response.cvFilename, cl: response.coverLetterFilename }
+            }));
+            console.log(`Docs generated for ${jobIdToGenerate} in ${languageToUse}:`, response);
+        } else if (response.status === "pending_input") {
+            console.log("Pending user input:", response.requiredInputs);
+            setIntermediateGenData(response.intermediateData); // Store intermediate data
+            setRequiredInputs(response.requiredInputs);       // Store required fields
+            setIsUserInputModalOpen(true);                      // Open the user input modal
+            // Keep generatingId set to show some indicator? Or clear it? Let's clear it for now.
+            // setGeneratingId(null); // Decide on UX
+        }
+
+    } catch (err: any) {
+        console.error(`Failed to generate documents for job ${jobIdToGenerate} in ${languageToUse}:`, err);
+        setGeneratorError(prev => ({ ...prev, [jobIdToGenerate]: err.message || 'Generation failed.' }));
+    } finally {
+         // Reset generatingId ONLY if NOT pending input, otherwise UserInputModal needs it?
+         // Let's always reset it here, UserInputModal will have its own 'isFinalizing' state
+        setGeneratingId(null);
     }
-    closeLangModal(); // Close the modal
-  };
+};
 
   // ---  Scrape Handler ---
   const handleScrapeDescription = async (job: JobApplication) => {
@@ -418,31 +465,33 @@ const DashboardPage: React.FC = () => {
 
   // --- Render Logic ---
 
-  // Display loading indicator during initial data fetch
-  if (isLoading) {
-    return <div className="text-center p-10">Loading jobs...</div>;
+ // --- Render Logic ---
+
+    // Display loading indicator during initial data fetch
+    if (isLoading) {
+      return <div className="text-center p-10">Loading jobs...</div>;
   }
 
   // Display general error message (e.g., initial load failed)
   if (error && !isLoading) { // Show error only if not loading
-    return (
-      <div className="container mx-auto p-4 relative">
-        <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg border border-red-300" role="alert">
-          <span className="font-medium">Error:</span> {error}
-          {/* Button to try fetching again */}
-          <button onClick={() => window.location.reload()} className='ml-4 underline text-xs'>Try Reloading</button>
-        </div>
-        <h1 className="text-3xl font-bold mb-6">Job Application Dashboard</h1>
-        {/* Show disabled inputs/buttons even on error */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div> <button className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded opacity-50 cursor-not-allowed" disabled > Add New Job Manually </button> </div>
-          <form onSubmit={(e) => e.preventDefault()} className="space-y-2 md:space-y-0 md:flex md:gap-2">
-            <input type="url" placeholder="Paste Job URL to auto-create..." required disabled className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md opacity-50 cursor-not-allowed" />
-            <button type="submit" className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded opacity-50 cursor-not-allowed" disabled > Create from URL </button>
-          </form>
-        </div>
-      </div>
-    );
+      return (
+          <div className="container mx-auto p-4 relative">
+              <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg border border-red-300" role="alert">
+                  <span className="font-medium">Error:</span> {error}
+                  {/* Button to try fetching again */}
+                  <button onClick={() => window.location.reload()} className='ml-4 underline text-xs'>Try Reloading</button>
+              </div>
+              <h1 className="text-3xl font-bold mb-6">Job Application Dashboard</h1>
+              {/* Show disabled inputs/buttons even on error */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                   <div> <button className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded opacity-50 cursor-not-allowed" disabled > Add New Job Manually </button> </div>
+                   <form onSubmit={(e) => e.preventDefault()} className="space-y-2 md:space-y-0 md:flex md:gap-2">
+                        <input type="url" placeholder="Paste Job URL to auto-create..." required disabled className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md opacity-50 cursor-not-allowed" />
+                        <button type="submit" className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded opacity-50 cursor-not-allowed" disabled > Create from URL </button>
+                   </form>
+              </div>
+          </div>
+      );
   }
 
   // Define status options for filter dropdown
@@ -451,196 +500,208 @@ const DashboardPage: React.FC = () => {
 
   // Main dashboard content
   return (
-    <div className="container mx-auto p-4 relative"> {/* Ensure parent is relative for absolute/fixed children positioning */}
-      <h1 className="text-3xl font-bold mb-6">Job Application Dashboard</h1>
+      <div className="container mx-auto p-4 relative"> {/* Ensure parent is relative for absolute/fixed children positioning */}
+          <h1 className="text-3xl font-bold mb-6">Job Application Dashboard</h1>
 
-      {/* --- Add Job Section --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Manual Add Button */}
-        <div>
-          <button onClick={handleOpenAddModal} className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50" disabled={isSubmitting || isCreatingFromUrl} > Add New Job Manually </button>
-        </div>
-        {/* Create from URL Form */}
-        <form onSubmit={handleCreateFromUrlSubmit} className="space-y-2 md:space-y-0 md:flex md:gap-2">
-          <input type="url" value={urlInput} onChange={(e) => { setUrlInput(e.target.value); setCreateFromUrlError(null); }} placeholder="Paste Job URL to auto-create..." required className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent" disabled={isCreatingFromUrl} />
-          <button type="submit" className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isCreatingFromUrl || !urlInput} > {isCreatingFromUrl ? 'Processing URL...' : 'Create from URL'} </button>
-        </form>
-      </div>
-      {createFromUrlError && <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300">{createFromUrlError}</div>}
+          {/* --- Add Job Section --- */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {/* Manual Add Button */}
+              <div>
+                  <button onClick={handleOpenAddModal} className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50" disabled={isSubmitting || isCreatingFromUrl} > Add New Job Manually </button>
+              </div>
+              {/* Create from URL Form */}
+              <form onSubmit={handleCreateFromUrlSubmit} className="space-y-2 md:space-y-0 md:flex md:gap-2">
+                  <input type="url" value={urlInput} onChange={(e) => { setUrlInput(e.target.value); setCreateFromUrlError(null); }} placeholder="Paste Job URL to auto-create..." required className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent" disabled={isCreatingFromUrl} />
+                  <button type="submit" className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isCreatingFromUrl || !urlInput} > {isCreatingFromUrl ? 'Processing URL...' : 'Create from URL'} </button>
+              </form>
+          </div>
+          {createFromUrlError && <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300">{createFromUrlError}</div>}
 
-      {/* --- Filter Controls --- */}
-      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border rounded-lg bg-gray-50">
-        <div>
-          <label htmlFor="filterText" className="block text-sm font-medium text-gray-700 mb-1">Filter by Title/Company:</label>
-          <input type="text" id="filterText" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Enter text..." className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm" />
-        </div>
-        <div>
-          <label htmlFor="filterStatus" className="block text-sm font-medium text-gray-700 mb-1">Filter by Status:</label>
-          <select id="filterStatus" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm" >
-            <option value="">All Statuses</option>
-            {statusOptions.map(status => (<option key={status} value={status}>{status}</option>))}
-          </select>
-        </div>
-      </div>
+          {/* --- Filter Controls --- */}
+          <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border rounded-lg bg-gray-50">
+              <div>
+                  <label htmlFor="filterText" className="block text-sm font-medium text-gray-700 mb-1">Filter by Title/Company:</label>
+                  <input type="text" id="filterText" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Enter text..." className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm" />
+              </div>
+              <div>
+                  <label htmlFor="filterStatus" className="block text-sm font-medium text-gray-700 mb-1">Filter by Status:</label>
+                  <select id="filterStatus" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm" >
+                      <option value="">All Statuses</option>
+                      {statusOptions.map(status => (<option key={status} value={status}>{status}</option>))}
+                  </select>
+              </div>
+          </div>
 
-      {/* Job list table or message */}
-      {displayedJobs.length === 0 && !isLoading ? (
-        <p className='text-center text-gray-500 mt-6'> {jobs.length > 0 ? 'No job applications match your current filters.' : 'No job applications found. Add one manually or paste a URL above.'} </p>
-      ) : (
-        <div className="overflow-x-auto shadow-md sm:rounded-lg">
-          <table className="min-w-full bg-white border border-gray-200 text-sm">
-            <thead className="bg-gray-100 text-gray-600 uppercase text-xs leading-normal">
-              <tr>
-                <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jobTitle')}> Job Title{renderSortArrow('jobTitle')} </th>
-                <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('companyName')}> Company{renderSortArrow('companyName')} </th>
-                <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('status')}> Status{renderSortArrow('status')} </th>
-                <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('createdAt')}> Date Added{renderSortArrow('createdAt')} </th>
-                <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('language')}> Language{renderSortArrow('language')} </th>
-                <th className="py-3 px-4 border-b border-gray-200 text-left">Description Status</th> {/* Not sortable */}
-                <th className="py-3 px-4 border-b border-gray-200 text-center">Actions</th> {/* Not sortable */}
-              </tr>
-            </thead>
-            <tbody className="text-gray-700">
-              {displayedJobs.map((job) => (
-                <tr key={job._id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="py-3 px-4">{job.jobTitle}</td>
-                  <td className="py-3 px-4">{job.companyName}</td>
-                  <td className="py-3 px-4"> <span className="px-2 py-1 text-xs rounded bg-gray-200 font-medium">{job.status}</span> </td>
-                  <td className="py-3 px-4"> {new Date(job.createdAt).toLocaleDateString()} </td>
-                  <td className="py-3 px-4"> {job.language ? (<span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 font-medium uppercase">{job.language}</span>) : ('-')} </td>
-                  <td className="py-3 px-4 text-left align-top">
-                    {job.jobDescriptionText && job.jobDescriptionText.length > 10 ? (<span className="text-xs text-green-600 bg-green-50 p-1 rounded inline-block" title={job.jobDescriptionText.substring(0, 150) + '...'}> Desc. OK </span>
-                    ) : job.jobUrl ? (<button onClick={() => handleScrapeDescription(job)} className="text-purple-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed" disabled={scrapingId === job._id || !!deletingId || !!generatingId} title={`Scrape from: ${job.jobUrl}`} > {scrapingId === job._id ? 'Scraping...' : 'Scrape'} </button> // Renamed to 'Scrape' maybe?
-                    ) : (<span className="text-xs text-gray-400 italic">No URL/Desc</span>)}
-                    {scrapeError[job._id] && (<p className="text-red-600 text-xs mt-1">Error: {scrapeError[job._id]}</p>)}
-                  </td>
-                  <td className="py-3 px-4 text-center align-top">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className='flex gap-2 justify-center flex-wrap'>
-                        <button onClick={() => handleOpenEditModal(job)} className="text-blue-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={!!deletingId || !!generatingId || !!scrapingId} > Edit </button>
-                        <button onClick={() => handleDeleteJob(job._id)} className="text-red-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={deletingId === job._id || !!generatingId || !!scrapingId} > {deletingId === job._id ? 'Deleting...' : 'Delete'} </button>
-                        <button
-                          onClick={() => openLangModal(job._id)} // <-- Trigger lang modal open
-                          className="text-green-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1"
-                          disabled={!job.jobDescriptionText || !user?.cvJson || !!deletingId || generatingId === job._id || !!scrapingId}
-                          title={!job.jobDescriptionText ? "Scrape or add job description first" : !user?.cvJson ? "Upload your base CV first" : "Generate CV & Cover Letter"}
-                        >
-                          {generatingId === job._id ? 'Generating...' : 'Generate Docs'}
-                        </button>
-                      </div>
-                      <div className='mt-1 text-xs w-full text-center'>
-                        {generatorError[job._id] && (<p className="text-red-600 bg-red-50 p-1 rounded my-1">Error: {generatorError[job._id]}</p>)}
-                        {generatedFiles[job._id] && !generatorError[job._id] && (
-                          <div className="flex flex-col items-center gap-1 text-blue-700 mt-1">
-                            <button onClick={() => handleDownloadFile(generatedFiles[job._id].cv)} className="hover:underline text-blue-700 text-xs font-medium" > Download CV </button>
-                            <button onClick={() => handleDownloadFile(generatedFiles[job._id].cl)} className="hover:underline text-blue-700 text-xs font-medium" > Download Cover Letter </button>
+          {/* Job list table or message */}
+          {displayedJobs.length === 0 && !isLoading ? (
+              <p className='text-center text-gray-500 mt-6'> {jobs.length > 0 ? 'No job applications match your current filters.' : 'No job applications found. Add one manually or paste a URL above.'} </p>
+          ) : (
+              <div className="overflow-x-auto shadow-md sm:rounded-lg">
+                  <table className="min-w-full bg-white border border-gray-200 text-sm">
+                      <thead className="bg-gray-100 text-gray-600 uppercase text-xs leading-normal">
+                          <tr>
+                              <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jobTitle')}> Job Title{renderSortArrow('jobTitle')} </th>
+                              <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('companyName')}> Company{renderSortArrow('companyName')} </th>
+                              <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('status')}> Status{renderSortArrow('status')} </th>
+                              <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('createdAt')}> Date Added{renderSortArrow('createdAt')} </th>
+                              <th className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200" onClick={() => handleSort('language')}> Language{renderSortArrow('language')} </th>
+                              <th className="py-3 px-4 border-b border-gray-200 text-left">Description Status</th> {/* Not sortable */}
+                              <th className="py-3 px-4 border-b border-gray-200 text-center">Actions</th> {/* Not sortable */}
+                          </tr>
+                      </thead>
+                      <tbody className="text-gray-700">
+                          {displayedJobs.map((job) => (
+                              <tr key={job._id} className="border-b border-gray-200 hover:bg-gray-50">
+                                  {/* Job Title, Company, Status, Date Added Cells */}
+                                  <td className="py-3 px-4">{job.jobTitle}</td>
+                                  <td className="py-3 px-4">{job.companyName}</td>
+                                  <td className="py-3 px-4"> <span className="px-2 py-1 text-xs rounded bg-gray-200 font-medium">{job.status}</span> </td>
+                                  <td className="py-3 px-4"> {new Date(job.createdAt).toLocaleDateString()} </td>
+                                  {/* Language Cell */}
+                                  <td className="py-3 px-4"> {job.language ? (<span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 font-medium uppercase">{job.language}</span>) : ('-')} </td>
+                                  {/* Description Status/Scrape Cell */}
+                                  <td className="py-3 px-4 text-left align-top">
+                                      {job.jobDescriptionText && job.jobDescriptionText.length > 10 ? (<span className="text-xs text-green-600 bg-green-50 p-1 rounded inline-block" title={job.jobDescriptionText.substring(0, 150) + '...'}> Desc. OK </span>
+                                      ) : job.jobUrl ? (<button onClick={() => handleScrapeDescription(job)} className="text-purple-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed" disabled={scrapingId === job._id || !!deletingId || !!generatingId} title={`Scrape from: ${job.jobUrl}`} > {scrapingId === job._id ? 'Scraping...' : 'Scrape'} </button>
+                                      ) : (<span className="text-xs text-gray-400 italic">No URL/Desc</span>)}
+                                      {scrapeError[job._id] && (<p className="text-red-600 text-xs mt-1">Error: {scrapeError[job._id]}</p>)}
+                                  </td>
+                                  {/* Actions Column */}
+                                  <td className="py-3 px-4 text-center align-top">
+                                      <div className="flex flex-col items-center gap-2"> {/* Vertical layout */}
+                                          {/* Row for Action Buttons */}
+                                          <div className='flex gap-2 justify-center flex-wrap'>
+                                              <button onClick={() => handleOpenEditModal(job)} className="text-blue-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={!!deletingId || !!generatingId || !!scrapingId || isFinalizing} > Edit </button> {/* Added isFinalizing disable check */}
+                                              <button onClick={() => handleDeleteJob(job._id)} className="text-red-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1" disabled={deletingId === job._id || !!generatingId || !!scrapingId || isFinalizing} > {deletingId === job._id ? 'Deleting...' : 'Delete'} </button>
+                                              <button
+                                                  onClick={() => openLangModal(job._id)} // Trigger lang modal open
+                                                  className="text-green-600 hover:underline text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed px-1"
+                                                  disabled={!job.jobDescriptionText || !user?.cvJson || !!deletingId || generatingId === job._id || !!scrapingId || isFinalizing} // Disable if missing data or other actions running
+                                                  title={!job.jobDescriptionText ? "Scrape or add job description first" : !user?.cvJson ? "Upload your base CV first" : "Generate CV & Cover Letter"}
+                                              >
+                                                  {generatingId === job._id ? 'Generating...' : 'Generate Docs'}
+                                              </button>
+                                          </div>
+                                          {/* Area for displaying generator errors or download links */}
+                                          <div className='mt-1 text-xs w-full text-center'>
+                                              {/* Display generation error if exists */}
+                                              {generatorError[job._id] && (<p className="text-red-600 bg-red-50 p-1 rounded my-1">Error: {generatorError[job._id]}</p>)}
+                                              {/* Display download links if files were generated successfully */}
+                                              {generatedFiles[job._id] && !generatorError[job._id] && (
+                                                  <div className="flex flex-col items-center gap-1 text-blue-700 mt-1">
+                                                      <button onClick={() => handleDownloadFile(generatedFiles[job._id].cv)} className="hover:underline text-blue-700 text-xs font-medium" > Download CV </button>
+                                                      <button onClick={() => handleDownloadFile(generatedFiles[job._id].cl)} className="hover:underline text-blue-700 text-xs font-medium" > Download Cover Letter </button>
+                                                  </div>
+                                              )}
+                                               {/* Indicate if waiting for user input */}
+                                               {intermediateGenData && intermediateGenData.jobId === job._id && (
+                                                   <p className="text-orange-600 bg-orange-50 p-1 rounded my-1 text-xs italic">Waiting for input...</p>
+                                               )}
+                                          </div>
+                                      </div>
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          )}
+
+          {/* --- Reusable Add/Edit Job Modal --- */}
+          {modalMode && (
+              <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 transition-opacity duration-300 ease-in-out">
+                  <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 sm:mx-0">
+                      <h2 className="text-2xl font-semibold mb-5 text-gray-800"> {modalMode === 'add' ? 'Add New Job Manually' : 'Edit Job Application'} </h2>
+                      <form onSubmit={handleFormSubmit}>
+                          {modalError && <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300">{modalError}</div>}
+                          {/* Job Title */}
+                          <div className="mb-4">
+                              <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 mb-1">Job Title <span className="text-red-500">*</span></label>
+                              <input type="text" id="jobTitle" name="jobTitle" value={formData.jobTitle || ''} onChange={handleInputChange} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* --- Reusable Add/Edit Job Modal --- */}
-      {/* This modal renders conditionally based on modalMode state */}
-      {modalMode && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 transition-opacity duration-300 ease-in-out">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 sm:mx-0">
-            <h2 className="text-2xl font-semibold mb-5 text-gray-800"> {modalMode === 'add' ? 'Add New Job Manually' : 'Edit Job Application'} </h2>
-            <form onSubmit={handleFormSubmit}>
-              {modalError && <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300">{modalError}</div>}
-              {/* Form fields (Job Title, Company, Status, URL, Description*, Language*, Notes*) */}
-              {/* Job Title */}
-              <div className="mb-4">
-                <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 mb-1">Job Title <span className="text-red-500">*</span></label>
-                <input type="text" id="jobTitle" name="jobTitle" value={formData.jobTitle || ''} onChange={handleInputChange} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              </div>
-              {/* Company Name */}
-              <div className="mb-4">
-                <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">Company Name <span className="text-red-500">*</span></label>
-                <input type="text" id="companyName" name="companyName" value={formData.companyName || ''} onChange={handleInputChange} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              </div>
-              {/* Status */}
-              <div className="mb-4">
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select id="status" name="status" value={formData.status || 'Not Applied'} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                  {statusOptions.map(status => (<option key={status} value={status}>{status}</option>))}
-                </select>
-              </div>
-              {/* Job URL */}
-              <div className="mb-4">
-                <label htmlFor="jobUrl" className="block text-sm font-medium text-gray-700 mb-1">Job URL</label>
-                <input type="url" id="jobUrl" name="jobUrl" value={formData.jobUrl || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="https://..." />
-              </div>
-              {/* Edit-Only Fields */}
-              {modalMode === 'edit' && (
-                <>
-                  <div className="mb-4">
-                    <label htmlFor="language" className="block text-sm font-medium text-gray-700 mb-1">Language (e.g., en, de)</label>
-                    <input type="text" id="language" name="language" value={formData.language || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" maxLength={5} />
+                          {/* Company Name */}
+                          <div className="mb-4">
+                              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">Company Name <span className="text-red-500">*</span></label>
+                              <input type="text" id="companyName" name="companyName" value={formData.companyName || ''} onChange={handleInputChange} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+                          </div>
+                          {/* Status */}
+                          <div className="mb-4">
+                              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                              <select id="status" name="status" value={formData.status || 'Not Applied'} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                  {statusOptions.map(status => (<option key={status} value={status}>{status}</option>))}
+                              </select>
+                          </div>
+                          {/* Job URL */}
+                          <div className="mb-4">
+                              <label htmlFor="jobUrl" className="block text-sm font-medium text-gray-700 mb-1">Job URL</label>
+                              <input type="url" id="jobUrl" name="jobUrl" value={formData.jobUrl || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="https://..."/>
+                          </div>
+                           {/* Edit-Only Fields */}
+                           {modalMode === 'edit' && (
+                               <>
+                                   <div className="mb-4">
+                                       <label htmlFor="language" className="block text-sm font-medium text-gray-700 mb-1">Language (e.g., en, de)</label>
+                                       <input type="text" id="language" name="language" value={formData.language || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" maxLength={5}/>
+                                   </div>
+                                   <div className="mb-4">
+                                       <label htmlFor="jobDescriptionText" className="block text-sm font-medium text-gray-700 mb-1">Job Description</label>
+                                       <textarea id="jobDescriptionText" name="jobDescriptionText" rows={5} value={formData.jobDescriptionText || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Scraped or manually pasted job description..."/>
+                                   </div>
+                               </>
+                           )}
+                          {/* Notes */}
+                          <div className="mb-4">
+                              <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                              <textarea id="notes" name="notes" rows={3} value={formData.notes || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+                          </div>
+                          {/* Modal Action Buttons */}
+                          <div className="flex justify-end gap-3 mt-6 border-t pt-4 border-gray-200">
+                              <button type="button" onClick={handleCloseModal} disabled={isSubmitting} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-400"> Cancel </button>
+                              <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"> {isSubmitting ? (modalMode === 'add' ? 'Adding...' : 'Updating...') : (modalMode === 'add' ? 'Add Job' : 'Update Job')} </button>
+                          </div>
+                      </form>
                   </div>
-                  <div className="mb-4">
-                    <label htmlFor="jobDescriptionText" className="block text-sm font-medium text-gray-700 mb-1">Job Description</label>
-                    <textarea id="jobDescriptionText" name="jobDescriptionText" rows={5} value={formData.jobDescriptionText || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Scraped or manually pasted job description..." />
-                  </div>
-                </>
-              )}
-              {/* Notes */}
-              <div className="mb-4">
-                <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                <textarea id="notes" name="notes" rows={3} value={formData.notes || ''} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               </div>
-              {/* Modal Action Buttons */}
-              <div className="flex justify-end gap-3 mt-6 border-t pt-4 border-gray-200">
-                <button type="button" onClick={handleCloseModal} disabled={isSubmitting} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-400"> Cancel </button>
-                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"> {isSubmitting ? (modalMode === 'add' ? 'Adding...' : 'Updating...') : (modalMode === 'add' ? 'Add Job' : 'Update Job')} </button>
-              </div>
-              {/* *** Language Selection Modal was incorrectly placed inside here *** */}
-            </form>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* --- NEW Language Selection Modal --- */}
-      {/* *** This is now correctly placed at the top level of the component's return *** */}
-      {isLangModalOpen && langModalJobId && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-xs mx-4 sm:mx-0">
-            <h3 className="text-lg font-medium mb-4 text-gray-800">Select Generation Language</h3>
-            <div className="mb-4">
-              <label htmlFor="languageSelect" className="block text-sm font-medium text-gray-700 mb-1">Language:</label>
-              <select
-                id="languageSelect"
-                value={selectedLang}
-                onChange={(e) => setSelectedLang(e.target.value as 'en' | 'de')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm"
-              >
-                <option value="en">English</option>
-                <option value="de">German</option>
-              </select>
-            </div>
-            <div className="flex justify-end gap-3 mt-5">
-              <button
-                type="button"
-                onClick={closeLangModal}
-                className="px-3 py-1 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 text-sm"
-              > Cancel </button>
-              <button
-                type="button"
-                onClick={confirmGenerateWithLang} // Calls the handler with selected lang
-                className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
-              > Generate </button>
-            </div>
-          </div>
-        </div>
-      )}
+          {/* --- Language Selection Modal --- */}
+          {isLangModalOpen && langModalJobId && (
+               <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
+                   <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-xs mx-4 sm:mx-0">
+                       <h3 className="text-lg font-medium mb-4 text-gray-800">Select Generation Language</h3>
+                       <div className="mb-4">
+                           <label htmlFor="languageSelect" className="block text-sm font-medium text-gray-700 mb-1">Language:</label>
+                           <select id="languageSelect" value={selectedLang} onChange={(e) => setSelectedLang(e.target.value as 'en' | 'de')} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm" >
+                               <option value="en">English</option>
+                               <option value="de">German</option>
+                           </select>
+                       </div>
+                       <div className="flex justify-end gap-3 mt-5">
+                           <button type="button" onClick={closeLangModal} className="px-3 py-1 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 text-sm" > Cancel </button>
+                           <button type="button" onClick={confirmGenerateWithLang} className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm" > Generate </button>
+                       </div>
+                   </div>
+               </div>
+          )}
 
-    </div> // End of main container div
+           {/* --- User Input Modal for Placeholders --- */}
+           <UserInputModal
+              isOpen={isUserInputModalOpen}
+              requiredInputs={requiredInputs}
+              onSubmit={handleFinalizeGeneration} // Pass the finalize handler
+              onClose={() => { // Provide a way to cancel/close
+                   setIsUserInputModalOpen(false);
+                   setIntermediateGenData(null);
+                   setRequiredInputs([]);
+                   // Optionally clear error/state for the specific job row?
+                   if(intermediateGenData?.jobId) { // Clear errors if we know the jobId
+                       setGeneratorError(prev => ({ ...prev, [intermediateGenData.jobId]: null }));
+                   }
+              }}
+              isFinalizing={isFinalizing} // Pass loading state
+           />
+
+      </div> // End of main container div
   );
 };
 

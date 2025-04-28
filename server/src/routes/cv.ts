@@ -4,7 +4,8 @@ import multer from 'multer';
 import authMiddleware from '../middleware/authMiddleware';
 import User from '../models/User';
 import geminiModel from '../utils/geminiClient'; // Import configured Gemini model
-import { GoogleGenerativeAIError } from '@google/generative-ai'; 
+import { GoogleGenerativeAIError } from '@google/generative-ai';
+import { JsonResumeSchema } from '../types/jsonresume';
 
 const router: Router = express.Router();
 
@@ -30,6 +31,41 @@ const upload = multer({
         }
     }
 });
+
+// --- MODIFIED Helper Function to Parse Gemini Response (JSON Resume specific) ---
+function parseJsonResponseToSchema(responseText: string, schemaType: 'JsonResume'): JsonResumeSchema | null { // Made more specific
+    const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+    const jsonMatch = responseText.match(jsonRegex);
+
+    if (jsonMatch && jsonMatch[1]) {
+        const extractedJsonString = jsonMatch[1].trim();
+        console.log(`Attempting to parse JSON for ${schemaType} schema...`);
+        try {
+            const parsedObject = JSON.parse(extractedJsonString);
+
+            // Basic validation: check if it's an object and maybe has a 'basics' key as expected
+            if (typeof parsedObject === 'object' && parsedObject !== null) {
+                console.log(`${schemaType} schema parsed successfully (basic check).`);
+                // NOTE: Add more thorough validation against the JsonResumeSchema interface here if needed
+                // This could involve checking types of nested properties, required fields etc.
+                // For now, we'll trust the AI + basic object check.
+                return parsedObject as JsonResumeSchema; // Cast to our interface
+            } else {
+                console.error(`Parsed JSON is not a valid object for ${schemaType}. Parsed:`, parsedObject);
+                throw new Error(`AI response was not a valid object structure for ${schemaType}.`);
+            }
+        } catch (parseError: any) {
+            console.error(`JSON.parse failed on extracted ${schemaType} content:`, parseError.message);
+            console.error("Extracted Content causing failure:\n---\n", extractedJsonString, "\n---");
+            throw new Error(`AI response was not valid JSON for ${schemaType}.`);
+        }
+    } else {
+        console.warn(`Gemini response did not contain expected \`\`\`json formatting for ${schemaType}.`);
+    }
+    console.error(`Could not parse valid ${schemaType} JSON from Gemini response. Raw response:\n---\n`, responseText, "\n---");
+    throw new Error(`AI failed to return the ${schemaType} data in the expected format.`);
+}
+
 
 // --- Helper Function to Parse Gemini Response ---
 function parseGeminiResponse(responseText: string): any {
@@ -70,110 +106,102 @@ function parseGeminiResponse(responseText: string): any {
 // --- POST /api/cv/upload ---
 router.post(
     '/upload',
-    authMiddleware as RequestHandler, // Explicitly cast middleware
+    authMiddleware as RequestHandler,
     upload.single('cvFile'),
     async (req: Request, res: Response) => {
         if (!req.user) {
-             res.status(401).json({ message: 'User not authenticated correctly.' });
-             return;
+            res.status(401).json({ message: 'User not authenticated correctly.' });
+            return;
         }
         if (!req.file) {
-             res.status(400).json({ message: 'No CV file uploaded.' });
+            res.status(400).json({ message: 'No CV file uploaded.' });
             return;
         }
 
         try {
-            console.log(`Processing file: ${req.file.originalname}, MIME Type: ${req.file.mimetype}, Size: ${req.file.size} bytes`);
+            console.log(`Processing CV file: ${req.file.originalname}, MIME Type: ${req.file.mimetype}`);
 
-            // 1. Prepare File Data Part for Gemini
+            // 1. Prepare File Data Part (as before)
             const fileDataPart = {
-                inlineData: {
-                    // Convert buffer to base64 is standard for inline data
-                    data: req.file.buffer.toString('base64'),
-                    mimeType: req.file.mimetype,
-                },
+                inlineData: { data: req.file.buffer.toString('base64'), mimeType: req.file.mimetype }
             };
 
-            // 2. Construct Gemini Prompt (Instruct it to use the file content)
+            // 2. Construct MODIFIED Gemini Prompt (Targeting JSON Resume Schema)
             const prompt = `
-                Analyze the content of the attached CV file (${req.file.originalname}) and convert it into a structured JSON object.
-                The JSON object should have these top-level keys: "personalInfo", "summary", "experience", "education", "skills".
+                Analyze the content of the attached CV file (${req.file.originalname}).
+                Your task is to extract the information and structure it precisely according to the JSON Resume Schema (details at https://jsonresume.org/schema/).
 
-                - "personalInfo": An object containing "name", "email", "phone", "address", "linkedin" (if found in the file).
-                - "summary": A string containing the professional summary or objective (if found).
-                - "experience": An array of objects. Each object should have "jobTitle", "company", "location" (optional), "dates" (string, e.g., "Jan 2020 - Present"), and "description" (string or array of strings).
-                - "education": An array of objects. Each object should have "degree", "institution", "location" (optional), and "dates" (string, e.g., "Sep 2015 - May 2019").
-                - "skills": An array of strings listing technical and soft skills, or an object categorizing skills (e.g., {"Programming Languages": ["JavaScript", "Python"], "Tools": ["Docker", "Git"]}).
+                Instructions:
+                - Parse the entire document.
+                - Populate the standard JSON Resume fields: basics, work, education, skills, projects, languages, etc., based *only* on the content found in the file.
+                - For 'basics.profiles', extract common profiles like LinkedIn, GitHub, Portfolio, etc.
+                - For 'work.highlights' or 'work.description', use bullet points (array of strings for highlights) or a single description string. Prioritize 'highlights' if possible.
+                - For 'skills', try to group them under relevant 'name' properties (e.g., "Programming Languages", "Frameworks", "Tools") with specific skills listed in 'keywords'. If grouping isn't clear, create a single skill entry with a general name and list all skills under its 'keywords'.
+                - Format dates as YYYY-MM-DD, YYYY-MM, or YYYY where possible. Use "Present" for ongoing roles/studies.
+                - If a standard section (like 'awards' or 'volunteer') is not present in the CV, omit that key entirely from the JSON output.
+                - If a specific field within a section (like 'work.location') is not found, omit that field or set it to null.
 
-                Extract the information accurately based SOLELY on the provided file content. If a section or piece of information isn't present, omit the key or use an empty array/string/null where appropriate. Return ONLY the JSON object, enclosed in triple backticks with the json identifier.
+                Output Format:
+                Return ONLY a single, valid JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`) that strictly adheres to the JSON Resume Schema structure. Do not include any explanatory text before or after the JSON block.
             `;
 
-            // 3. Call Gemini API with Prompt and File Data
-            console.log("Sending request to Gemini with file data...");
-            // Send prompt text AND file data part in an array
-            const result = await geminiModel.generateContent([prompt, fileDataPart]);
+            // 3. Call Gemini API (as before)
+            console.log("Sending CV parsing request to Gemini...");
+            const result = await geminiModel.generateContent([prompt, fileDataPart]); // Send prompt and file data
             const response = result.response;
             const responseText = response.text();
-            console.log("Received response from Gemini.");
+            console.log("Received CV parsing response from Gemini.");
 
-            // 4. Parse Gemini Response into JSON
-            const cvJson = parseGeminiResponse(responseText);
-            // Add more robust validation of cvJson structure here if needed
+            // 4. Parse Gemini Response into JSON Resume Schema object
+            const cvJsonResume = parseJsonResponseToSchema(responseText, 'JsonResume'); // Use modified parser
+
+            if (!cvJsonResume) { // Check if parsing returned null due to format errors
+                throw new Error("Failed to parse Gemini response into valid JSON Resume structure.");
+            }
 
             // 5. Save JSON to User document
             const updatedUser = await User.findByIdAndUpdate(
                 req.user._id,
-                { $set: { cvJson: cvJson } },
+                { $set: { cvJson: cvJsonResume } }, // Save the schema-compliant JSON
                 { new: true }
-            ).select('-passwordHash');
+            ).select('-passwordHash -cvJson'); // Exclude password and potentially large CV from response
 
-            if (!updatedUser) {
-                 res.status(404).json({ message: "User not found after update." });
-                 return;
-            }
+            if (!updatedUser) { res.status(404).json({ message: "User not found after update." }); return; }
 
-            console.log(`CV JSON saved for user ${req.user.email}`);
+            console.log(`JSON Resume CV data saved for user ${req.user.email}`);
             res.status(200).json({
-                message: 'CV uploaded and processed successfully.',
-                cvData: updatedUser.cvJson
+                message: 'CV uploaded and parsed successfully (JSON Resume format).',
+                // Send back confirmation, maybe just the basics or nothing to avoid large payload
+                // cvData: cvJsonResume // Decide if frontend needs the full parsed data immediately
             });
 
         } catch (error: any) {
-            console.error("CV Upload/Processing Error:", error);
-
-            // Handle specific errors
+            console.error("CV Upload/Parsing Error:", error);
+            // Handle specific errors (file type, AI block, parsing fail)
             if (error instanceof Error && error.message.includes("Invalid file type")) {
-                 res.status(400).json({ message: error.message });
-                 return;
+                res.status(400).json({ message: error.message });
+                return;
             }
-            if (error instanceof Error && error.message.includes("AI failed to return valid JSON")) {
-                  res.status(500).json({ message: error.message });
-                  return;
-             }
-            // Handle potential Gemini API errors (e.g., safety blocks, unsupported file)
-             if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
-                 console.error("Gemini API Error Details:", JSON.stringify(error, null, 2));
-                 // Check for specific block reasons
-                 const blockReason = error.response?.promptFeedback?.blockReason;
-                 if (blockReason) {
-                       res.status(400).json({ message: `Content blocked by AI: ${blockReason}` });
-                       return;
-                 }
-                  res.status(500).json({ message: 'An error occurred while communicating with the AI service.' });
-                  return;
-             }
-
-            // Generic fallback
+            if (error instanceof Error && error.message.includes("AI failed")) {
+                res.status(500).json({ message: error.message });
+                return;
+            }
+            if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
+                const blockReason = error.response?.promptFeedback?.blockReason;
+                res.status(400).json({ message: `Content processing blocked by AI: ${blockReason || 'Unknown reason'}` });
+                return;
+            }
             res.status(500).json({ message: 'Failed to process CV.', error: error.message || 'Unknown server error' });
         }
     }
 );
 
+
 // Optional: GET route to retrieve the user's current CV JSON
-router.get('/', authMiddleware as RequestHandler , async (req: Request, res: Response) => {
+router.get('/', authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     if (!req.user) {
-         res.status(401).json({ message: 'User not authenticated correctly.' });
-         return;
+        res.status(401).json({ message: 'User not authenticated correctly.' });
+        return;
     }
     try {
         // User might not have cvJson yet if they haven't uploaded
