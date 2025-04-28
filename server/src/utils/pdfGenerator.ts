@@ -2,7 +2,7 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import path from 'path';
 import fs from 'fs/promises'; // Use promise-based fs
-import { getCvHtml, getCoverLetterHtml } from './pdfTemplates'; // Import templates
+import { getCvHtml, getCoverLetterHtml } from './pdfTemplates';
 import { JsonResumeSchema } from '../types/jsonresume';
 
 interface Theme {
@@ -32,34 +32,39 @@ const ensureDirExists = async (dirPath: string) => {
 // --- Helper function to sanitize dates in JSON Resume object ---
 function sanitizeDatesInResume(resume: JsonResumeSchema): JsonResumeSchema {
     const sanitizeDateString = (dateStr: string | undefined): string | undefined => {
-        if (!dateStr || typeof dateStr !== 'string') return dateStr;
+        if (!dateStr || typeof dateStr !== 'string') return undefined;
 
-        // Handle "Present" - themes often understand this directly
+        // Handle "Present" case
         if (dateStr.toLowerCase() === 'present') return 'Present';
 
-        // Attempt to parse common formats - this is basic, can be expanded
-        // Try YYYY-MM-DD, YYYY-MM, YYYY
-        const isoMatch = dateStr.match(/^(\d{4})(-(\d{2}))?(-(\d{2}))?/);
-        if (isoMatch) return dateStr; // Keep valid ISO-like formats
-
-        // Try "Month YYYY" or "Mon YYYY"
+        // Try to parse the date string
         try {
-            const parsedDate = new Date(dateStr);
-            // Check if it's a valid date after parsing attempt
-            if (!isNaN(parsedDate.getTime())) {
-                // Return in a consistent format themes *might* handle, like YYYY-MM
-                // Or just keep the original string if parsing is ambiguous
-                // For safety, let's just return the original if it parses but isn't ISO
-                // return parsedDate.getFullYear() + '-' + ('0' + (parsedDate.getMonth() + 1)).slice(-2);
-                console.warn(`Keeping potentially ambiguous date string: ${dateStr}`);
+            // First check if it's already in YYYY-MM-DD format
+            const isoMatch = dateStr.match(/^(\d{4})(-(\d{2}))?(-(\d{2}))?/);
+            if (isoMatch) {
+                const [_, year, __, month, ___, day] = isoMatch;
+                // If only year is provided
+                if (!month) return `${year}-01-01`;
+                // If year and month are provided
+                if (!day) return `${year}-${month}-01`;
+                // Full date is provided
                 return dateStr;
             }
-        } catch (e) { /* ignore parse error */ }
 
-        // If unparseable or non-standard, return the original string.
-        // The theme *might* just display it as text, or it might still break.
-        console.warn(`Returning potentially problematic date string: ${dateStr}`);
-        return dateStr;
+            // Try parsing as a regular date
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+                return date.toISOString().split('T')[0]; // Returns YYYY-MM-DD
+            }
+
+            // If we can't parse it, return undefined instead of the original string
+            console.warn(`Unable to parse date string: ${dateStr}, removing it`);
+            return undefined;
+
+        } catch (e) {
+            console.warn(`Error parsing date string: ${dateStr}, removing it`);
+            return undefined;
+        }
     };
 
     // Sanitize dates in work experience
@@ -91,8 +96,6 @@ function sanitizeDatesInResume(resume: JsonResumeSchema): JsonResumeSchema {
 }
 
 
-
-
 // --- Function to generate PDF from HTML content ---
 // Consider managing browser instance globally for performance if generating many PDFs
 let browserInstance: Browser | null = null;
@@ -114,127 +117,75 @@ const getBrowser = async (): Promise<Browser> => {
 };
 
 export const generateCvPdfFromJsonResume = async (
+    // Expects schema-compliant data, but template might be forgiving
     cvJsonResumeObject: JsonResumeSchema,
-    themeName: string, // e.g., 'class', 'elegant', 'even', 'modern'
+    // No themeName needed anymore
     filenamePrefix: string
 ): Promise<string> => {
     await ensureDirExists(TEMP_PDF_DIR);
-    // Fallback to default theme if provided name is invalid/empty
-    const validThemes = ['class', 'even', 'elegant', 'modern']; // Keep a list of your installed/supported themes
-    const effectiveThemeName = validThemes.includes(themeName) ? themeName : 'class'; // Default to 'class'
-    console.log(`Attempting to generate CV PDF with theme: ${effectiveThemeName}`);
+    console.log(`Attempting to generate CV PDF using internal template...`);
 
     let page: Page | undefined;
     const browser = await getBrowser();
-    // Include theme in filename using the *effective* theme name
-    const uniqueFilename = `${filenamePrefix}_${effectiveThemeName}_${Date.now()}.pdf`;
+    // Filename no longer needs theme
+    const uniqueFilename = `${filenamePrefix}_${Date.now()}.pdf`;
     const filePath = path.join(TEMP_PDF_DIR, uniqueFilename);
 
     try {
-        // --- Sanitize dates BEFORE rendering ---
-        // Deep copy to avoid modifying the original object passed to the function
-        const sanitizedResume = sanitizeDatesInResume(JSON.parse(JSON.stringify(cvJsonResumeObject)));
-
-        // --- Ensure basics object exists ---
-        if (!sanitizedResume.basics) {
-            console.warn(`Resume data was missing 'basics' object. Adding default empty basics object.`);
-            sanitizedResume.basics = { // Add a default empty object
-                name: "Unknown Applicant", // Add a default name maybe
-                label: "",
-                email: "",
-                phone: "",
-                url: "",
-                summary: "",
-                location: {},
-                profiles: []
-            };
-        }
-
-        // You could add similar checks/defaults for other potentially required top-level fields
-        // if other themes complain (e.g., ensure work/education are at least empty arrays if null/undefined)
-        if (!sanitizedResume.work) sanitizedResume.work = [];
-        if (!sanitizedResume.education) sanitizedResume.education = [];
-        if (!sanitizedResume.skills) sanitizedResume.skills = [];
-        // etc. for other sections the theme might strictly expect
+        // --- Add Defaults for required top-level objects as safety net ---
+         const resumeDataForTemplate: JsonResumeSchema = {
+             basics: { name: "Applicant", profiles: [], ...cvJsonResumeObject.basics },
+             work: Array.isArray(cvJsonResumeObject.work) ? cvJsonResumeObject.work : [],
+             education: Array.isArray(cvJsonResumeObject.education) ? cvJsonResumeObject.education : [],
+             skills: Array.isArray(cvJsonResumeObject.skills) ? cvJsonResumeObject.skills : [],
+             projects: Array.isArray(cvJsonResumeObject.projects) ? cvJsonResumeObject.projects : [],
+             languages: Array.isArray(cvJsonResumeObject.languages) ? cvJsonResumeObject.languages : [],
+             // Add other sections if needed
+             ...cvJsonResumeObject // Spread the rest
+         };
+         // Ensure basics has minimum content
+         if (!resumeDataForTemplate.basics || Object.keys(resumeDataForTemplate.basics).length === 0) {
+              resumeDataForTemplate.basics = { name: "Applicant", profiles: [] };
+          }
 
 
-        // 1. Dynamically load the theme package
-        let theme: Theme;
-        let themePackageName: string;
-        try {
-            // Handle scoped vs non-scoped package names
-            if (effectiveThemeName === 'class') {
-                themePackageName = '@jsonresume/jsonresume-theme-class';
-            } else {
-                themePackageName = `jsonresume-theme-${effectiveThemeName}`;
-            }
-
-            console.log(`Loading theme package: ${themePackageName}`);
-            theme = require(themePackageName); // Use require for dynamic loading
-            if (typeof theme.render !== 'function') {
-                throw new Error(`Theme '${effectiveThemeName}' (${themePackageName}) does not have a valid render function.`);
-            }
-        } catch (loadError: any) {
-            console.error(`Failed to load theme '${effectiveThemeName}':`, loadError.message);
-            // Rethrow or handle more gracefully (e.g., try default theme again?)
-            throw new Error(`Theme '${effectiveThemeName}' not found or invalid. Ensure '${effectiveThemeName}' is installed correctly.`);
-        }
-
-
-        console.log(`--- Data being passed to theme ${effectiveThemeName}.render() ---`);
-        console.log(JSON.stringify(sanitizedResume, null, 2)); // Log the exact object
-        console.log(`-------------------------------------------------------------`);
-
-        // 2. Render HTML using the theme with data GUARANTEED to have basics
-        console.log(`Rendering HTML using theme: ${effectiveThemeName}`);
-
-        const htmlContent = theme.render(sanitizedResume); // <-- Use sanitizedResume
-
-        console.log(`--- HTML Output from theme ${effectiveThemeName} (truncated) ---`);
-        console.log(htmlContent.substring(0, 1000) + (htmlContent.length > 1000 ? '...' : '')); // Log first 1000 chars
-        console.log(`-------------------------------------------------------------`);
-
-        if (!htmlContent || typeof htmlContent !== 'string' || htmlContent.trim().length < 100) { // Check for minimal HTML output
-            throw new Error(`Theme '${effectiveThemeName}' rendered empty or invalid HTML.`); // Throw error if output seems empty
-        }
-        
-        if (!htmlContent || typeof htmlContent !== 'string') { throw new Error(`Theme '${effectiveThemeName}' failed to render HTML.`); }
+        // 1. Generate HTML using our internal template function
+        console.log("Rendering HTML using internal template...");
+        // --- Log data being sent to template ---
+        console.log(`--- Data being passed to getCvHtml ---`);
+        console.log(JSON.stringify(resumeDataForTemplate, null, 2));
+        console.log(`---------------------------------------`);
+        const htmlContent = getCvHtml(resumeDataForTemplate); // <-- Use our template function
+        // --- Log HTML output ---
+        console.log(`--- HTML Output from internal template (truncated) ---`);
+        console.log(htmlContent.substring(0, 1000) + (htmlContent.length > 1000 ? '...' : ''));
+        console.log(`------------------------------------------------------`);
+        if (!htmlContent || typeof htmlContent !== 'string' || htmlContent.trim().length < 100) {
+             throw new Error(`Internal template rendered empty or invalid HTML.`);
+         }
         console.log(`HTML rendered successfully`);
 
-        // 3. Generate PDF using Puppeteer
+        // 2. Generate PDF using Puppeteer (as before)
         console.log(`Generating PDF for: ${uniqueFilename}`);
         page = await browser.newPage();
-
-        // Navigate to blank page first, then set content
         await page.goto('about:blank', { waitUntil: 'networkidle0' });
-        await page.setContent(htmlContent, { waitUntil: 'networkidle0' }); // Load the generated HTML
-
-        // Combine default options with theme-specific options (if provided)
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
         const pdfOptions = {
-            path: filePath, // Save directly to file path
-            format: 'A4' as const, // Use 'as const' for type safety if needed
+            path: filePath,
+            format: 'A4' as const,
             printBackground: true,
-            margin: { top: '25px', right: '25px', bottom: '25px', left: '25px' }, // Example margins
-            ...(theme.pdfRenderOptions || {}) // Merge theme options if they exist
+            margin: { top: '25px', right: '25px', bottom: '25px', left: '25px' }, // Use consistent margins
         };
-
-        await page.pdf(pdfOptions); // Generate the PDF
+        await page.pdf(pdfOptions);
         console.log(`CV PDF saved temporarily to: ${filePath}`);
+        return uniqueFilename;
 
-        return uniqueFilename; // Return only the filename
-
-    } catch (error: any) { // Catch specific errors if needed, otherwise 'any'
-        console.error(`Error generating CV PDF ${uniqueFilename} with theme ${effectiveThemeName}:`, error);
-        // Rethrow with a more specific message if possible, including theme name
-        throw new Error(`CV PDF generation failed for theme ${effectiveThemeName}: ${error.message}`);
+    } catch (error: any) {
+        console.error(`Error generating CV PDF ${uniqueFilename}:`, error);
+        throw new Error(`CV PDF generation failed: ${error.message || error}`);
     } finally {
-        // Ensure the page is closed to free up resources
         if (page) {
-            try {
-                await page.close();
-            } catch (closeError) {
-                console.error(`Error closing Puppeteer page for ${uniqueFilename}:`, closeError);
-            }
+            try { await page.close(); } catch (closeError) { console.error(`Error closing page:`, closeError); }
         }
     }
 };

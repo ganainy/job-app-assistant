@@ -1,4 +1,4 @@
-// server/src/utils/pdfTemplates.ts
+import { JsonResumeSchema, JsonResumeWorkItem, JsonResumeEducationItem, JsonResumeSkillItem } from '../types/jsonresume'; // Use our types
 
 // Basic inline CSS - expand significantly for real styling
 const basicStyles = `
@@ -21,75 +21,124 @@ const basicStyles = `
 
 // --- CV Template Function ---
 // Takes the tailored CV JSON and returns an HTML string
-export const getCvHtml = (cvData: any): string => {
-    // Helper to safely access nested properties
-    const get = (obj: any, path: string, defaultValue: any = '') => path.split('.').reduce((acc, part) => acc && acc[part], obj) || defaultValue;
+export const getCvHtml = (resume: JsonResumeSchema): string => {
+    // Helper to safely access nested properties (optional, can access directly)
+    // const get = (obj: any, path: string, defaultValue: any = '') => path.split('.').reduce((acc, part) => acc && acc[part], obj) || defaultValue;
 
-    // Build HTML sections (add more error checking/formatting as needed)
-    const personalInfoHtml = `
-        <div class="section personal-info">
-            <h1>${get(cvData, 'personalInfo.name', 'Name Not Found')}</h1>
-            <p>${get(cvData, 'personalInfo.address', '')}</p>
-            <p>
-                ${get(cvData, 'personalInfo.phone', '')}
-                ${get(cvData, 'personalInfo.phone') && get(cvData, 'personalInfo.email') ? ' | ' : ''}
-                ${get(cvData, 'personalInfo.email', '')}
-            </p>
-            <p>${get(cvData, 'personalInfo.linkedin', '')}</p>
+    const basics = resume.basics || { name: "Applicant", profiles: [] };
+    const location = basics.location || {};
+    const profiles = basics.profiles || [];
+
+    // --- Header & Contact ---
+    const headerHtml = `
+        <div class="header section">
+            <h1>${basics.name || 'Name Not Found'}</h1>
+            ${basics.label ? `<p style="font-size: 16px; color: #555; margin-top: 5px;">${basics.label}</p>` : ''}
+            <div class="contact-info">
+                ${location.city ? `<span>${location.city}${location.region ? `, ${location.region}` : ''}</span>` : ''}
+                ${basics.phone ? `<span> | ${basics.phone}</span>` : ''}
+                ${basics.email ? `<span> | <a href="mailto:${basics.email}">${basics.email}</a></span>` : ''}
+                ${basics.url ? `<span> | <a href="${basics.url}" target="_blank">${basics.url}</a></span>` : ''}
+                ${profiles.map(p => p.url ? `<span> | <a href="${p.url}" target="_blank">${p.network || 'Profile'}</a></span>` : '').join('')}
+            </div>
         </div>
     `;
 
-    const summaryHtml = get(cvData, 'summary') ? `
+    // --- Summary ---
+    const summaryHtml = basics.summary ? `
         <div class="section summary">
             <h2>Summary</h2>
-            <p>${get(cvData, 'summary')}</p>
+            <p>${basics.summary}</p>
         </div>
     ` : '';
 
-    const experienceHtml = Array.isArray(get(cvData, 'experience', [])) && get(cvData, 'experience', []).length > 0 ? `
-        <div class="section experience">
-            <h2>Experience</h2>
-            ${get(cvData, 'experience', []).map((exp: any) => `
-                <div class="experience-item">
-                    ${exp.dates ? `<span class="dates">${exp.dates}</span>` : ''}
-                    <h3>${exp.jobTitle || 'Job Title Missing'}</h3>
-                    ${exp.company ? `<p class="company">${exp.company}${exp.location ? `, ${exp.location}` : ''}</p>` : ''}
-                    <div class="description">
-                        ${Array.isArray(exp.description) ? `<ul>${exp.description.map((d: string) => `<li>${d}</li>`).join('')}</ul>` : `<p>${exp.description || ''}</p>`}
+    // --- Work Experience ---
+    const workHtml = resume.work && resume.work.length > 0 ? `
+        <div class="section work">
+            <h2>Work Experience</h2>
+            ${resume.work.map((item: JsonResumeWorkItem) => `
+                <div class="item">
+                    <div class="item-header">
+                        <span class="item-title">${item.position || item.jobTitle || ''}</span>
+                        <span class="item-dates">${item.startDate || ''}${item.endDate ? ` - ${item.endDate}` : ''}</span>
                     </div>
+                    ${item.name || item.company ? `<div class="item-subtitle">${item.name || item.company}${item.location ? ` | ${item.location}` : ''}</div>` : ''}
+                    ${item.summary ? `<p class="item-summary">${item.summary}</p>` : ''}
+                    ${item.highlights && item.highlights.length > 0 ? `<div class="item-highlights"><ul>${item.highlights.map(h => `<li>${h}</li>`).join('')}</ul></div>` : ''}
+                    ${!item.highlights && item.description ? `<p class="item-summary">${item.description}</p>` : ''}
                 </div>
             `).join('')}
         </div>
     ` : '';
 
-    const educationHtml = Array.isArray(get(cvData, 'education', [])) && get(cvData, 'education', []).length > 0 ? `
+     // --- Projects --- (Similar to Work)
+    const projectsHtml = resume.projects && resume.projects.length > 0 ? `
+        <div class="section projects">
+            <h2>Projects</h2>
+            ${resume.projects.map((item) => `
+                <div class="item">
+                    <div class="item-header">
+                        <span class="item-title">${item.name || ''}</span>
+                        <span class="item-dates">${item.startDate || ''}${item.endDate ? ` - ${item.endDate}` : ''}</span>
+                    </div>
+                    ${item.description ? `<p class="item-summary">${item.description}</p>` : ''}
+                    ${item.highlights && item.highlights.length > 0 ? `<div class="item-highlights"><ul>${item.highlights.map(h => `<li>${h}</li>`).join('')}</ul></div>` : ''}
+                    ${item.keywords && item.keywords.length > 0 ? `<p style="font-size:11px; margin-top: 4px;"><em>Keywords: ${item.keywords.join(', ')}</em></p>`: ''}
+                    ${item.url ? `<p style="font-size:11px;"><a href="${item.url}" target="_blank">Project Link</a></p>` : ''}
+                </div>
+            `).join('')}
+        </div>
+    ` : '';
+
+
+    // --- Education ---
+    const educationHtml = resume.education && resume.education.length > 0 ? `
          <div class="section education">
             <h2>Education</h2>
-             ${get(cvData, 'education', []).map((edu: any) => `
-                <div class="education-item">
-                    ${edu.dates ? `<span class="dates">${edu.dates}</span>` : ''}
-                    <h3>${edu.degree || 'Degree Missing'}</h3>
-                    <p class="institution">${edu.institution || 'Institution Missing'}${edu.location ? `, ${edu.location}` : ''}</p>
+             ${resume.education.map((item: JsonResumeEducationItem) => `
+                <div class="item">
+                     <div class="item-header">
+                        <span class="item-title">${item.institution || ''}</span>
+                        <span class="item-dates">${item.startDate || ''}${item.endDate ? ` - ${item.endDate}` : ''}</span>
+                    </div>
+                     <div class="item-subtitle">
+                        ${item.studyType || item.degree || ''}${item.area ? ` in ${item.area}` : ''}
+                        ${item.score ? ` (Score: ${item.score})` : ''}
+                     </div>
+                    ${item.courses && item.courses.length > 0 ? `<p style="font-size:11px; margin-top: 4px;"><em>Relevant Courses: ${item.courses.join(', ')}</em></p>`: ''}
                 </div>
             `).join('')}
         </div>
     ` : '';
 
-    const skillsHtml = get(cvData, 'skills') ? `
+    // --- Skills ---
+    const skillsHtml = resume.skills && resume.skills.length > 0 ? `
         <div class="section skills">
             <h2>Skills</h2>
-            ${Array.isArray(get(cvData, 'skills')) ? `
-                <ul class="skills-list">${get(cvData, 'skills', []).map((skill: string) => `<li>${skill}</li>`).join('')}</ul>
-            ` : typeof get(cvData, 'skills') === 'object' ?
-                Object.entries(get(cvData, 'skills', {})).map(([category, skillsList]: [string, any]) => Array.isArray(skillsList) ? `
-                    <div>
-                        <h4>${category}</h4>
-                        <ul class="skills-list">${skillsList.map((skill: string) => `<li>${skill}</li>`).join('')}</ul>
-                    </div>
-                ` : '').join('')
-            : ''}
+            ${resume.skills.map((skillCat: JsonResumeSkillItem) => skillCat.keywords && skillCat.keywords.length > 0 ? `
+                <div class="skills-category">
+                    ${skillCat.name ? `<h4>${skillCat.name}</h4>` : ''}
+                    <ul class="skills-list">
+                        ${skillCat.keywords.map(keyword => `<li>${keyword}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : '').join('')}
         </div>
     ` : '';
+
+     // --- Languages --- (Example)
+     const languagesHtml = resume.languages && resume.languages.length > 0 ? `
+         <div class="section languages">
+             <h2>Languages</h2>
+             <ul style="list-style:none; padding:0;">
+                 ${resume.languages.map(lang => `
+                     <li style="margin-bottom: 5px;">
+                         <strong>${lang.language || ''}</strong>${lang.fluency ? `: ${lang.fluency}` : ''}
+                     </li>
+                 `).join('')}
+             </ul>
+         </div>
+     ` : '';
 
 
     // Combine all sections into the final HTML
@@ -98,15 +147,17 @@ export const getCvHtml = (cvData: any): string => {
         <html>
         <head>
             <meta charset="UTF-8">
-            <title>CV - ${get(cvData, 'personalInfo.name', 'Applicant')}</title>
+            <title>CV - ${basics.name || 'Applicant'}</title>
             <style>${basicStyles}</style>
         </head>
         <body>
-            ${personalInfoHtml}
+            ${headerHtml}
             ${summaryHtml}
-            ${experienceHtml}
+            ${workHtml}
+            ${projectsHtml}
             ${educationHtml}
             ${skillsHtml}
+            ${languagesHtml}
         </body>
         </html>
     `;

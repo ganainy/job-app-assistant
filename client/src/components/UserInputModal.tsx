@@ -1,9 +1,11 @@
 // client/src/components/UserInputModal.tsx
-import React, { useState, useEffect, FormEvent } from 'react';
+import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
+// Import the type definition from the API service
+import type { RequiredInputInfo } from '../services/generatorApi'; // Use the type for props
 
 interface UserInputModalProps {
   isOpen: boolean; // Control visibility from parent
-  requiredInputs: string[]; // Array of field names needed (e.g., ["Salary Expectation", "Earliest Start Date"])
+  requiredInputs: RequiredInputInfo[]; // Array of {name, type} objects
   onSubmit: (userInputData: { [key: string]: string }) => void; // Callback with user input
   onClose: () => void; // Callback to close the modal
   isFinalizing: boolean; // Loading state for submit button
@@ -14,94 +16,153 @@ const UserInputModal: React.FC<UserInputModalProps> = ({
   requiredInputs,
   onSubmit,
   onClose,
-  isFinalizing
+  isFinalizing // Receive loading state from parent
 }) => {
+  // State to hold the values entered by the user for each required input
   const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
 
-  // Reset form when required inputs change (e.g., when modal opens for different job)
+  // Effect to reset the form fields whenever the modal opens
+  // or the list of required inputs changes
   useEffect(() => {
     if (isOpen) {
       const initialValues: { [key: string]: string } = {};
-      requiredInputs.forEach(inputName => {
-        initialValues[inputName] = ''; // Initialize all required fields as empty strings
+      // Create an entry in the state for each required input, initializing as empty
+      requiredInputs.forEach(inputInfo => {
+        initialValues[inputInfo.name] = '';
       });
       setInputValues(initialValues);
     }
-  }, [isOpen, requiredInputs]);
+    // Dependency array includes isOpen and requiredInputs (as string for stability)
+    // JSON.stringify ensures effect runs if the array *content* changes, not just reference
+  }, [isOpen, JSON.stringify(requiredInputs)]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Generic handler to update the state based on input changes
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setInputValues(prev => ({ ...prev, [name]: value }));
+    setInputValues(prev => ({ ...prev, [name]: value })); // Update state using input's 'name' attribute
   };
 
+  // Handler for form submission
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    // Basic check: Ensure all required fields are filled (can add more validation)
-    const missing = requiredInputs.find(key => !inputValues[key]?.trim());
+    e.preventDefault(); // Prevent default browser submission
+
+    // Simple validation: Check if any required input field is still empty/whitespace
+    const missing = requiredInputs.find(inputInfo => !inputValues[inputInfo.name]?.trim());
     if (missing) {
-         alert(`Please fill in the field: ${missing}`); // Simple validation feedback
-         return;
+         // Use a simple browser alert for now; could be replaced with inline error messages
+         alert(`Please fill in the field: ${missing.name}`);
+         return; // Stop submission if validation fails
     }
-    onSubmit(inputValues); // Pass the collected data back to the parent
+
+    // If validation passes, call the onSubmit callback provided by the parent component,
+    // passing the collected user input data.
+    onSubmit(inputValues);
   };
 
+  // If the modal is not supposed to be open, render nothing
   if (!isOpen) {
-    return null; // Don't render anything if not open
+    return null;
   }
 
-  // Helper to format label from field name (e.g., "Salary Expectation" -> "salaryExpectation")
+  // Helper to create a more suitable ID/htmlFor value from the placeholder name
   const formatNameToId = (name: string): string => {
+     // Replace spaces with dashes and convert to lowercase for HTML attributes
      return name.replace(/\s+/g, '-').toLowerCase();
   }
 
-  // Helper to format ID to Label
-   const formatIdToLabel = (id: string): string => {
-     // Simple conversion back for display - might need adjustment
-     return id.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-   }
-
-
+  // Render the modal structure
   return (
+    // Modal Backdrop: Covers the screen, semi-transparent background
     <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 transition-opacity duration-300 ease-in-out">
+      {/* Modal Content Box: Centered, styled container */}
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md mx-4 sm:mx-0">
         <h3 className="text-lg font-medium mb-4 text-gray-800">Additional Information Required</h3>
         <p className="text-sm text-gray-600 mb-4">
-          The AI needs the following details to finalize your documents:
+          Please provide the following details to finalize your documents:
         </p>
+        {/* Form element */}
         <form onSubmit={handleSubmit}>
-          {requiredInputs.map((inputName) => (
-            <div key={inputName} className="mb-4">
+          {/* Dynamically render input fields based on requiredInputs prop */}
+          {requiredInputs.map((inputInfo) => (
+            <div key={inputInfo.name} className="mb-4">
+              {/* Label for the input field */}
               <label
-                htmlFor={formatNameToId(inputName)} // Generate unique ID
+                htmlFor={formatNameToId(inputInfo.name)}
                 className="block text-sm font-medium text-gray-700 mb-1"
               >
-                {formatIdToLabel(inputName)}: {/* Use formatted name for label */}
+                {inputInfo.name}: {/* Display the placeholder name as the label */}
               </label>
-              <input
-                type="text" // Use text for simplicity, could change based on inputName
-                id={formatNameToId(inputName)}
-                name={inputName} // Use the original name for state key
-                value={inputValues[inputName] || ''}
-                onChange={handleChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                placeholder={`Enter ${inputName}...`}
-              />
+
+              {/* --- Conditional Input Rendering based on inferred type --- */}
+              {/* Render number input */}
+              {inputInfo.type === 'number' && (
+                <input
+                  type="number"
+                  id={formatNameToId(inputInfo.name)}
+                  name={inputInfo.name} // Name must match the key in requiredInputs and inputValues state
+                  value={inputValues[inputInfo.name] || ''} // Controlled input
+                  onChange={handleChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  placeholder={`Enter ${inputInfo.name}...`}
+                  step="any" // Allow decimals if needed, or remove for integers
+                />
+              )}
+              {/* Render date input */}
+              {inputInfo.type === 'date' && (
+                 <input
+                   type="date" // Use browser's native date picker
+                   id={formatNameToId(inputInfo.name)}
+                   name={inputInfo.name}
+                   value={inputValues[inputInfo.name] || ''} // Value should be in 'yyyy-mm-dd' format
+                   onChange={handleChange}
+                   required
+                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                 />
+               )}
+               {/* Render textarea input */}
+               {inputInfo.type === 'textarea' && (
+                  <textarea
+                      id={formatNameToId(inputInfo.name)}
+                      name={inputInfo.name}
+                      rows={3}
+                      value={inputValues[inputInfo.name] || ''}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder={`Enter ${inputInfo.name}...`}
+                  />
+               )}
+               {/* Default to text input if type is 'text' or not specified */}
+               {(inputInfo.type === 'text' || !inputInfo.type) && (
+                  <input
+                    type="text"
+                    id={formatNameToId(inputInfo.name)}
+                    name={inputInfo.name}
+                    value={inputValues[inputInfo.name] || ''}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    placeholder={`Enter ${inputInfo.name}...`}
+                  />
+               )}
             </div>
           ))}
 
+          {/* Modal Action Buttons */}
           <div className="flex justify-end gap-3 mt-5 border-t pt-4 border-gray-200">
             <button
-              type="button"
-              onClick={onClose}
-              disabled={isFinalizing}
+              type="button" // Prevent default form submission on cancel
+              onClick={onClose} // Call parent's close handler
+              disabled={isFinalizing} // Disable while finalizing
               className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
             > Cancel </button>
             <button
               type="submit"
-              disabled={isFinalizing}
+              disabled={isFinalizing} // Disable while finalizing
               className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 text-sm"
             >
+              {/* Show loading text on button */}
               {isFinalizing ? 'Finalizing...' : 'Submit & Generate'}
             </button>
           </div>

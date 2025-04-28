@@ -11,13 +11,16 @@ interface GenerateSuccessResponse {
     coverLetterFilename: string;
 }
 
-
+export interface RequiredInputInfo { // Add 'export' here
+    name: string;
+    type: 'text' | 'number' | 'date' | 'textarea';
+}
 
 // Response when input is pending
 interface GeneratePendingResponse {
      status: "pending_input";
      message: string;
-     requiredInputs: string[];
+     requiredInputs: RequiredInputInfo[]; 
      intermediateData: {
          tailoredCvJson: any; // Consider using JsonResumeSchema type if imported/shared
          coverLetterTemplate: string;

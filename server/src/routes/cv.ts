@@ -32,7 +32,7 @@ const upload = multer({
     }
 });
 
-// --- MODIFIED Helper Function to Parse Gemini Response (JSON Resume specific) ---
+// ---  Helper Function to Parse Gemini Response (JSON Resume specific) ---
 function parseJsonResponseToSchema(responseText: string, schemaType: 'JsonResume'): JsonResumeSchema | null { // Made more specific
     const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
     const jsonMatch = responseText.match(jsonRegex);
@@ -64,42 +64,6 @@ function parseJsonResponseToSchema(responseText: string, schemaType: 'JsonResume
     }
     console.error(`Could not parse valid ${schemaType} JSON from Gemini response. Raw response:\n---\n`, responseText, "\n---");
     throw new Error(`AI failed to return the ${schemaType} data in the expected format.`);
-}
-
-
-// --- Helper Function to Parse Gemini Response ---
-function parseGeminiResponse(responseText: string): any {
-    const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
-    const jsonMatch = responseText.match(jsonRegex);
-
-    if (jsonMatch && jsonMatch[1]) {
-        const extractedJson = jsonMatch[1].trim(); // <-- Trim whitespace
-        console.log("Attempting to parse extracted JSON content..."); // Added log
-        try {
-            return JSON.parse(extractedJson); // Parse the trimmed content
-        } catch (parseError: any) {
-            console.error("JSON.parse failed on extracted content:", parseError.message);
-            console.error("Extracted Content causing failure:\n---\n", extractedJson, "\n---"); // Log the problematic string
-            // Fall through to throw the generic error
-        }
-    } else {
-        // If the ```json ``` block wasn't found at all
-        console.warn("Gemini response did not contain ```json formatting. Cannot parse.");
-        // Consider trying a direct parse only if you sometimes expect plain JSON without backticks
-        /*
-        try {
-             console.log("Attempting direct parse as fallback...");
-             return JSON.parse(responseText.trim());
-        } catch (directParseError: any) {
-             console.error("Direct JSON.parse failed:", directParseError.message);
-             // Fall through
-        }
-        */
-    }
-
-    // If parsing failed above or format wasn't found
-    console.error("Could not parse valid JSON from Gemini response. Raw response:\n---\n", responseText, "\n---");
-    throw new Error("AI failed to return valid JSON structure.");
 }
 
 
@@ -140,6 +104,8 @@ router.post(
                 - Format dates as YYYY-MM-DD, YYYY-MM, or YYYY where possible. Use "Present" for ongoing roles/studies.
                 - If a standard section (like 'awards' or 'volunteer') is not present in the CV, omit that key entirely from the JSON output.
                 - If a specific field within a section (like 'work.location') is not found, omit that field or set it to null.
+
+                **CRITICAL: Do NOT include any comments (e.g., // or /* */) within the JSON output.**
 
                 Output Format:
                 Return ONLY a single, valid JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`) that strictly adheres to the JSON Resume Schema structure. Do not include any explanatory text before or after the JSON block.

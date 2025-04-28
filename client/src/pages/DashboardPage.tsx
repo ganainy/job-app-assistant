@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { createJobFromUrlApi } from '../services/jobApi';
 import UserInputModal from '../components/UserInputModal';
+import type { RequiredInputInfo } from '../services/generatorApi';
 
 // Define type for the form data used in the Add/Edit modal
 type JobFormData = Partial<Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt'>>;
@@ -114,10 +115,9 @@ const DashboardPage: React.FC = () => {
   const [langModalJobId, setLangModalJobId] = useState<string | null>(null); // Job ID for which modal is open
   const [selectedLang, setSelectedLang] = useState<'en' | 'de'>('en'); // Default language
 
-
   // ---  State for Placeholder Handling ---
   const [isUserInputModalOpen, setIsUserInputModalOpen] = useState<boolean>(false);
-  const [requiredInputs, setRequiredInputs] = useState<string[]>([]);
+  const [requiredInputs, setRequiredInputs] = useState<RequiredInputInfo[]>([]); 
   const [intermediateGenData, setIntermediateGenData] = useState<any | null>(null); // Store intermediate data
   const [isFinalizing, setIsFinalizing] = useState<boolean>(false); // Loading state for finalize step
 
@@ -293,7 +293,7 @@ const DashboardPage: React.FC = () => {
 
   // --- Generator Event Handler ---
 
-   // --- NEW Handler for Finalizing Generation after User Input ---
+   // ---  Handler for Finalizing Generation after User Input ---
    const handleFinalizeGeneration = async (userInputData: { [key: string]: string }) => {
     if (!intermediateGenData) {
         console.error("Cannot finalize: intermediate generation data is missing.");
