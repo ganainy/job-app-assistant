@@ -1,42 +1,55 @@
 // client/src/services/jobApi.ts
 import axios from 'axios';
+import { JsonResumeSchema } from '../../../server/src/types/jsonresume'; // Adjust path if needed or redefine/share type
 
 // Define the base URL for your backend API
 // It's good practice to use environment variables for this later,
 // but for now, we'll hardcode it for local development.
 const API_BASE_URL = 'http://localhost:5001/api'; // Your backend URL
 
-// Create an Axios instance (optional but good practice)
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    // Add Authorization headers here later if needed for auth
-  },
-});
 
 // Define the expected structure of a job application (matching backend)
 // It's often useful to have this type definition accessible in the frontend
 export interface JobApplication {
-  _id: string; // MongoDB assigns _id
-  jobTitle: string;
-  companyName: string;
-  status: 'Applied' | 'Not Applied' | 'Interview' | 'Assessment' | 'Rejected' | 'Closed' | 'Offer';
-  dateApplied?: string; // Dates are often strings in JSON
-  jobUrl?: string;
-  notes?: string;
-  jobDescriptionText?: string;
-  language?: string;
-  createdAt: string; // Dates are often strings in JSON
-  updatedAt: string; // Dates are often strings in JSON
-  // userId?: string; // Add later
+    _id: string; // MongoDB assigns _id
+    jobTitle: string;
+    companyName: string;
+    status: 'Applied' | 'Not Applied' | 'Interview' | 'Assessment' | 'Rejected' | 'Closed' | 'Offer';
+    dateApplied?: string; // Dates are often strings in JSON
+    jobUrl?: string;
+    notes?: string;
+    jobDescriptionText?: string;
+    language?: 'en' | 'de'; // More specific type
+    draftCvJson?: any | null; // Use JsonResumeSchema if imported, else any
+    draftCoverLetterText?: string | null;
+    generationStatus?: 'none' | 'pending_input' | 'draft_ready' | 'finalized' | 'error';
+    generatedCvFilename?: string; // Added
+    generatedCoverLetterFilename?: string; // Added
+    createdAt: string; // Dates are often strings in JSON
+    updatedAt: string; // Dates are often strings in JSON
+    // userId?: string; // Add later
 }
+export type CreateJobPayload = Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt' | 'draftCvJson' | 'draftCoverLetterText' | 'generationStatus'>; // Exclude draft fields on create
+export type UpdateJobPayload = Partial<Omit<JobApplication, '_id' | 'userId' | 'createdAt' | 'updatedAt'>>; // Allow updating most fields
 
 interface ScrapeResponse {
     message: string;
     job: JobApplication; // Return the updated job
 }
+interface DeleteResponse {
+    message: string;
+    id: string;
+}
 
+// ---  Interface for Draft Response ---
+export interface JobDraftData {
+    jobId: string;
+    jobTitle: string;
+    companyName: string;
+    generationStatus?: 'none' | 'pending_input' | 'draft_ready' | 'finalized' | 'error';
+    draftCvJson: JsonResumeSchema | null | any; // Use specific type or any
+    draftCoverLetterText: string | null;
+}
 
 // --- API Functions ---
 
@@ -46,17 +59,16 @@ export const getJobs = async (): Promise<JobApplication[]> => {
         // Use axios directly - Auth header is set by AuthProvider
         const response = await axios.get(`${API_BASE_URL}/jobs`);
         return response.data;
-      } 
- catch (error) {
-    console.error("Error fetching jobs:", error);
-    // Handle or throw error appropriately for UI feedback
-    throw error;
-  }
+    }
+    catch (error) {
+        console.error("Error fetching jobs:", error);
+        // Handle or throw error appropriately for UI feedback
+        throw error;
+    }
 };
 
 // Function to create a new job application
 // We need the data to send (Payload Type) - excluding _id, createdAt, updatedAt
-export type CreateJobPayload = Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt'>;
 export const createJob = async (jobData: CreateJobPayload): Promise<JobApplication> => {
     try {
         const response = await axios.post(`${API_BASE_URL}/jobs`, jobData);
@@ -69,7 +81,6 @@ export const createJob = async (jobData: CreateJobPayload): Promise<JobApplicati
 
 // Function to update a job application
 // Payload can be partial data for the update
-type UpdateJobPayload = Partial<Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt'>>;
 export const updateJob = async (id: string, updates: UpdateJobPayload): Promise<JobApplication> => {
     try {
         const response = await axios.put(`${API_BASE_URL}/jobs/${id}`, updates);
@@ -83,10 +94,6 @@ export const updateJob = async (id: string, updates: UpdateJobPayload): Promise<
 
 // Function to delete a job application
 // Usually returns some confirmation or just succeeds/fails
-interface DeleteResponse {
-    message: string;
-    id: string;
-}
 export const deleteJob = async (id: string): Promise<DeleteResponse> => {
     try {
         const response = await axios.delete(`${API_BASE_URL}/jobs/${id}`);
@@ -137,5 +144,20 @@ export const createJobFromUrlApi = async (url: string): Promise<JobApplication> 
             throw error.response.data;
         }
         throw { message: 'An unknown error occurred while creating job from URL.' };
+    }
+};
+
+// ---  Get Draft Data Function ---
+export const getJobDraft = async (jobId: string): Promise<JobDraftData> => {
+    try {
+        // Assumes auth token is handled by default axios instance
+        const response = await axios.get<JobDraftData>(`${API_BASE_URL}/jobs/${jobId}/draft`);
+        return response.data;
+    } catch (error: any) {
+        console.error(`Error fetching draft data for job ${jobId}:`, error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data; // Throw backend error structure
+        }
+        throw { message: 'An unknown error occurred fetching draft data.' };
     }
 };

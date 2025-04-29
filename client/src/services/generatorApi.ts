@@ -18,23 +18,33 @@ export interface RequiredInputInfo { // Add 'export' here
 
 // Response when input is pending
 interface GeneratePendingResponse {
-     status: "pending_input";
-     message: string;
-     requiredInputs: RequiredInputInfo[]; 
-     intermediateData: {
-         tailoredCvJson: any; // Consider using JsonResumeSchema type if imported/shared
-         coverLetterTemplate: string;
-         language: 'en' | 'de';
-         theme: string;
-         jobId: string;
-         userId: string;
-         cvFilenamePrefix: string;
-         clFilenamePrefix: string;
-     };
+    status: "pending_input";
+    message: string;
+    requiredInputs: RequiredInputInfo[];
+    intermediateData: {
+        tailoredCvJson: any; // Consider using JsonResumeSchema type if imported/shared
+        coverLetterTemplate: string;
+        language: 'en' | 'de';
+        theme: string;
+        jobId: string;
+        userId: string;
+        cvFilenamePrefix: string;
+        clFilenamePrefix: string;
+    };
 }
 
+interface GenerateDraftReadyResponse {
+    status: "draft_ready"; // Discriminating literal type
+    message: string;      // Success message (e.g., "Draft generated...", "Draft finalized...")
+    jobId: string;        // The ID of the job application whose draft is ready
+    // Note: This response type intentionally DOES NOT include the filenames.
+    // Filenames are only sent back in GenerateSuccessResponse AFTER PDF rendering.
+}
+
+
 // Union type for the response from the initial POST /:jobId endpoint
-type GenerateInitialResponse = GenerateSuccessResponse | GeneratePendingResponse;
+// Export this type
+export type GenerateInitialResponse = GenerateSuccessResponse | GeneratePendingResponse | GenerateDraftReadyResponse;
 
 // --- Function to trigger initial document generation ---
 export const generateDocuments = async (jobId: string, language: 'en' | 'de', theme: string): Promise<GenerateInitialResponse> => { // Return union type
@@ -56,15 +66,15 @@ export const finalizeGeneration = async (
     userInputData: { [key: string]: string }
 ): Promise<GenerateSuccessResponse> => { // Expect success response on finalize
     try {
-         // Send intermediate data AND user input to the finalize endpoint
-         const response = await axios.post<GenerateSuccessResponse>(`${API_BASE_URL}/finalize`, {
-             intermediateData,
-             userInputData
-         });
-         return response.data;
+        // Send intermediate data AND user input to the finalize endpoint
+        const response = await axios.post<GenerateSuccessResponse>(`${API_BASE_URL}/finalize`, {
+            intermediateData,
+            userInputData
+        });
+        return response.data;
     } catch (error: any) {
         console.error(`Error finalizing generation for job ${intermediateData?.jobId}:`, error);
-         if (axios.isAxiosError(error) && error.response) {
+        if (axios.isAxiosError(error) && error.response) {
             throw error.response.data;
         }
         throw { message: 'An unknown error occurred during document finalization.' };

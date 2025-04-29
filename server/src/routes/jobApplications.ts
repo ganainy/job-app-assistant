@@ -4,6 +4,7 @@ import JobApplication from '../models/JobApplication';
 import authMiddleware from '../middleware/authMiddleware'; // Import the middleware
 import { scrapeJobDescription } from '../utils/scraper';
 import { extractJobDataFromUrl, ExtractedJobData } from '../utils/aiExtractor';
+import mongoose from 'mongoose'; // Import mongoose for ObjectId type
 
 const router: Router = express.Router();
 
@@ -232,8 +233,8 @@ const createJobFromUrlHandler: RequestHandler = async (req, res) => {
   }
   const { url } = req.body; // Expect URL in the request body
   if (!url || typeof url !== 'string' || !url.startsWith('http')) {
-     res.status(400).json({ message: 'Valid URL is required in the request body.' });
-     return;
+    res.status(400).json({ message: 'Valid URL is required in the request body.' });
+    return;
   }
 
   const userId = req.user._id;
@@ -273,5 +274,54 @@ const createJobFromUrlHandler: RequestHandler = async (req, res) => {
   }
 };
 router.post('/create-from-url', createJobFromUrlHandler); // Add the new route
+
+
+// ---  Get Draft Data Endpoint ---
+// GET /api/jobs/:id/draft
+const getJobDraftHandler: RequestHandler = async (req, res) => {
+  // Use type assertion for req.user, assuming authMiddleware populates it
+  const user = req.user as { _id: mongoose.Types.ObjectId | string }; // Adjust based on your actual user type in req
+  if (!user) {
+    res.status(401).json({ message: 'User not authenticated correctly.' });
+    return;
+  }
+  const { id: jobId } = req.params;
+  const userId = user._id;
+
+  try {
+    // Find the job, ensure it belongs to the user, and select only the draft fields + status
+    const job = await JobApplication.findOne(
+      { _id: jobId, userId: userId },
+      'draftCvJson draftCoverLetterText generationStatus companyName jobTitle' // Select fields to return (_id is included by default)
+    );
+
+    if (!job) {
+      res.status(404).json({ message: 'Job application not found or access denied.' });
+      return;
+    }
+
+    // Return the draft data (or null if fields are empty)
+    res.status(200).json({
+      jobId: job._id, // Include IDs for context
+      jobTitle: job.jobTitle,
+      companyName: job.companyName,
+      generationStatus: job.generationStatus,
+      draftCvJson: job.draftCvJson || null, // Return null if field doesn't exist/is empty
+      draftCoverLetterText: job.draftCoverLetterText || null,
+    });
+
+  } catch (error: any) {
+    console.error(`Error fetching draft data for job ${jobId}:`, error);
+    if (error instanceof Error && error.name === 'CastError') {
+      res.status(400).json({ message: 'Invalid job ID format.' });
+      return;
+    }
+    res.status(500).json({ message: 'Server error fetching draft data.' });
+  }
+};
+// Define the route AFTER the generic /:id GET route to avoid conflict
+// Or ensure it's distinct enough. Putting it here should be fine.
+router.get('/:id/draft', getJobDraftHandler);
+
 
 export default router; // Export the configured router

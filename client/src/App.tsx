@@ -7,7 +7,8 @@ import { useAuth } from './context/AuthContext';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import CVManagementPage from './pages/CVManagementPage'; // Ensure CVManagementPage is imported
+import CVManagementPage from './pages/CVManagementPage';
+import ReviewFinalizePage from './pages/ReviewFinalizePage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Example: Placeholder for ProfilePage if you were to use the commented route
@@ -22,7 +23,7 @@ function App() {
     navigate('/login'); // Redirect to login after logout
   };
 
- return (
+  return (
     // Main container div
     <div>
       {/* Navigation Bar */}
@@ -30,7 +31,7 @@ function App() {
         <div className="container mx-auto flex justify-between items-center">
           {/* Logo/Brand Link */}
           <Link to={isAuthenticated ? "/dashboard" : "/"} className="text-xl font-bold hover:text-gray-300">
-             Job App Assistant
+            Job App Assistant
           </Link>
           {/* Auth Links / User Info */}
           <div>
@@ -69,43 +70,23 @@ function App() {
           <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
 
           {/* Protected Routes */}
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/manage-cv" element={<ProtectedRoute><CVManagementPage /></ProtectedRoute>} />
+
+          {/* --- NEW Route for Review/Finalize Page --- */}
           <Route
-            path="/dashboard"
+            path="/jobs/:jobId/review" // Use :jobId as a URL parameter
             element={
               <ProtectedRoute>
-                <DashboardPage />
+                <ReviewFinalizePage />
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/manage-cv"
-            element={
-              <ProtectedRoute>
-                <CVManagementPage />
-              </ProtectedRoute>
-            }
-          />
-          {/* --- End of actual Routes --- */}
+          {/* --- End of New Route --- */}
 
           {/* Optional: Catch-all route for 404 Not Found */}
           <Route path="*" element={<div className="text-center p-10">404 - Page Not Found</div>} />
-
         </Routes>
-
-        {/* You can keep commented-out examples outside the <Routes> block for reference */}
-        {/*
-          // Example of another protected route:
-          <Routes> // This would actually need to be inside the main <Routes> above
-           <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <ProfilePage /> // Assuming ProfilePage component exists and is imported
-              </ProtectedRoute>
-            }
-           />
-          </Routes>
-        */}
       </main>
     </div>
   );
