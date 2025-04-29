@@ -86,3 +86,22 @@ export const getDownloadUrl = (filename: string): string => {
     // We don't include /api here if the base URL already has it
     return `${API_BASE_URL}/download/${encodeURIComponent(filename)}`;
 };
+
+
+// --- Refactored function to render final PDFs using axios ---
+export const renderFinalPdfs = async (jobId: string): Promise<GenerateSuccessResponse> => {
+    try {
+        // Use axios.post - Auth header should be handled by axios interceptors
+        // Correct the URL: API_BASE_URL already contains /api/generator
+        const response = await axios.post<GenerateSuccessResponse>(`${API_BASE_URL}/${jobId}/render-pdf`);
+        return response.data;
+    } catch (error: any) {
+        console.error(`Error rendering final PDFs for job ${jobId}:`, error);
+        if (axios.isAxiosError(error) && error.response) {
+            // Throw the error structure expected by the calling component
+            throw new Error(error.response.data.message || `HTTP error! status: ${error.response.status}`);
+        }
+        // Throw a generic error if it's not an Axios error
+        throw new Error(error.message || 'An unknown error occurred during PDF rendering.');
+    }
+};

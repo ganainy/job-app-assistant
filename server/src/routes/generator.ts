@@ -3,11 +3,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import authMiddleware from '../middleware/authMiddleware';
 import JobApplication from '../models/JobApplication';
-import User from '../models/User';
+import User, { IUser } from '../models/User'; // Import IUser interface
 import geminiModel from '../utils/geminiClient';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 import { JsonResumeSchema } from '../types/jsonresume';
 import mongoose from 'mongoose';
+import { generateCvPdfFromJsonResume, generateCoverLetterPdf } from '../utils/pdfGenerator'; // Import PDF generators
 
 const router: Router = express.Router();
 router.use(authMiddleware as RequestHandler); // Apply auth to all routes in this file
@@ -454,6 +455,112 @@ const finalizeGenerationHandler: RequestHandler = async (req, res) => {
 };
 
 
+// --- NEW: Render Final PDFs Endpoint ---
+// Explicitly type return as Promise<void> or Promise<any> or ensure no return value from res.json()
+const renderFinalPdfsHandler: RequestHandler = async (req, res): Promise<void> => {
+    console.log("--- Render Final PDFs Endpoint Hit ---");
+    const user = req.user as IUser; // Correctly use IUser interface
+    if (!user || !user._id) {
+        res.status(401).json({ message: 'Authentication required.' });
+        return;
+    }
+    const userId = user._id;
+    const userEmail = user.email; // Get email for filename
+    const { jobId } = req.params;
+
+    try {
+        // 2.3. Fetch Saved Draft
+        const job = await JobApplication.findOne({ _id: jobId, userId: userId });
+
+        // 2.4. Validate Draft
+        if (!job) {
+            res.status(404).json({ message: 'Job application not found or access denied.' });
+            return;
+        }
+        if (job.generationStatus !== 'draft_ready') {
+            res.status(400).json({ message: 'Draft documents are not ready for final rendering.', currentStatus: job.generationStatus });
+            return;
+        }
+        if (!job.draftCvJson || typeof job.draftCvJson !== 'object' || Object.keys(job.draftCvJson).length === 0) {
+            res.status(400).json({ message: 'Missing or invalid draft CV data.' });
+            return;
+        }
+        if (!job.draftCoverLetterText || typeof job.draftCoverLetterText !== 'string') {
+            res.status(400).json({ message: 'Missing or invalid draft cover letter text.' });
+            return;
+        }
+        if (!job.language || (job.language !== 'en' && job.language !== 'de')) {
+            console.warn(`Job ${jobId} missing valid language for PDF naming. Defaulting to 'en'.`);
+            // Optionally update the job document here if language is missing
+            // await JobApplication.updateOne({ _id: jobId, userId: userId }, { $set: { language: 'en' } });
+            // job.language = 'en'; // Update local copy too
+            // For now, we'll just use 'en' if missing, but ideally it should be set during draft finalization
+        }
+        const language = (job.language === 'en' || job.language === 'de') ? job.language : 'en'; // Ensure language is 'en' or 'de'
+
+        // 2.5. Prepare Filenames (Sanitize company/title for filenames)
+        const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown'; // Add fallback for undefined/null
+        // --- New Filename Logic ---
+        const cvJsonData = job.draftCvJson as JsonResumeSchema; // Cast to JsonResumeSchema
+        const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
+        const companySanitized = sanitize(job.companyName);
+        const titleSanitized = sanitize(job.jobTitle);
+        // Example: CV_JohnDoe_TechCorp_SoftwareEngineer_en.pdf
+        const baseFilename = `${applicantName}_${companySanitized}_${titleSanitized}`;
+
+        const cvFilenamePrefix = `CV_${baseFilename}`;
+        const clFilenamePrefix = `CoverLetter_${baseFilename}`;
+
+        // 2.6. Call PDF Generators
+        console.log(`Generating final CV PDF for job ${jobId}...`);
+        // Ensure draftCvJson is treated as JsonResumeSchema
+        // const cvJsonData = job.draftCvJson as JsonResumeSchema; // Moved cast up
+        const generatedCvFilename = await generateCvPdfFromJsonResume(
+            cvJsonData,
+            `${cvFilenamePrefix}_${language}` // Pass prefix with language
+        );
+
+        console.log(`Generating final Cover Letter PDF for job ${jobId}...`);
+        const generatedClFilename = await generateCoverLetterPdf(
+            job.draftCoverLetterText,
+            cvJsonData, // Pass CV data for potential template use
+            `${clFilenamePrefix}_${language}` // Pass prefix with language
+        );
+
+        // 2.7. Update Job Status (Optional but recommended)
+        await JobApplication.updateOne({ _id: jobId, userId: userId }, {
+            $set: {
+                generationStatus: 'finalized',
+                // Optionally store final filenames if needed later
+                // finalCvFilename: generatedCvFilename,
+                // finalCoverLetterFilename: generatedClFilename,
+            }
+        });
+        console.log(`Job ${jobId} status updated to 'finalized'.`);
+
+        // 2.8. Return Success
+        res.status(200).json({
+            status: "success",
+            message: "Final CV and Cover Letter PDFs generated successfully.",
+            cvFilename: generatedCvFilename,
+            coverLetterFilename: generatedClFilename
+        });
+        return; // Explicit return for void promise
+
+    } catch (error: any) {
+        // 2.9. Error Handling
+        console.error(`Error rendering final PDFs for job ${jobId}:`, error);
+        // Optionally update job status to 'error'
+        // Use a non-blocking call for the error status update
+        JobApplication.updateOne({ _id: jobId, userId: userId }, { $set: { generationStatus: 'error' } })
+            .catch(err => console.error("Failed to update job status to error:", err)); // Best effort update
+
+        res.status(500).json({ message: `Failed to render final PDFs: ${error.message || 'Internal server error'}` });
+        return; // Explicit return for void promise
+    }
+};
+
+
 // --- Download Endpoint (Keep as is - still needed AFTER final rendering step) ---
 const downloadFileHandler: RequestHandler = async (req, res) => {
     if (!req.user) { res.status(401).json({ message: 'Authentication required to download.' }); return; }
@@ -467,8 +574,9 @@ const downloadFileHandler: RequestHandler = async (req, res) => {
 
 
 // === ROUTE DEFINITIONS (Order Matters!) ===
-router.post('/finalize', finalizeGenerationHandler); // Finalize *before* generic :jobId
-router.post('/:jobId', generateDocumentsHandler); // Generate initial
-router.get('/download/:filename', downloadFileHandler); // Download last
+router.post('/finalize', finalizeGenerationHandler); // Finalize draft content
+router.post('/:jobId/render-pdf', renderFinalPdfsHandler); // NEW: Render final PDFs from draft
+router.post('/:jobId', generateDocumentsHandler); // Generate initial draft or ask for input
+router.get('/download/:filename', downloadFileHandler); // Download generated files
 
 export default router;
