@@ -8,6 +8,7 @@ import { renderFinalPdfs, getDownloadUrl } from '../services/generatorApi';
 // Fix 4: Import JsonResumeSchema instead of Resume
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume'; // Adjust path as needed
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
+import axios from 'axios'; // Import axios
 
 const ReviewFinalizePage: React.FC = () => {
     const { jobId } = useParams<{ jobId: string }>();
@@ -122,23 +123,33 @@ const ReviewFinalizePage: React.FC = () => {
         }
     };
 
-    // Fix 2: Implement download using getDownloadUrl
-    const handleDownload = (filename: string | null) => {
+    // Fix 2 & Auth Fix: Implement download using axios to fetch blob and open in new tab
+    const handleDownload = async (filename: string | null) => { // Make async
         if (!filename) return;
         try {
             const url = getDownloadUrl(filename);
-            const link = document.createElement('a');
-            link.href = url;
-            // Optional: Set a more user-friendly download name
-            // link.download = filename.split('_').slice(1).join('_') || filename;
-            link.target = '_blank'; // Open in new tab might be better for direct downloads
-            link.rel = 'noopener noreferrer';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // Fetch the file using axios, ensuring auth headers are sent
+            const response = await axios.get(url, {
+                responseType: 'blob', // Important: response type is blob
+                // Axios instance should be configured with interceptors to add auth token
+            });
+
+            const fileBlob = new Blob([response.data], { type: response.headers['content-type'] || 'application/pdf' }); // Use content-type from header
+            const blobUrl = URL.createObjectURL(fileBlob);
+
+            // Open the blob URL in a new tab
+            window.open(blobUrl, '_blank');
+
+            // Optional: Revoke the object URL after a delay or when no longer needed
+            // URL.revokeObjectURL(blobUrl); // Be careful with timing if the new tab needs it
+
         } catch (err: any) { // Fix 6: Add type to err
             console.error("Download failed:", err);
-            alert(`Failed to initiate download for ${filename}: ${err.message}`);
+            // Provide more specific error feedback
+            const errorMessage = axios.isAxiosError(err) && err.response?.data instanceof Blob
+                ? "Failed to fetch file data." // If response is blob, it's likely not a JSON error message
+                : err.response?.data?.message || err.message || 'An unknown error occurred during download.';
+            alert(`Failed to download ${filename}: ${errorMessage}`);
         }
     };
 

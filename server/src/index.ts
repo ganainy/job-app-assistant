@@ -42,17 +42,18 @@ if (!mongoUri) {
 mongoose.connect(mongoUri)
   .then(() => {
     console.log('MongoDB Connected Successfully');
+
+
     // Start listening only after successful DB connection
-    app.listen(port, () => {
-      const server = app.listen(port, () => { // Store server instance
-        console.log(`[server]: Server is running at http://localhost:${port}`);
-      });
+    const server = app.listen(port, () => {
+      console.log(`[server]: Server is running at http://localhost:${port}`);
+    });
 
     // --- Graceful Shutdown ---
     const shutdown = async (signal: string) => {
       console.log(`\n${signal} signal received. Shutting down gracefully...`);
       await closeBrowser(); // Close Puppeteer browser
-      server.close(() => { // Close HTTP server
+      server.close(() => {
         console.log('HTTP server closed.');
         mongoose.connection.close(false).then(() => { // Close DB connection
           console.log('MongoDB connection closed.');
@@ -73,8 +74,7 @@ mongoose.connect(mongoUri)
     process.on('SIGINT', () => shutdown('SIGINT')); // Catches Ctrl+C
 
 
-  });
-})
+  })
   .catch(err => {
     console.error('MongoDB Connection Error:', err);
     process.exit(1); // Exit if DB connection fails on startup

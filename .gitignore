@@ -25,3 +25,5 @@ server/temp_pdfs
 
 # Ignore GitHub specific files
 .github
+
+mcp-install/brave.json
