@@ -161,3 +161,24 @@ export const getJobDraft = async (jobId: string): Promise<JobDraftData> => {
         throw { message: 'An unknown error occurred fetching draft data.' };
     }
 };
+
+// ---  Update Draft Data Function ---
+interface UpdateDraftPayload {
+    draftCvJson?: JsonResumeSchema | any; // Allow sending partial updates potentially
+    draftCoverLetterText?: string;
+}
+interface UpdateDraftResponse {
+    message: string;
+}
+export const updateJobDraft = async (jobId: string, draftData: UpdateDraftPayload): Promise<UpdateDraftResponse> => {
+    try {
+        const response = await axios.put<UpdateDraftResponse>(`${API_BASE_URL}/jobs/${jobId}/draft`, draftData);
+        return response.data;
+    } catch (error: any) {
+        console.error(`Error updating draft for job ${jobId}:`, error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data;
+        }
+        throw { message: 'An unknown error occurred updating draft data.' };
+    }
+};

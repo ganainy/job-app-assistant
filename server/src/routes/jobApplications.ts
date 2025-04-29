@@ -5,6 +5,7 @@ import authMiddleware from '../middleware/authMiddleware'; // Import the middlew
 import { scrapeJobDescription } from '../utils/scraper';
 import { extractJobDataFromUrl, ExtractedJobData } from '../utils/aiExtractor';
 import mongoose from 'mongoose'; // Import mongoose for ObjectId type
+import { JsonResumeSchema } from '../types/jsonresume'; // Import if needed for validation
 
 const router: Router = express.Router();
 
@@ -322,6 +323,77 @@ const getJobDraftHandler: RequestHandler = async (req, res) => {
 // Define the route AFTER the generic /:id GET route to avoid conflict
 // Or ensure it's distinct enough. Putting it here should be fine.
 router.get('/:id/draft', getJobDraftHandler);
+
+
+// ---  Update Draft Data Endpoint ---
+// PUT /api/jobs/:id/draft
+const updateJobDraftHandler: RequestHandler = async (req, res) => {
+  // Use type assertion for req.user, assuming authMiddleware populates it
+  const user = req.user as { _id: mongoose.Types.ObjectId | string }; // Adjust based on your actual user type in req
+  if (!user) {
+    res.status(401).json({ message: 'User not authenticated.' });
+    return;
+  }
+
+  const { id: jobId } = req.params;
+  const userId = user._id;
+  // Expecting updated draft data in the body
+  const { draftCvJson, draftCoverLetterText } = req.body as { draftCvJson?: JsonResumeSchema | any, draftCoverLetterText?: string }; // Make optional
+
+  // Basic validation: Ensure at least one part of the draft is provided
+  if (draftCvJson === undefined && draftCoverLetterText === undefined) { // Check for undefined instead of falsy
+    res.status(400).json({ message: 'No draft data provided for update.' });
+    return;
+  }
+  // Add more robust validation for the structure of draftCvJson if desired here
+
+  try {
+    // Prepare the update object conditionally
+    const updateData: any = {
+      generationStatus: 'draft_ready' // Keep status as draft_ready after edit
+    };
+    if (draftCvJson !== undefined) {
+      updateData.draftCvJson = draftCvJson;
+    }
+    if (draftCoverLetterText !== undefined) {
+      updateData.draftCoverLetterText = draftCoverLetterText;
+    }
+
+    // Find the job belonging to the user and update only the draft fields
+    const updatedJob = await JobApplication.findOneAndUpdate(
+      { _id: jobId, userId: userId },
+      { $set: updateData }, // Use the prepared update object
+      { new: true, runValidators: true } // Return updated doc, run schema checks
+    );
+
+    if (!updatedJob) {
+      res.status(404).json({ message: 'Job application not found or access denied.' });
+      return;
+    }
+
+    console.log(`Draft updated successfully for job ${jobId}`);
+    res.status(200).json({
+      message: 'Draft updated successfully.',
+      // Optionally return the updated draft data or just success message
+      // draftCvJson: updatedJob.draftCvJson,
+      // draftCoverLetterText: updatedJob.draftCoverLetterText
+    });
+
+  } catch (error: any) {
+    console.error(`Error updating draft for job ${jobId}:`, error);
+    if (error instanceof Error && error.name === 'CastError') {
+      res.status(400).json({ message: 'Invalid job ID format.' });
+      return;
+    }
+    if (error instanceof Error && error.name === 'ValidationError') {
+      res.status(400).json({ message: 'Draft data validation failed.', errors: error.message });
+      return;
+    }
+    res.status(500).json({ message: 'Server error updating draft data.' });
+  }
+};
+// Add the new route
+router.put('/:id/draft', updateJobDraftHandler);
 
 
 export default router; // Export the configured router
