@@ -22,3 +22,6 @@ yarn-error.log*
 
 # Temporary files
 server/temp_pdfs
+
+# Ignore GitHub specific files
+.github

@@ -1,28 +1,27 @@
 // client/src/pages/ReviewFinalizePage.tsx
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-// Import NEW updateJobDraft function
+import { useParams, Link } from 'react-router-dom'; // Removed useNavigate as it wasn't used after previous changes
 import { getJobDraft, updateJobDraft, JobDraftData } from '../services/jobApi';
-// Import types if needed for state
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume'; // Adjust path if needed
+import CvFormEditor from '../components/cv-editor/CvFormEditor'; // Import the new editor
 
 const ReviewFinalizePage: React.FC = () => {
     const { jobId } = useParams<{ jobId: string }>();
-    const navigate = useNavigate(); // Keep navigate if used elsewhere, otherwise remove
+    // const navigate = useNavigate(); // Removed
 
-    const [draftData, setDraftData] = useState<JobDraftData | null>(null); // Holds initial fetched data + job info
+    const [draftData, setDraftData] = useState<JobDraftData | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    // State for EDITED content
-    const [editedCvJson, setEditedCvJson] = useState<JsonResumeSchema | any | null>(null); // Use specific type or any
+    // State for EDITED content - editedCvJson is now managed via CvFormEditor's onChange
+    const [editedCvJson, setEditedCvJson] = useState<JsonResumeSchema | any | null>(null);
     const [editedCoverLetter, setEditedCoverLetter] = useState<string>('');
 
     // State for actions
     const [isSaving, setIsSaving] = useState<boolean>(false);
     const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
     const [saveError, setSaveError] = useState<string | null>(null);
-    const [isRenderingPdf, setIsRenderingPdf] = useState<boolean>(false); // For final generate button
+    const [isRenderingPdf, setIsRenderingPdf] = useState<boolean>(false);
 
 
     useEffect(() => {
@@ -35,13 +34,15 @@ const ReviewFinalizePage: React.FC = () => {
         const fetchDraft = async () => {
             setIsLoading(true);
             setError(null);
+            setSaveSuccess(null); // Clear messages on load
+            setSaveError(null);
             try {
                 const response = await getJobDraft(jobId);
-                // Removed status check logic as per prompt
                 setDraftData(response);
                 // Initialize editing state with fetched data
-                setEditedCvJson(response.draftCvJson || {}); // Default to empty object if null
-                setEditedCoverLetter(response.draftCoverLetterText || ''); // Default to empty string
+                // Ensure we have a valid object, even if draftCvJson is null/undefined
+                setEditedCvJson(response.draftCvJson || {});
+                setEditedCoverLetter(response.draftCoverLetterText || '');
             } catch (err: any) {
                 console.error("Failed to fetch job draft:", err);
                 setError(err.message || "Failed to load draft data. Please try again.");
@@ -51,27 +52,25 @@ const ReviewFinalizePage: React.FC = () => {
         };
 
         fetchDraft();
-    }, [jobId]); // Removed navigate from dependency array as it's not used in the effect
+    }, [jobId]);
 
-    // --- IMPLEMENTED Save Draft Handler ---
+    // --- Save Draft Handler ---
     const handleSaveChanges = async () => {
-        if (!jobId) return;
+        if (!jobId || !editedCvJson) return; // Ensure cv json state is loaded
         setIsSaving(true);
         setSaveError(null);
         setSaveSuccess(null);
-        setError(null); // Clear general errors
+        setError(null);
 
         try {
-            const payload: { draftCvJson?: any, draftCoverLetterText?: string } = {};
-            // Only include data if it has been potentially modified (or send both always)
-            // For simplicity, let's send both current states
-            payload.draftCvJson = editedCvJson;
-            payload.draftCoverLetterText = editedCoverLetter;
+            // Payload uses the current state, which is updated by CvFormEditor's onChange
+            const payload: { draftCvJson?: any, draftCoverLetterText?: string } = {
+                draftCvJson: editedCvJson,
+                draftCoverLetterText: editedCoverLetter
+            };
 
             const response = await updateJobDraft(jobId, payload);
-            setSaveSuccess(response.message); // Show success feedback
-            // Optionally refetch draft data to confirm save, or just trust it
-            // setDraftData(prev => ({ ...prev, draftCvJson: editedCvJson, draftCoverLetterText: editedCoverLetter })); // Optimistic update (careful)
+            setSaveSuccess(response.message);
 
         } catch (err: any) {
             console.error("Failed to save draft:", err);
@@ -84,27 +83,22 @@ const ReviewFinalizePage: React.FC = () => {
     // --- Placeholder Generate Final PDFs Handler ---
     const handleGenerateFinalPdfs = async () => {
         console.log("Generating final PDFs...");
-        // Ensure draft is saved first? Or just use current state? Let's assume Save is separate for now.
-        // If save isn't separate, call handleSaveChanges first and proceed only on success.
-
+        setIsRenderingPdf(true); // Use the state setter
         // TODO: Implement POST /api/generator/:jobId/render-pdf call
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate async work
         alert("Generate Final PDFs functionality not implemented yet.");
+        setIsRenderingPdf(false); // Reset the state setter
+        // Consider adding logic to ensure latest changes are saved first, or disable if unsaved changes exist.
     };
 
-    // --- Handler for CV JSON Editor (Basic - just for testing) ---
-    // Replace this with actual form field handlers when building the editor
-    const handleCvJsonChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-        try {
-            const parsed = JSON.parse(event.target.value);
-            setEditedCvJson(parsed);
-            setSaveError(null); // Clear error if JSON becomes valid
-            setSaveSuccess(null); // Clear success message on edit
-        } catch (e) {
-            console.error("Invalid JSON entered for CV");
-            setSaveError("CV JSON is invalid. Please correct syntax.");
-            // Optionally keep the invalid string in state for user correction?
-            // setEditedCvJson(event.target.value); // Or keep the invalid string temporarily
-        }
+    // --- CV JSON Editor Handler (No longer needed) ---
+    // const handleCvJsonChange = ... // REMOVED
+
+    // --- Cover Letter Change Handler ---
+    const handleCoverLetterChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setEditedCoverLetter(event.target.value);
+        setSaveSuccess(null); // Clear success message on edit
+        setSaveError(null); // Clear save error on edit
     };
 
 
@@ -124,8 +118,8 @@ const ReviewFinalizePage: React.FC = () => {
         );
     }
 
-    if (!draftData) {
-        return <div className="text-center p-10">No draft data loaded.</div>;
+    if (!draftData || editedCvJson === null) { // Check editedCvJson is initialized
+        return <div className="text-center p-10">No draft data loaded or initializing editor...</div>;
     }
 
 
@@ -145,30 +139,28 @@ const ReviewFinalizePage: React.FC = () => {
             {/* --- CV Editor Section --- */}
             <div className="mb-8 p-4 border rounded shadow-sm bg-white">
                 <h2 className="text-xl font-semibold mb-3">CV Content (JSON Resume Format)</h2>
-                <p className='text-xs text-gray-500 mb-3'>Edit the JSON below. Ensure it remains valid JSON and follows the JSON Resume schema. A form-based editor will be added later.</p>
-                {/* Temporary JSON editor */}
-                <textarea
-                    value={JSON.stringify(editedCvJson, null, 2)} // Display stringified JSON
-                    onChange={handleCvJsonChange} // Use specific handler for JSON parsing
-                    rows={20}
-                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs font-mono"
-                    placeholder="CV JSON data..."
-                    spellCheck="false"
+                {/* Replace textarea with the new form editor */}
+                <CvFormEditor
+                    data={editedCvJson}
+                    onChange={(updatedCvJson) => {
+                        setEditedCvJson(updatedCvJson);
+                        setSaveSuccess(null); // Clear success message on edit
+                        setSaveError(null); // Clear save error on edit
+                    }}
                 />
+                {/* Removed old textarea and related elements */}
             </div>
 
             {/* --- Cover Letter Editor Section --- */}
             <div className="mb-8 p-4 border rounded shadow-sm bg-white">
                 <h2 className="text-xl font-semibold mb-3">Cover Letter Content</h2>
-                {/* Use a simple textarea for now */}
                 <textarea
                     value={editedCoverLetter}
-                    onChange={(e) => { setEditedCoverLetter(e.target.value); setSaveSuccess(null); }} // Update state, clear success message
+                    onChange={handleCoverLetterChange} // Use specific handler
                     rows={15}
-                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" // Removed font-mono maybe
+                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     placeholder="Cover letter text..."
                 />
-                {/* TODO: Replace <textarea> with a Rich Text Editor */}
             </div>
 
             {/* --- Action Buttons --- */}
@@ -176,7 +168,7 @@ const ReviewFinalizePage: React.FC = () => {
                 <button
                     onClick={handleSaveChanges}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                    disabled={isSaving || isRenderingPdf || !!saveError} // Disable while saving, rendering, or if CV JSON is invalid
+                    disabled={isSaving || isRenderingPdf} // Removed saveError check here as it's handled by direct form updates now
                     title="Save current changes to draft"
                 >
                     {isSaving ? 'Saving...' : 'Save Draft'}
@@ -184,7 +176,7 @@ const ReviewFinalizePage: React.FC = () => {
                 <button
                     onClick={handleGenerateFinalPdfs}
                     className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                    disabled={isSaving || isRenderingPdf || !!saveError} // Disable while saving, rendering, or if CV JSON is invalid
+                    disabled={isSaving || isRenderingPdf} // Removed saveError check
                     title="Generate final PDF documents from the LATEST SAVED draft"
                 >
                     {isRenderingPdf ? 'Generating PDFs...' : 'Generate Final PDFs'}
