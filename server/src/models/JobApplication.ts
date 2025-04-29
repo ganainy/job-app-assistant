@@ -20,6 +20,9 @@ export interface IJobApplication extends Document {
     draftCvJson?: JsonResumeSchema | mongoose.Schema.Types.Mixed; // Store draft CV data
     draftCoverLetterText?: string; // Store draft Cover Letter text
     generationStatus?: GenerationStatus; // Track the generation process
+    // --- New Fields for Final Filenames ---
+    generatedCvFilename?: string; // Store the filename of the latest generated CV PDF
+    generatedCoverLetterFilename?: string; // Store the filename of the latest generated CL PDF
     // --- Standard Timestamps ---
     createdAt: Date;
     updatedAt: Date;
@@ -42,9 +45,12 @@ const JobApplicationSchema: Schema = new Schema(
         draftCoverLetterText: { type: String, required: false },
         generationStatus: {
             type: String,
-            enum: ['none', 'pending_input', 'draft_ready', 'finalized', 'error'],
+            enum: ['none', 'pending_input', 'pending_generation', 'draft_ready', 'finalized', 'error'], // Added pending_generation
             default: 'none'
         },
+        // --- Schema Definitions for New Fields ---
+        generatedCvFilename: { type: String, required: false },
+        generatedCoverLetterFilename: { type: String, required: false },
     },
     { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );

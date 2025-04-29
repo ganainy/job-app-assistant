@@ -27,3 +27,4 @@ server/temp_pdfs
 .github
 
 mcp-install/brave.json
+.cursor/mcp.json

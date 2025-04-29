@@ -456,29 +456,28 @@ const finalizeGenerationHandler: RequestHandler = async (req, res) => {
 
 
 // --- NEW: Render Final PDFs Endpoint ---
-// Explicitly type return as Promise<void> or Promise<any> or ensure no return value from res.json()
 const renderFinalPdfsHandler: RequestHandler = async (req, res): Promise<void> => {
     console.log("--- Render Final PDFs Endpoint Hit ---");
-    const user = req.user as IUser; // Correctly use IUser interface
+    const user = req.user as IUser;
     if (!user || !user._id) {
         res.status(401).json({ message: 'Authentication required.' });
         return;
     }
     const userId = user._id;
-    const userEmail = user.email; // Get email for filename
     const { jobId } = req.params;
+    const TEMP_PDF_DIR = path.join(__dirname, '..', '..', 'temp_pdfs'); // Define PDF directory path
 
     try {
-        // 2.3. Fetch Saved Draft
+        // 1. Fetch Saved Draft/Finalized Job
         const job = await JobApplication.findOne({ _id: jobId, userId: userId });
 
-        // 2.4. Validate Draft
+        // 2. Validate Job and Draft Data
         if (!job) {
             res.status(404).json({ message: 'Job application not found or access denied.' });
             return;
         }
-        if (job.generationStatus !== 'draft_ready') {
-            res.status(400).json({ message: 'Draft documents are not ready for final rendering.', currentStatus: job.generationStatus });
+        if (job.generationStatus !== 'draft_ready' && job.generationStatus !== 'finalized') {
+            res.status(400).json({ message: 'Draft documents must be ready or previously finalized before rendering.', currentStatus: job.generationStatus });
             return;
         }
         if (!job.draftCvJson || typeof job.draftCvJson !== 'object' || Object.keys(job.draftCvJson).length === 0) {
@@ -498,65 +497,91 @@ const renderFinalPdfsHandler: RequestHandler = async (req, res): Promise<void> =
         }
         const language = (job.language === 'en' || job.language === 'de') ? job.language : 'en'; // Ensure language is 'en' or 'de'
 
-        // 2.5. Prepare Filenames (Sanitize company/title for filenames)
-        const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown'; // Add fallback for undefined/null
-        // --- New Filename Logic ---
-        const cvJsonData = job.draftCvJson as JsonResumeSchema; // Cast to JsonResumeSchema
+        // --- MODIFICATION START: Delete Old PDFs Before Generating New Ones ---
+        const oldCvFilename = job.generatedCvFilename;
+        const oldClFilename = job.generatedCoverLetterFilename;
+
+        if (oldCvFilename) {
+            const oldCvPath = path.join(TEMP_PDF_DIR, path.basename(oldCvFilename)); // Sanitize filename
+            try {
+                await fs.promises.unlink(oldCvPath);
+                console.log(`Deleted old CV PDF: ${oldCvPath}`);
+            } catch (err: any) {
+                // Log error but continue - maybe file was already deleted manually
+                if (err.code !== 'ENOENT') { // ENOENT = file not found, which is okay here
+                    console.warn(`Could not delete old CV PDF ${oldCvPath}: ${err.message}`);
+                } else {
+                    console.log(`Old CV PDF ${oldCvPath} not found, skipping deletion.`);
+                }
+            }
+        }
+        if (oldClFilename) {
+            const oldClPath = path.join(TEMP_PDF_DIR, path.basename(oldClFilename)); // Sanitize filename
+            try {
+                await fs.promises.unlink(oldClPath);
+                console.log(`Deleted old Cover Letter PDF: ${oldClPath}`);
+            } catch (err: any) {
+                if (err.code !== 'ENOENT') {
+                    console.warn(`Could not delete old Cover Letter PDF ${oldClPath}: ${err.message}`);
+                } else {
+                    console.log(`Old Cover Letter PDF ${oldClPath} not found, skipping deletion.`);
+                }
+            }
+        }
+        // --- MODIFICATION END ---
+
+        // 3. Prepare Filenames for New PDFs
+        const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
+        const cvJsonData = job.draftCvJson as JsonResumeSchema;
         const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
         const companySanitized = sanitize(job.companyName);
         const titleSanitized = sanitize(job.jobTitle);
-        // Example: CV_JohnDoe_TechCorp_SoftwareEngineer_en.pdf
         const baseFilename = `${applicantName}_${companySanitized}_${titleSanitized}`;
-
         const cvFilenamePrefix = `CV_${baseFilename}`;
         const clFilenamePrefix = `CoverLetter_${baseFilename}`;
 
-        // 2.6. Call PDF Generators
+        // 4. Call PDF Generators
         console.log(`Generating final CV PDF for job ${jobId}...`);
-        // Ensure draftCvJson is treated as JsonResumeSchema
-        // const cvJsonData = job.draftCvJson as JsonResumeSchema; // Moved cast up
         const generatedCvFilename = await generateCvPdfFromJsonResume(
             cvJsonData,
-            `${cvFilenamePrefix}_${language}` // Pass prefix with language
+            `${cvFilenamePrefix}_${language}`
         );
 
         console.log(`Generating final Cover Letter PDF for job ${jobId}...`);
         const generatedClFilename = await generateCoverLetterPdf(
-            job.draftCoverLetterText,
-            cvJsonData, // Pass CV data for potential template use
-            `${clFilenamePrefix}_${language}` // Pass prefix with language
+            job.draftCoverLetterText!, // Add non-null assertion as it was validated
+            cvJsonData,
+            `${clFilenamePrefix}_${language}`
         );
 
-        // 2.7. Update Job Status (Optional but recommended)
+        // 5. Update Job Status and Store NEW Filenames
         await JobApplication.updateOne({ _id: jobId, userId: userId }, {
             $set: {
                 generationStatus: 'finalized',
-                // Optionally store final filenames if needed later
-                // finalCvFilename: generatedCvFilename,
-                // finalCoverLetterFilename: generatedClFilename,
+                generatedCvFilename: generatedCvFilename, // Store new CV filename
+                generatedCoverLetterFilename: generatedClFilename, // Store new CL filename
             }
         });
-        console.log(`Job ${jobId} status updated to 'finalized'.`);
+        console.log(`Job ${jobId} status updated to 'finalized' and latest filenames stored.`);
 
-        // 2.8. Return Success
+        // 6. Return Success
         res.status(200).json({
             status: "success",
             message: "Final CV and Cover Letter PDFs generated successfully.",
             cvFilename: generatedCvFilename,
             coverLetterFilename: generatedClFilename
         });
-        return; // Explicit return for void promise
+        return;
 
     } catch (error: any) {
-        // 2.9. Error Handling
+        // 7. Error Handling
         console.error(`Error rendering final PDFs for job ${jobId}:`, error);
-        // Optionally update job status to 'error'
         // Use a non-blocking call for the error status update
         JobApplication.updateOne({ _id: jobId, userId: userId }, { $set: { generationStatus: 'error' } })
-            .catch(err => console.error("Failed to update job status to error:", err)); // Best effort update
+            .catch(err => console.error("Failed to update job status to error:", err));
 
         res.status(500).json({ message: `Failed to render final PDFs: ${error.message || 'Internal server error'}` });
-        return; // Explicit return for void promise
+        return;
     }
 };
 
@@ -569,7 +594,32 @@ const downloadFileHandler: RequestHandler = async (req, res) => {
     if (safeFilename !== filename || filename.includes('..')) { res.status(400).json({ message: 'Invalid filename.' }); return; }
     const TEMP_PDF_DIR = path.join(__dirname, '..', '..', 'temp_pdfs');
     const filePath = path.join(TEMP_PDF_DIR, safeFilename);
-    try { await fs.promises.access(filePath); console.log(`Serving file for download: ${filePath}`); res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`); res.setHeader('Content-Type', 'application/pdf'); const fileStream = fs.createReadStream(filePath); fileStream.pipe(res); fileStream.on('close', async () => { try { await fs.promises.unlink(filePath); console.log(`Cleaned up ${filePath}`); } catch (e) { console.error(`Error cleaning up ${filePath}`, e); } }); fileStream.on('error', (e: NodeJS.ErrnoException) => { console.error(`Stream error ${filePath}`, e); if (!res.headersSent) { res.status(500).json({ message: 'Error streaming file.' }); } else { res.end(); } }); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') { res.status(404).json({ message: 'File not found or already deleted.' }); return; } console.error(`Download prep error ${filePath}`, error); res.status(500).json({ message: 'Server error preparing download.' }); }
+
+    try {
+        await fs.promises.access(filePath);
+        console.log(`Serving file for download: ${filePath}`);
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+        res.setHeader('Content-Type', 'application/pdf');
+        const fileStream = fs.createReadStream(filePath);
+        fileStream.pipe(res);
+
+        fileStream.on('close', () => {
+            console.log(`Finished streaming ${filePath}. File remains in temp directory.`);
+        });
+
+        fileStream.on('error', (e: NodeJS.ErrnoException) => {
+            console.error(`Stream error ${filePath}`, e);
+            if (!res.headersSent) {
+                res.status(500).json({ message: 'Error streaming file.' });
+            } else {
+                res.end();
+            }
+        });
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') { res.status(404).json({ message: 'File not found or already deleted.' }); return; }
+        console.error(`Download prep error ${filePath}`, error);
+        res.status(500).json({ message: 'Server error preparing download.' });
+    }
 };
 
 

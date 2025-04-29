@@ -33,11 +33,19 @@ const ReviewFinalizePage: React.FC = () => {
             // Fix 1: Use getJobById
             const data = await getJobById(jobId);
             setJobApplication(data);
-            // Assuming generatedCv and generatedCoverLetter are the fields holding the editable data
-            // The backend might store this differently, ensure these fields exist on the JobApplication type from jobApi.ts
-            // If not, adjust how cvData and coverLetterText are initialized (e.g., fetch separately or use different fields)
-            setCvData((data as any).generatedCv || data.draftCvJson || null); // Prioritize generatedCv if exists, fallback to draft
-            setCoverLetterText((data as any).generatedCoverLetter || data.draftCoverLetterText || ''); // Prioritize generatedCoverLetter, fallback to draft
+            // Correctly load draft data from the JobApplication object
+            setCvData(data.draftCvJson || null); // Use draftCvJson
+            setCoverLetterText(data.draftCoverLetterText || ''); // Use draftCoverLetterText
+
+            // Check for existing final PDF filenames and set state
+            if (data.generatedCvFilename || data.generatedCoverLetterFilename) {
+                setFinalPdfFiles({
+                    cv: data.generatedCvFilename || null,
+                    cl: data.generatedCoverLetterFilename || null
+                });
+                console.log("Found existing PDF filenames:", { cv: data.generatedCvFilename, cl: data.generatedCoverLetterFilename });
+            }
+
         } catch (error: any) {
             console.error("Error fetching job application:", error);
             setFetchError(error.message || 'Failed to fetch job details.');

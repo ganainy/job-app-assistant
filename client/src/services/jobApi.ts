@@ -22,7 +22,7 @@ export interface JobApplication {
     language?: 'en' | 'de'; // More specific type
     draftCvJson?: any | null; // Use JsonResumeSchema if imported, else any
     draftCoverLetterText?: string | null;
-    generationStatus?: 'none' | 'pending_input' | 'draft_ready' | 'finalized' | 'error';
+    generationStatus?: 'none' | 'pending_input' | 'pending_generation' | 'draft_ready' | 'finalized' | 'error'; // Added pending_generation
     generatedCvFilename?: string; // Added
     generatedCoverLetterFilename?: string; // Added
     createdAt: string; // Dates are often strings in JSON
