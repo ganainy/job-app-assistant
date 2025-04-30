@@ -9,7 +9,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CVManagementPage from './pages/CVManagementPage';
 import ReviewFinalizePage from './pages/ReviewFinalizePage';
-import ProtectedRoute from './components/ProtectedRoute';
+import AnalysisPage from './pages/AnalysisPage';
+import ProtectedRoute from './components/ProtectedRoute'; // Assuming you have this
 
 // Example: Placeholder for ProfilePage if you were to use the commented route
 // import ProfilePage from './pages/ProfilePage';
@@ -40,6 +41,9 @@ function App() {
               <>
                 <Link to="/dashboard" className="hover:text-gray-300 mr-4 text-sm sm:text-base">Dashboard</Link>
                 <Link to="/manage-cv" className="hover:text-gray-300 mr-4 text-sm sm:text-base">Manage CV</Link>
+                {/* --- Add Analyze CV Link --- */}
+                <Link to="/analyze-cv" className="hover:text-gray-300 mr-4 text-sm sm:text-base">Analyze CV</Link>
+                {/* --- End Analyze CV Link --- */}
                 <span className="mr-4 text-sm hidden sm:inline">Welcome, {user?.email}</span> {/* Hide email on small screens if needed */}
                 <button
                   onClick={handleLogout}
@@ -83,6 +87,12 @@ function App() {
             }
           />
           {/* --- End of New Route --- */}
+
+          <Route path="/analyze-cv" element={
+            <ProtectedRoute>
+              <AnalysisPage />
+            </ProtectedRoute>
+          } />
 
           {/* Optional: Catch-all route for 404 Not Found */}
           <Route path="*" element={<div className="text-center p-10">404 - Page Not Found</div>} />
