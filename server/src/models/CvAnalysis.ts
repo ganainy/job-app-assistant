@@ -8,6 +8,7 @@ interface IDetailedResultItem {
     issues: string[];
     suggestions?: string[]; // Optional suggestions from AI
     status: 'pass' | 'fail' | 'warning' | 'not-applicable';
+    priority: 'high' | 'medium' | 'low'; // Priority level for fixing this issue
 }
 
 // Interface for the CvAnalysis document
@@ -61,7 +62,8 @@ const CvAnalysisSchema: Schema = new Schema({
             score: { type: Number },
             issues: [{ type: String }],
             suggestions: [{ type: String }],
-            status: { type: String, enum: ['pass', 'fail', 'warning', 'not-applicable'], required: true }
+            status: { type: String, enum: ['pass', 'fail', 'warning', 'not-applicable'], required: true },
+            priority: { type: String, enum: ['high', 'medium', 'low'], required: true } // Adding priority field
         }, { _id: false }), // _id: false for subdocuments within the map
         default: {}
     },

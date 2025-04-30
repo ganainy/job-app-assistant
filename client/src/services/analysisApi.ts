@@ -81,6 +81,7 @@ export interface AnalysisResult {
         issues: string[];
         suggestions?: string[];
         status: 'pass' | 'fail' | 'warning' | 'not-applicable';
+        priority: 'high' | 'medium' | 'low';
     }>;
     cvFileRef?: string;
     errorInfo?: string;
@@ -140,5 +141,35 @@ export const deleteAnalysis = async (analysisId: string): Promise<{ message: str
     } catch (error: any) {
         console.error(`Error deleting analysis ${analysisId}:`, error.response?.data || error.message);
         throw new Error(error.response?.data?.message || 'Failed to delete analysis');
+    }
+};
+
+// 4. Generate Improvement for a Section
+export const generateImprovement = async (
+    analysisId: string,
+    section: string,
+    currentContent: string
+): Promise<{ improvement: string }> => {
+    const token = getAuthToken();
+    if (!token) {
+        throw new Error('No authentication token found.');
+    }
+
+    try {
+        const response = await axios.post<{ improvement: string }>(
+            `${API_BASE_URL}/analysis/${analysisId}/improve/${section}`,
+            { currentContent },
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+        console.log(`Generate Improvement Response for ${section}:`, response.data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Error generating improvement:', error.response?.data || error.message);
+        throw new Error(error.response?.data?.message || 'Failed to generate improvement');
     }
 };

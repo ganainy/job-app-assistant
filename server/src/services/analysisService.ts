@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import CvAnalysis, { ICvAnalysis } from '../models/CvAnalysis'; // Import model and interface
-import { generateAnalysisFromFile, generateJsonAnalysis } from '../utils/geminiClient'; // Import the file and JSON analysis functions
+import { generateAnalysisFromFile, generateJsonAnalysis, generateStructuredResponse } from '../utils/geminiClient'; // Import the file and JSON analysis functions
 import { calculateScores } from '../utils/analysis/scoringUtil'; // Import scoring utility
 import fs from 'fs'; // Import fs for cleanup
 import path from 'path'; // Import path for determining MIME type
@@ -14,9 +14,10 @@ interface GeminiDetailedResultItem {
     issues: string[]; // List of specific issues found (e.g., "Sentence in passive voice: ...", "Lacks metrics in project description X")
     suggestions?: string[]; // Specific suggestions for improvement (e.g., "Rephrase sentence to active voice: ...", "Add data point for Y achievement")
     status: 'pass' | 'fail' | 'warning' | 'not-applicable'; // Overall status for this check
+    priority: 'high' | 'medium' | 'low'; // Priority level for fixing this issue
 }
 
-type GeminiAnalysisResult = Record<string, GeminiDetailedResultItem>;
+export type GeminiAnalysisResult = Record<string, GeminiDetailedResultItem>;
 
 // Function to determine MIME type from file path
 function getMimeType(filePath: string): string {
@@ -42,86 +43,85 @@ Each key's value MUST be an object with the following fields:
 - "issues": (array of strings) Specific problems identified. Be concise but clear. If no issues, return an empty array [].
 - "suggestions": (array of strings, optional) Actionable advice for improvement related to the issues. If no suggestions, omit or return an empty array [].
 - "status": (string) Overall assessment for this check: "pass", "fail", "warning", or "not-applicable".
+- "priority": (string) Priority level for fixing this issue: "high", "medium", or "low". Use these guidelines:
+  * high: Issues that significantly impact readability, professionalism, or ATS compatibility
+  * medium: Issues that affect quality but don't severely impact understanding
+  * low: Minor improvements that would enhance the CV but aren't critical
 
 **Analysis Checks to Perform:**
 
 1.  **Impact Quantification:**
-    *   Identify achievements and responsibilities.
-    *   Check if they are quantified with specific metrics, numbers, or data.
-    *   "checkName": "Impact Quantification"
-    *   "issues": List specific examples lacking quantification.
-    *   "suggestions": Suggest *how* to add metrics to those examples.
-    *   "score": Based on the proportion of quantified vs. unquantified achievements.
-    *   "status": "fail" if many items lack metrics, "warning" if some do, "pass" if well-quantified.
+    *   Priority: high for missing metrics in key achievements, medium for general improvements
+    *   Identify achievements and responsibilities that lack specific metrics
+    *   "status": "fail" if many items lack metrics, "warning" if some do, "pass" if well-quantified
 
 2.  **Grammar and Spelling:**
-    *   Check for grammatical errors, typos, and spelling mistakes throughout the document.
-    *   "checkName": "Grammar and Spelling"
-    *   "issues": List specific errors found (e.g., "Typo: 'manger' instead of 'manager'").
-    *   "suggestions": Provide the corrected version.
-    *   "score": Based on the density of errors.
-    *   "status": "fail" if many errors, "warning" if few, "pass" if none/negligible.
+    *   Priority: high for obvious errors, medium for style issues
+    *   Check for grammatical errors, typos, and spelling mistakes
+    *   "status": "fail" if many errors, "warning" if few, "pass" if none/negligible
 
-3.  **Keyword Relevance (Semantic):**
-    *   Analyze the text for relevant industry keywords and skills. Assess if they are used naturally and effectively, not just stuffed. (Assume a general professional context if no specific job target is provided).
-    *   "checkName": "Keyword Relevance"
-    *   "issues": Note if keywords seem sparse, generic, or unnaturally forced.
-    *   "suggestions": Suggest incorporating more specific or relevant keywords based on common roles associated with the CV's content.
-    *   "score": Based on perceived relevance and natural integration.
-    *   "status": "warning" if improvement needed, "pass" otherwise.
+3.  **Keyword Relevance:**
+    *   Priority: high if missing crucial industry keywords, medium for optimization
+    *   Check if industry-specific keywords are present and used naturally
+    *   "status": "warning" if improvement needed, "pass" otherwise
 
-4.  **Repetition (Semantic):**
-    *   Identify overuse of certain words, phrases, or concepts that make the CV sound repetitive. Look beyond exact word matches to semantic similarity.
-    *   "checkName": "Repetitive Language"
-    *   "issues": List examples of repetitive phrasing or concepts.
-    *   "suggestions": Suggest synonyms or alternative ways to phrase the points.
-    *   "status": "warning" if repetition detected, "pass" otherwise.
+4.  **Active Voice Usage:**
+    *   Priority: medium unless severely impacting clarity
+    *   Focus on achievement descriptions and responsibility statements
+    *   "status": "fail" if excessive passive voice, "warning" if some, "pass" if mostly active
 
-5.  **Active vs. Passive Voice:**
-    *   Detect sentences written in passive voice, especially in descriptions of responsibilities or achievements.
-    *   "checkName": "Active Voice Usage"
-    *   "issues": List specific sentences in passive voice.
-    *   "suggestions": Suggest an active voice alternative for each.
-    *   "score": Based on the proportion of passive voice sentences in key sections.
-    *   "status": "fail" if excessive passive voice, "warning" if some, "pass" if predominantly active.
+5.  **Buzzwords and Clichés:**
+    *   Priority: medium for excessive use, low for occasional instances
+    *   Look for overused phrases that could be more specific
+    *   "status": "warning" if detected, "pass" otherwise
 
-6.  **Buzzwords and Clichés:**
-    *   Identify potentially overused buzzwords, jargon, or clichés that might detract from credibility.
-    *   "checkName": "Buzzwords and Clichés"
-    *   "issues": List identified buzzwords/clichés (e.g., "results-oriented", "team player" if used generically).
-    *   "suggestions": Suggest using more specific or concrete language instead.
-    *   "status": "warning" if detected, "pass" otherwise.
+6.  **Length and Structure:**
+    *   Priority: high for missing crucial sections or severe length issues
+    *   Check overall organization and section completeness
+    *   "status": "warning" if issues found, "pass" otherwise
 
-7.  **CV Length and Structure:**
-    *   Assess overall length (e.g., word count, estimated page count).
-    *   Identify standard sections (Contact Info, Experience, Education, Skills). Check if they are present and logically ordered.
-    *   "checkName": "Length and Structure"
-    *   "issues": Note if length seems excessive/too short, or if standard sections are missing/unclear. Note very long paragraphs or bullet points (word count).
-    *   "suggestions": Recommend adjustments to length or section clarity.
-    *   "status": "warning" if issues found, "pass" otherwise.
+7.  **Contact Information:**
+    *   Priority: high for missing essential contact details
+    *   Verify presence of name, phone, email, location
+    *   "status": "fail" if missing essentials, "pass" otherwise
 
 8.  **Summary/Objective Quality:**
-    *   If a summary or objective section exists, evaluate its clarity, conciseness, and relevance to the overall CV content.
-    *   "checkName": "Summary/Objective Quality"
-    *   "issues": Note if it's vague, generic, too long, or missing.
-    *   "suggestions": Suggest improvements for focus and impact.
-    *   "status": "warning" if issues found, "pass" if strong or "not-applicable" if missing.
+    *   Priority: medium for improvements, low if present but basic
+    *   Evaluate relevance and impact
+    *   "status": "warning" if generic, "pass" if strong, "not-applicable" if missing
 
-9.  **Tone and Clarity:**
-    *   Evaluate the overall writing style for professionalism, clarity, and conciseness.
-    *   "checkName": "Tone and Clarity"
-    *   "issues": Note if the tone is unprofessional, or if language is ambiguous or overly complex.
-    *   "suggestions": Recommend specific areas for improvement in clarity or tone.
-    *   "score": Overall assessment of writing quality.
-    *   "status": "warning" if issues found, "pass" otherwise.
+9.  **Skills Organization:**
+    *   Priority: medium for structure issues, low for minor grouping improvements
+    *   Check logical grouping and presentation
+    *   "status": "warning" if poorly organized, "pass" otherwise
 
-10. **Contact Information:**
-    *   Check for the presence of essential contact details (Name, Phone, Email, possibly LinkedIn). Check email format for professionalism.
-    *   "checkName": "Contact Information"
-    *   "issues": Note missing essential info or unprofessional email address format.
-    *   "status": "fail" if essential info missing/unprofessional, "pass" otherwise.
+10. **Education Presentation:**
+    *   Priority: high for missing crucial details, medium for formatting
+    *   Verify completeness and proper ordering
+    *   "status": "warning" if issues found, "pass" otherwise
 
-**Important:** Adhere strictly to the JSON output format described above. Analyze the *entire* document provided.
+Analyze the entire document thoroughly and maintain consistency in priority assignments across all checks.
+`;
+
+// New prompt for generating section improvements
+const IMPROVEMENT_PROMPT = `
+You are a professional CV/resume writer. Your task is to improve a specific section of a CV based on the analysis results and suggestions.
+You will receive:
+1. The current content of the section
+2. The analysis results and suggestions for improvement
+3. The section name that needs improvement
+
+Guidelines:
+- Maintain a professional tone
+- Keep the improved content relevant to the section
+- Address all issues mentioned in the analysis
+- Implement all relevant suggestions
+- Keep the same key information but present it more effectively
+- Use active voice and quantifiable achievements where possible
+- Ensure improved content is ATS-friendly
+
+Return ONLY the improved content without any additional explanation or markdown formatting.
+The output should be ready to use as a direct replacement for the current content.
 `;
 
 // Updated analysis orchestration function
@@ -243,5 +243,102 @@ export const performJsonAnalysis = async (
         } catch (dbError: any) {
             console.error(`FATAL: Failed to update database for analysis ID: ${analysisId} after analysis attempt:`, dbError);
         }
+    }
+};
+
+// Updated function to generate improvements for a specific section
+export const generateSectionImprovement = async (
+    analysis: ICvAnalysis,
+    section: string,
+    currentContent: string
+): Promise<string> => {
+    // Validate inputs
+    if (!currentContent?.trim()) {
+        throw new Error('Current content is empty or invalid');
+    }
+
+    if (!section?.trim()) {
+        throw new Error('Section name is required');
+    }
+
+    if (analysis.status !== 'completed') {
+        throw new Error(`Cannot generate improvements: Analysis status is ${analysis.status}`);
+    }
+
+    // Handle Map type properly by converting to object if needed
+    const detailedResults = analysis.detailedResults instanceof Map
+        ? Object.fromEntries(analysis.detailedResults)
+        : analysis.detailedResults;
+
+    if (!detailedResults || Object.keys(detailedResults).length === 0) {
+        throw new Error('Cannot generate improvements: No analysis results available');
+    }
+
+    // Filter relevant analysis results for this section
+    const sectionChecks: Record<string, string[]> = {
+        summary: ['summaryObjectiveQuality', 'toneClarity', 'activeVoiceUsage', 'buzzwordsAndCliches'],
+        experience: ['impactQuantification', 'activeVoiceUsage', 'keywordRelevance', 'toneClarity'],
+        skills: ['keywordRelevance', 'skillsOrganization', 'buzzwordsAndCliches'],
+        education: ['educationPresentation', 'toneClarity', 'activeVoiceUsage'],
+        projects: ['impactQuantification', 'activeVoiceUsage', 'keywordRelevance', 'toneClarity'],
+        achievements: ['impactQuantification', 'activeVoiceUsage', 'toneClarity'],
+        certifications: ['keywordRelevance', 'toneClarity'],
+        languages: ['skillsOrganization', 'toneClarity'],
+        volunteer: ['impactQuantification', 'activeVoiceUsage', 'toneClarity'],
+        interests: ['toneClarity', 'buzzwordsAndCliches']
+    };
+
+    if (!sectionChecks[section]) {
+        throw new Error(`Unsupported section type: ${section}. Valid sections are: ${Object.keys(sectionChecks).join(', ')}`);
+    }
+
+    // Filter out mongoose metadata and get valid check results
+    const relevantResults = Object.entries(detailedResults)
+        .filter(([key]) => !key.startsWith('$__') && !key.startsWith('_') && sectionChecks[section].includes(key))
+        .reduce((acc, [key, value]) => {
+            acc[key] = value;
+            return acc;
+        }, {} as typeof detailedResults);
+
+    if (Object.keys(relevantResults).length === 0) {
+        const availableChecks = Object.entries(detailedResults)
+            .filter(([key]) => !key.startsWith('$__') && !key.startsWith('_'))
+            .map(([key]) => key);
+        throw new Error(`No analysis results found for section '${section}'. Available checks: ${availableChecks.join(', ')}`);
+    }
+
+    // Create a detailed prompt with the current content and analysis results
+    const fullPrompt = `${IMPROVEMENT_PROMPT}
+
+Section: ${section}
+
+Current Content:
+${currentContent}
+
+Analysis Results and Suggestions:
+${JSON.stringify(relevantResults, null, 2)}
+
+Generate improved content for this section addressing the identified issues and implementing the suggestions.
+
+Return the improved content in this format:
+\`\`\`json
+{
+    "content": "Your improved content here"
+}
+\`\`\``;
+
+    try {
+        const response = await generateStructuredResponse<{ content: string }>(fullPrompt);
+        const improvedContent = response?.content?.trim();
+
+        if (!improvedContent) {
+            throw new Error('AI generated empty or invalid content');
+        }
+
+        return improvedContent;
+    } catch (error: any) {
+        console.error(`Error generating improvement for section ${section}:`, error);
+        const errorMessage = error.message || 'Unknown error';
+        throw new Error(`Failed to generate improvement: ${errorMessage}. This may be due to AI service issues or invalid input content.`);
     }
 };

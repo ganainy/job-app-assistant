@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import CvAnalysis from '../models/CvAnalysis';
-import { performAnalysis, performJsonAnalysis } from '../services/analysisService';
+import { performAnalysis, performJsonAnalysis, generateSectionImprovement } from '../services/analysisService';
 import mongoose, { Types } from 'mongoose';
 import { JsonResumeSchema } from '../types/jsonresume';
 
@@ -204,5 +204,49 @@ export const deleteAnalysis = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error(`Error deleting analysis ${id} for user ${userId}:`, error);
         res.status(500).json({ message: 'Server error deleting analysis.' });
+    }
+};
+
+export const generateImprovement = async (req: Request, res: Response) => {
+    const { id, section } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+        res.status(401).json({ message: 'Not authorized' });
+        return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ message: 'Invalid analysis ID format' });
+        return;
+    }
+
+    try {
+        const analysis = await CvAnalysis.findById(id);
+
+        if (!analysis) {
+            res.status(404).json({ message: 'Analysis not found' });
+            return;
+        }
+
+        if (analysis.userId.toString() !== userId.toString()) {
+            console.warn(`Unauthorized attempt to generate improvement for analysis ${id} by user ${userId}`);
+            res.status(403).json({ message: 'Forbidden: You do not own this analysis' });
+            return;
+        }
+
+        // Get the current CV content from the request
+        const { currentContent } = req.body;
+        if (!currentContent) {
+            res.status(400).json({ message: 'Current content is required' });
+            return;
+        }
+
+        const improvement = await generateSectionImprovement(analysis, section, currentContent);
+        res.status(200).json({ improvement });
+
+    } catch (error: any) {
+        console.error(`Error generating improvement for analysis ${id}, section ${section}:`, error);
+        res.status(500).json({ message: 'Failed to generate improvement: ' + (error.message || 'Unknown error') });
     }
 };

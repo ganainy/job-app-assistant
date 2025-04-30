@@ -132,20 +132,61 @@ async function generateJsonAnalysis<T>(prompt: string, jsonString: string): Prom
 async function generateStructuredResponse<T>(prompt: string): Promise<T> {
     console.log("Sending prompt to Gemini for structured response...");
     try {
-        const result = await model.generateContent(prompt);
+        // Add explicit instruction for JSON format with escaped backticks
+        const jsonPrompt = `${prompt}\n\nIMPORTANT: Your response MUST be a valid JSON object wrapped in triple backticks (\`\`\`json). Do not include any additional text outside the JSON block.`;
+
+        const result = await model.generateContent(jsonPrompt);
         const response = result.response;
+
+        if (!response || !response.candidates || response.candidates.length === 0) {
+            const blockReason = response?.promptFeedback?.blockReason;
+            throw new Error(`AI failed to generate content: ${blockReason || 'No response generated'} `);
+        }
+
         const responseText = response.text();
         console.log("Received structured response from Gemini.");
-        return parseJsonResponse<T>(responseText);
 
+        try {
+            // First attempt: Try parsing with the standard JSON block extractor
+            return parseJsonResponse<T>(responseText);
+        } catch (parseError) {
+            // Second attempt: Try to clean and fix the response
+            console.log("Initial JSON parse failed, attempting to clean response...");
+
+            // Find the first { and last } to extract just the JSON object
+            const startIndex = responseText.indexOf('{');
+            const endIndex = responseText.lastIndexOf('}');
+
+            if (startIndex === -1 || endIndex === -1) {
+                throw new Error('Could not find valid JSON object markers in the response');
+            }
+
+            const cleanedText = responseText.substring(startIndex, endIndex + 1);
+
+            try {
+                // Try parsing the cleaned JSON
+                const parsed = JSON.parse(cleanedText) as T;
+                console.log("Successfully parsed cleaned JSON response");
+                return parsed;
+            } catch (secondError) {
+                console.error("Failed to parse even after cleaning. Raw response:", responseText);
+                throw new Error(`Failed to parse AI response as JSON after cleaning: ${(secondError as Error).message} `);
+            }
+        }
     } catch (error: any) {
         console.error("Error during Gemini structured content generation:", error);
-        if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
-            const blockReason = error.response?.promptFeedback?.blockReason;
-            const safetyRatings = error.response?.promptFeedback?.safetyRatings;
-            console.error("Safety Ratings:", JSON.stringify(safetyRatings, null, 2));
-            throw new Error(`AI content generation blocked: ${blockReason || 'Unknown reason'}`);
+
+        if (error instanceof GoogleGenerativeAIError) {
+            // GoogleGenerativeAIError doesn't have response property, use error message directly
+            throw new Error(`AI content generation blocked: ${error.message}`);
         }
+
+        // If it's already an Error with a message we created, throw it as is
+        if (error instanceof Error) {
+            throw error;
+        }
+
+        // For any other type of error
         throw new Error(`Failed to get valid structured response from AI service: ${error.message || error}`);
     }
 }

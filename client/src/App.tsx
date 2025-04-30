@@ -94,6 +94,14 @@ function App() {
             </ProtectedRoute>
           } />
 
+          {/* --- NEW Route for Viewing Analysis Results by ID --- */}
+          <Route path="/analysis/:id" element={
+            <ProtectedRoute>
+              <AnalysisPage />
+            </ProtectedRoute>
+          } />
+          {/* --- End of New Route --- */}
+
           {/* Optional: Catch-all route for 404 Not Found */}
           <Route path="*" element={<div className="text-center p-10">404 - Page Not Found</div>} />
         </Routes>
