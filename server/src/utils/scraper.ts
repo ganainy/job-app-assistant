@@ -1,7 +1,7 @@
 // server/src/utils/scraper.ts
 import axios from 'axios';
-// Remove cheerio import: import * as cheerio from 'cheerio';
-import geminiModel from './geminiClient'; // Need Gemini client here
+// Correct the import to use a named import
+import { geminiModel } from './geminiClient'; // Need Gemini client here
 import { GoogleGenerativeAIError } from '@google/generative-ai'; // Import error type
 
 // Keep fetchHtml function (modified slightly for clarity)
@@ -21,7 +21,7 @@ async function fetchHtml(url: string): Promise<string> {
         }
         // Basic check if response looks like HTML
         if (!response.data || typeof response.data !== 'string' || !response.data.toLowerCase().includes('<html')) {
-             throw new Error('Response did not appear to be valid HTML content.');
+            throw new Error('Response did not appear to be valid HTML content.');
         }
         console.log(`Successfully fetched HTML (length: ${response.data.length})`);
         return response.data;
@@ -70,13 +70,13 @@ async function extractDescriptionWithGemini(htmlContent: string, url: string): P
         }
     } catch (error: any) {
         console.error("Error during Gemini description extraction:", error);
-         if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
-             console.error("Gemini API Error Details for extraction:", JSON.stringify(error, null, 2));
-             const blockReason = error.response?.promptFeedback?.blockReason;
-             if (blockReason) {
-                  throw new Error(`AI content generation blocked during extraction: ${blockReason}`);
-             }
-         }
+        if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
+            console.error("Gemini API Error Details for extraction:", JSON.stringify(error, null, 2));
+            const blockReason = error.response?.promptFeedback?.blockReason;
+            if (blockReason) {
+                throw new Error(`AI content generation blocked during extraction: ${blockReason}`);
+            }
+        }
         throw new Error("Failed to get valid extraction response from AI service.");
     }
 }

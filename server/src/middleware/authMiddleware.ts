@@ -5,9 +5,8 @@ import User, { IUser } from '../models/User'; // Import User model
 
 // Define the structure of the decoded JWT payload
 interface JwtPayload {
-  userId: string; // Or however you stored it in the JWT payload
+  userId: string;
   email: string;
-  // Add other fields if included in payload
 }
 
 // Extend the Express Request interface to include the user property
@@ -15,7 +14,7 @@ interface JwtPayload {
 declare global {
   namespace Express {
     interface Request {
-      user?: IUser; // Or just { id: string } if you only need the ID
+      user?: IUser;
     }
   }
 }
@@ -29,25 +28,28 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
 
   // 2. Check if token exists
   if (!token) {
-    return res.status(401).json({ message: 'Access denied. No token provided.' });
+    res.status(401).json({ message: 'Access denied. No token provided.' });
+    return; // Add return
   }
 
-  // Check if JWT_SECRET is loaded (should be checked on startup, but good resilience)
+  // Check if JWT_SECRET is loaded
   if (!JWT_SECRET) {
-       console.error("JWT_SECRET not available in authMiddleware!");
-       return res.status(500).json({ message: 'Server configuration error.' });
+    console.error("JWT_SECRET not available in authMiddleware!");
+    res.status(500).json({ message: 'Server configuration error.' });
+    return; // Add return
   }
 
   try {
     // 3. Verify token
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
-    // 4. Find user based on token payload (e.g., userId)
+    // 4. Find user based on token payload
     const user = await User.findById(decoded.userId).select('-passwordHash'); // Exclude password hash
 
     if (!user) {
       // If the user associated with the token doesn't exist anymore
-      return res.status(401).json({ message: 'Invalid token - user not found.' });
+      res.status(401).json({ message: 'Invalid token - user not found.' });
+      return; // Add return
     }
 
     // 5. Attach user to the request object
@@ -58,11 +60,13 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
   } catch (error) {
     console.error("Auth Middleware Error:", error);
     if (error instanceof jwt.JsonWebTokenError) {
-         // Specific JWT errors (expired, invalid signature etc.)
-         return res.status(401).json({ message: 'Invalid token.' });
+      // Specific JWT errors
+      res.status(401).json({ message: 'Invalid token.' });
+      return; // Add return
     }
     // Other potential errors
     res.status(500).json({ message: 'Server error during authentication.' });
+    return; // Add return
   }
 };
 

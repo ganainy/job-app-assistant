@@ -57,7 +57,7 @@ export interface JobDraftData {
 export const getJobs = async (): Promise<JobApplication[]> => {
     try {
         // Use axios directly - Auth header is set by AuthProvider
-        const response = await axios.get(`${API_BASE_URL}/jobs`);
+        const response = await axios.get(`${API_BASE_URL}/job-applications`); // Corrected endpoint
         return response.data;
     }
     catch (error) {
@@ -71,7 +71,7 @@ export const getJobs = async (): Promise<JobApplication[]> => {
 // We need the data to send (Payload Type) - excluding _id, createdAt, updatedAt
 export const createJob = async (jobData: CreateJobPayload): Promise<JobApplication> => {
     try {
-        const response = await axios.post(`${API_BASE_URL}/jobs`, jobData);
+        const response = await axios.post(`${API_BASE_URL}/job-applications`, jobData); // Corrected endpoint
         return response.data;
     } catch (error) {
         console.error("Error creating job:", error);
@@ -83,7 +83,7 @@ export const createJob = async (jobData: CreateJobPayload): Promise<JobApplicati
 // Payload can be partial data for the update
 export const updateJob = async (id: string, updates: UpdateJobPayload): Promise<JobApplication> => {
     try {
-        const response = await axios.put(`${API_BASE_URL}/jobs/${id}`, updates);
+        const response = await axios.put(`${API_BASE_URL}/job-applications/${id}`, updates); // Corrected endpoint
         return response.data;
     } catch (error) {
         console.error(`Error updating job ${id}:`, error);
@@ -96,7 +96,7 @@ export const updateJob = async (id: string, updates: UpdateJobPayload): Promise<
 // Usually returns some confirmation or just succeeds/fails
 export const deleteJob = async (id: string): Promise<DeleteResponse> => {
     try {
-        const response = await axios.delete(`${API_BASE_URL}/jobs/${id}`);
+        const response = await axios.delete(`${API_BASE_URL}/job-applications/${id}`); // Corrected endpoint
         return response.data;
     } catch (error) {
         console.error(`Error deleting job ${id}:`, error);
@@ -107,7 +107,7 @@ export const deleteJob = async (id: string): Promise<DeleteResponse> => {
 // Get single job (optional, if needed)
 export const getJobById = async (id: string): Promise<JobApplication> => {
     try {
-        const response = await axios.get(`${API_BASE_URL}/jobs/${id}`);
+        const response = await axios.get(`${API_BASE_URL}/job-applications/${id}`); // Corrected endpoint
         return response.data;
     } catch (error) {
         console.error(`Error fetching job ${id}:`, error);
@@ -120,7 +120,7 @@ export const scrapeJobDescriptionApi = async (jobId: string, url?: string): Prom
     try {
         // Auth header should be included by default axios instance
         const payload = url ? { url } : {}; // Send URL in body if provided
-        const response = await axios.patch<ScrapeResponse>(`${API_BASE_URL}/jobs/${jobId}/scrape`, payload);
+        const response = await axios.patch<ScrapeResponse>(`${API_BASE_URL}/job-applications/${jobId}/scrape`, payload); // Corrected endpoint
         return response.data;
     } catch (error: any) {
         console.error(`Error scraping description for job ${jobId}:`, error);
@@ -136,7 +136,7 @@ export const scrapeJobDescriptionApi = async (jobId: string, url?: string): Prom
 export const createJobFromUrlApi = async (url: string): Promise<JobApplication> => {
     try {
         // Auth header automatically included
-        const response = await axios.post<JobApplication>(`${API_BASE_URL}/jobs/create-from-url`, { url });
+        const response = await axios.post<JobApplication>(`${API_BASE_URL}/job-applications/create-from-url`, { url }); // Corrected endpoint
         return response.data;
     } catch (error: any) {
         console.error(`Error creating job from URL ${url}:`, error);
@@ -151,7 +151,7 @@ export const createJobFromUrlApi = async (url: string): Promise<JobApplication> 
 export const getJobDraft = async (jobId: string): Promise<JobDraftData> => {
     try {
         // Assumes auth token is handled by default axios instance
-        const response = await axios.get<JobDraftData>(`${API_BASE_URL}/jobs/${jobId}/draft`);
+        const response = await axios.get<JobDraftData>(`${API_BASE_URL}/job-applications/${jobId}/draft`); // Corrected endpoint
         return response.data;
     } catch (error: any) {
         console.error(`Error fetching draft data for job ${jobId}:`, error);
@@ -172,7 +172,7 @@ interface UpdateDraftResponse {
 }
 export const updateJobDraft = async (jobId: string, draftData: UpdateDraftPayload): Promise<UpdateDraftResponse> => {
     try {
-        const response = await axios.put<UpdateDraftResponse>(`${API_BASE_URL}/jobs/${jobId}/draft`, draftData);
+        const response = await axios.put<UpdateDraftResponse>(`${API_BASE_URL}/job-applications/${jobId}/draft`, draftData); // Corrected endpoint
         return response.data;
     } catch (error: any) {
         console.error(`Error updating draft for job ${jobId}:`, error);

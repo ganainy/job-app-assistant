@@ -4,7 +4,7 @@ import * as path from 'path';
 import authMiddleware from '../middleware/authMiddleware';
 import JobApplication from '../models/JobApplication';
 import User, { IUser } from '../models/User'; // Import IUser interface
-import geminiModel from '../utils/geminiClient';
+import { geminiModel } from '../utils/geminiClient';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 import { JsonResumeSchema } from '../types/jsonresume';
 import mongoose from 'mongoose';

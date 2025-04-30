@@ -1,6 +1,7 @@
 // server/src/utils/aiExtractor.ts
 import axios from 'axios';
-import geminiModel from './geminiClient';
+// Correct the import to use a named import
+import { geminiModel } from './geminiClient';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 
 // Define the expected structure returned by Gemini
@@ -51,12 +52,12 @@ function parseExtractionResponse(responseText: string): ExtractedJobData {
                 typeof parsed.language === 'string') {
                 return parsed as ExtractedJobData; // Assume structure matches if key fields exist
             } else {
-                 console.warn("Parsed JSON from AI missing essential fields (jobTitle, companyName, jobDescriptionText, language):", parsed);
-                 throw new Error("AI response structure validation failed.");
+                console.warn("Parsed JSON from AI missing essential fields (jobTitle, companyName, jobDescriptionText, language):", parsed);
+                throw new Error("AI response structure validation failed.");
             }
         } catch (e: any) {
             console.error("JSON.parse failed on extracted content:", e.message);
-             throw new Error("AI response was not valid JSON.");
+            throw new Error("AI response was not valid JSON.");
         }
     }
     console.error("AI response did not contain expected ```json formatting. Raw:", responseText);
@@ -116,10 +117,10 @@ async function extractFieldsWithGemini(htmlContent: string, url: string): Promis
 
     } catch (error: any) {
         console.error("Error during Gemini field extraction:", error);
-         if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
-             const blockReason = error.response?.promptFeedback?.blockReason;
-             throw new Error(`AI content generation blocked during extraction: ${blockReason || 'Unknown reason'}`);
-         }
+        if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
+            const blockReason = error.response?.promptFeedback?.blockReason;
+            throw new Error(`AI content generation blocked during extraction: ${blockReason || 'Unknown reason'}`);
+        }
         throw new Error("Failed to get valid extraction response from AI service.");
     }
 }
@@ -134,9 +135,9 @@ export async function extractJobDataFromUrl(url: string): Promise<ExtractedJobDa
 
     // Add final check for essential nulls after AI processing
     if (!extractedData.jobTitle || !extractedData.companyName || !extractedData.jobDescriptionText || !extractedData.language) {
-         console.warn("AI failed to extract one or more essential fields (Title, Company, Description, Language). Extracted:", extractedData);
-         throw new Error("AI could not extract all essential job details from the page.");
-     }
+        console.warn("AI failed to extract one or more essential fields (Title, Company, Description, Language). Extracted:", extractedData);
+        throw new Error("AI could not extract all essential job details from the page.");
+    }
 
     return extractedData;
 }

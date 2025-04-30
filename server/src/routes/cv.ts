@@ -3,7 +3,8 @@ import express, { Router, Request, Response, RequestHandler } from 'express'; //
 import multer from 'multer';
 import authMiddleware from '../middleware/authMiddleware';
 import User from '../models/User';
-import geminiModel from '../utils/geminiClient'; // Import configured Gemini model
+// Correct the import to use a named import
+import { geminiModel } from '../utils/geminiClient'; // Import configured Gemini model
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 import { JsonResumeSchema } from '../types/jsonresume';
 
