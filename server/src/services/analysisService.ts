@@ -1,9 +1,10 @@
 import { Types } from 'mongoose';
 import CvAnalysis, { ICvAnalysis } from '../models/CvAnalysis'; // Import model and interface
-import { generateAnalysisFromFile } from '../utils/geminiClient'; // Import the file analysis function
+import { generateAnalysisFromFile, generateJsonAnalysis } from '../utils/geminiClient'; // Import the file and JSON analysis functions
 import { calculateScores } from '../utils/analysis/scoringUtil'; // Import scoring utility
 import fs from 'fs'; // Import fs for cleanup
 import path from 'path'; // Import path for determining MIME type
+import { JsonResumeSchema } from '../types/jsonresume'; // Import JSON resume schema
 
 // Define the expected structure for the detailed results from Gemini
 // This should align with the IDetailedResultItem interface in CvAnalysis.ts
@@ -16,7 +17,6 @@ interface GeminiDetailedResultItem {
 }
 
 type GeminiAnalysisResult = Record<string, GeminiDetailedResultItem>;
-
 
 // Function to determine MIME type from file path
 function getMimeType(filePath: string): string {
@@ -124,7 +124,6 @@ Each key's value MUST be an object with the following fields:
 **Important:** Adhere strictly to the JSON output format described above. Analyze the *entire* document provided.
 `;
 
-
 // Updated analysis orchestration function
 export const performAnalysis = async (filePath: string, userId: string | Types.ObjectId, analysisId: Types.ObjectId): Promise<void> => {
     console.log(`Starting AI analysis for ID: ${analysisId}, User: ${userId}, File: ${filePath}`);
@@ -190,5 +189,59 @@ export const performAnalysis = async (filePath: string, userId: string | Types.O
                 console.log(`Temporary file ${filePath} deleted for analysis ID ${analysisId}.`);
             }
         });
+    }
+};
+
+// New function to analyze CV JSON directly
+export const performJsonAnalysis = async (
+    cvJson: JsonResumeSchema,
+    userId: string | Types.ObjectId,
+    analysisId: Types.ObjectId
+): Promise<void> => {
+    console.log(`Starting JSON-based AI analysis for ID: ${analysisId}, User: ${userId}`);
+    let analysisStatus: ICvAnalysis['status'] = 'failed';
+    let analysisResults: GeminiAnalysisResult | null = null;
+    let calculatedScores = { overallScore: 0, categoryScores: {}, issueCount: 0 };
+    let errorInfo: string | undefined = undefined;
+
+    try {
+        // Convert CV JSON to string for analysis
+        const cvString = JSON.stringify(cvJson, null, 2);
+        analysisResults = await generateJsonAnalysis<GeminiAnalysisResult>(
+            MASTER_ANALYSIS_PROMPT,
+            cvString
+        );
+
+        if (typeof analysisResults !== 'object' || analysisResults === null) {
+            throw new Error("AI analysis did not return a valid object structure.");
+        }
+
+        calculatedScores = calculateScores(analysisResults);
+        analysisStatus = 'completed';
+        console.log(`AI analysis and scoring completed for ID: ${analysisId}`);
+
+    } catch (error: any) {
+        console.error(`Analysis failed for ID: ${analysisId}:`, error);
+        analysisStatus = 'failed';
+        errorInfo = error instanceof Error ? error.message : 'Unknown analysis error';
+        analysisResults = null;
+        calculatedScores = { overallScore: 0, categoryScores: {}, issueCount: 0 };
+
+    } finally {
+        try {
+            const updateData: Partial<ICvAnalysis> = {
+                status: analysisStatus,
+                detailedResults: analysisResults ?? {},
+                overallScore: calculatedScores.overallScore,
+                categoryScores: calculatedScores.categoryScores,
+                issueCount: calculatedScores.issueCount,
+                errorInfo: errorInfo,
+                analysisDate: new Date()
+            };
+            await CvAnalysis.findByIdAndUpdate(analysisId, updateData);
+            console.log(`Database record updated for analysis ID: ${analysisId} with status: ${analysisStatus}`);
+        } catch (dbError: any) {
+            console.error(`FATAL: Failed to update database for analysis ID: ${analysisId} after analysis attempt:`, dbError);
+        }
     }
 };

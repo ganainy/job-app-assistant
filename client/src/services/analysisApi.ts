@@ -1,5 +1,6 @@
 // client/src/services/analysisApi.ts
 import axios from 'axios';
+import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api'; // Adjust as needed
 
@@ -38,6 +39,31 @@ export const uploadCvForAnalysis = async (cvFile: File): Promise<{ analysisId: s
     }
 };
 
+// Function to analyze CV JSON directly
+export const analyzeCv = async (cvJson: JsonResumeSchema): Promise<{ analysisId: string; message: string }> => {
+    const token = getAuthToken();
+    if (!token) {
+        throw new Error('No authentication token found.');
+    }
+
+    try {
+        const response = await axios.post<{ analysisId: string; message: string }>(
+            `${API_BASE_URL}/analysis/analyze`,
+            { cvJson },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+            }
+        );
+        return response.data;
+    } catch (error: any) {
+        console.error('Error analyzing CV:', error.response?.data || error.message);
+        throw new Error(error.response?.data?.message || 'Failed to analyze CV');
+    }
+};
+
 // 2. Get Analysis Results
 // Define an interface for the expected analysis result structure (based on CvAnalysis model)
 // You might want to refine this based on exactly what the frontend needs
@@ -61,7 +87,6 @@ export interface AnalysisResult {
     createdAt: string;
     updatedAt: string;
 }
-
 
 export const getAnalysis = async (analysisId: string): Promise<AnalysisResult> => {
     const token = getAuthToken();
@@ -89,7 +114,6 @@ export const getAnalysis = async (analysisId: string): Promise<AnalysisResult> =
         throw new Error(error.response?.data?.message || 'Failed to fetch analysis results');
     }
 };
-
 
 // 3. Delete Analysis
 export const deleteAnalysis = async (analysisId: string): Promise<{ message: string }> => {

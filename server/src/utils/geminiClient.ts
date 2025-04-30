@@ -13,6 +13,9 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 // Using a model that supports file input (gemini-1.5-flash-latest should work)
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
+// Get a model instance that can handle images (for PDF/DOCX analysis)
+const visionModel = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+
 /**
  * Converts a local file path to a GoogleGenerativeAI.Part object.
  * @param filePath The path to the local file.
@@ -28,7 +31,6 @@ function fileToGenerativePart(filePath: string, mimeType: string): Part {
         },
     };
 }
-
 
 /**
  * Parses a JSON response block from the AI's text output.
@@ -74,7 +76,7 @@ async function generateAnalysisFromFile<T>(prompt: string, filePath: string, mim
             filePart  // Then the file data part
         ];
 
-        const result = await model.generateContent({ contents: [{ role: "user", parts }] });
+        const result = await visionModel.generateContent({ contents: [{ role: "user", parts }] });
         const response = result.response;
 
         // Check for blocking or lack of content
@@ -102,6 +104,29 @@ async function generateAnalysisFromFile<T>(prompt: string, filePath: string, mim
     }
 }
 
+/**
+ * Generates analysis from JSON string.
+ * @param prompt The text prompt accompanying the JSON content.
+ * @param jsonString The JSON string to be analyzed.
+ * @param T The expected type of the parsed JSON object.
+ * @returns A promise that resolves to the parsed JSON object.
+ * @throws Error if the API call fails or JSON parsing fails.
+ */
+async function generateJsonAnalysis<T>(prompt: string, jsonString: string): Promise<T> {
+    try {
+        // Combine the prompt with the JSON content
+        const combinedPrompt = `${prompt}\n\nAnalyze the following CV in JSON Resume format:\n\n${jsonString}`;
+
+        const result = await model.generateContent(combinedPrompt);
+        const response = result.response;
+        const responseText = response.text();
+
+        return parseJsonResponse<T>(responseText);
+    } catch (error: any) {
+        console.error('Error during JSON analysis:', error);
+        throw error;
+    }
+}
 
 // Keep the text-based one for potential other uses if needed, or remove if only file analysis is used.
 async function generateStructuredResponse<T>(prompt: string): Promise<T> {
@@ -126,4 +151,4 @@ async function generateStructuredResponse<T>(prompt: string): Promise<T> {
 }
 
 // Export the new function and potentially the old ones if still needed
-export { model as geminiModel, generateStructuredResponse, generateAnalysisFromFile };
+export { model as geminiModel, generateStructuredResponse, generateAnalysisFromFile, generateJsonAnalysis };

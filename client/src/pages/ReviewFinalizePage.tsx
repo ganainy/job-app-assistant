@@ -1,28 +1,29 @@
 // client/src/pages/ReviewFinalizePage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-// Fix 1 & 3: Correct import names and import JobApplication from the service
-import { getJobById, updateJob, JobApplication } from '../services/jobApi';
-// Fix 2: Import getDownloadUrl instead of non-existent downloadFile
+import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi } from '../services/jobApi';
 import { renderFinalPdfs, getDownloadUrl } from '../services/generatorApi';
-// Fix 4: Import JsonResumeSchema instead of Resume
-import { JsonResumeSchema } from '../../../server/src/types/jsonresume'; // Adjust path as needed
+import { analyzeCv } from '../services/analysisApi';
+import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
-import axios from 'axios'; // Import axios
+import axios from 'axios';
 
 const ReviewFinalizePage: React.FC = () => {
     const { jobId } = useParams<{ jobId: string }>();
     const navigate = useNavigate();
     const [jobApplication, setJobApplication] = useState<JobApplication | null>(null);
-    // Fix 4: Use JsonResumeSchema type
     const [cvData, setCvData] = useState<JsonResumeSchema | null>(null);
     const [coverLetterText, setCoverLetterText] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isSaving, setIsSaving] = useState<boolean>(false);
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+    const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [isRenderingPdf, setIsRenderingPdf] = useState<boolean>(false);
     const [renderError, setRenderError] = useState<string | null>(null);
+    const [refreshError, setRefreshError] = useState<string | null>(null);
+    const [analyzeError, setAnalyzeError] = useState<string | null>(null);
     const [finalPdfFiles, setFinalPdfFiles] = useState<{ cv: string | null, cl: string | null }>({ cv: null, cl: null });
 
     const fetchJobData = useCallback(async () => {
@@ -30,22 +31,17 @@ const ReviewFinalizePage: React.FC = () => {
         setIsLoading(true);
         setFetchError(null);
         try {
-            // Fix 1: Use getJobById
             const data = await getJobById(jobId);
             setJobApplication(data);
-            // Correctly load draft data from the JobApplication object
-            setCvData(data.draftCvJson || null); // Use draftCvJson
-            setCoverLetterText(data.draftCoverLetterText || ''); // Use draftCoverLetterText
+            setCvData(data.draftCvJson || null);
+            setCoverLetterText(data.draftCoverLetterText || '');
 
-            // Check for existing final PDF filenames and set state
             if (data.generatedCvFilename || data.generatedCoverLetterFilename) {
                 setFinalPdfFiles({
                     cv: data.generatedCvFilename || null,
                     cl: data.generatedCoverLetterFilename || null
                 });
-                console.log("Found existing PDF filenames:", { cv: data.generatedCvFilename, cl: data.generatedCoverLetterFilename });
             }
-
         } catch (error: any) {
             console.error("Error fetching job application:", error);
             setFetchError(error.message || 'Failed to fetch job details.');
@@ -58,7 +54,6 @@ const ReviewFinalizePage: React.FC = () => {
         fetchJobData();
     }, [fetchJobData]);
 
-    // Fix 4: Use JsonResumeSchema type
     const handleCvChange = (updatedCv: JsonResumeSchema) => {
         setCvData(updatedCv);
     };
@@ -67,27 +62,52 @@ const ReviewFinalizePage: React.FC = () => {
         setCoverLetterText(event.target.value);
     };
 
+    const handleRefreshJobDetails = async () => {
+        if (!jobId || !jobApplication?.jobUrl) return;
+
+        setIsRefreshing(true);
+        setRefreshError(null);
+        try {
+            const response = await scrapeJobDescriptionApi(jobId);
+            setJobApplication(response.job);
+            // Show success message or update UI as needed
+        } catch (error: any) {
+            console.error("Error refreshing job details:", error);
+            setRefreshError(error.message || 'Failed to refresh job details.');
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleAnalyzeCv = async () => {
+        if (!jobId || !cvData) return;
+
+        setIsAnalyzing(true);
+        setAnalyzeError(null);
+        try {
+            const response = await analyzeCv(cvData);
+            navigate(`/analysis/${response.analysisId}`);
+        } catch (error: any) {
+            console.error("Error analyzing CV:", error);
+            setAnalyzeError(error.message || 'Failed to analyze CV.');
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
     const handleSaveChanges = async () => {
-        // Fix 1: Use updateJob
-        // Ensure the payload matches UpdateJobPayload from jobApi.ts
         if (!jobId || !jobApplication || !cvData) return false;
 
         setIsSaving(true);
         setSaveError(null);
         try {
-            // Construct payload based on UpdateJobPayload requirements
             const updatePayload = {
-                // Only include fields that are meant to be updated here
-                // Using draft fields as per jobApi.ts UpdateJobPayload
                 draftCvJson: cvData,
                 draftCoverLetterText: coverLetterText,
-                // You might want to update other fields like notes, status etc.
-                // status: jobApplication.status, // Example if status needs update
             };
 
             await updateJob(jobId, updatePayload);
             console.log("Changes saved successfully");
-            // Optionally update local state if needed, though re-fetch might be safer
             setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
             return true;
         } catch (error: any) {
@@ -104,25 +124,18 @@ const ReviewFinalizePage: React.FC = () => {
 
         setIsRenderingPdf(true);
         setRenderError(null);
-        setFinalPdfFiles({ cv: null, cl: null }); // Clear previous files
+        setFinalPdfFiles({ cv: null, cl: null });
 
         try {
-            // Save latest changes before rendering
             const saveSuccess = await handleSaveChanges();
-            // Check if saving failed before proceeding
             if (!saveSuccess) {
-                // Error is already set by handleSaveChanges
                 throw new Error(`Cannot generate PDFs: Failed to save changes first.`);
             }
 
             const result = await renderFinalPdfs(jobId);
             setFinalPdfFiles({ cv: result.cvFilename, cl: result.coverLetterFilename });
-            // Optionally show a success message
-            console.log("PDFs generated successfully:", result);
-
         } catch (error: any) {
             console.error("Error generating final PDFs:", error);
-            // Don't overwrite save error if that was the cause
             if (!saveError) {
                 setRenderError(error.message || 'Failed to generate final PDFs.');
             }
@@ -131,55 +144,78 @@ const ReviewFinalizePage: React.FC = () => {
         }
     };
 
-    // Fix 2 & Auth Fix: Implement download using axios to fetch blob and open in new tab
-    const handleDownload = async (filename: string | null) => { // Make async
+    const handleDownload = async (filename: string | null) => {
         if (!filename) return;
         try {
             const url = getDownloadUrl(filename);
-            // Fetch the file using axios, ensuring auth headers are sent
             const response = await axios.get(url, {
-                responseType: 'blob', // Important: response type is blob
-                // Axios instance should be configured with interceptors to add auth token
+                responseType: 'blob',
             });
 
-            const fileBlob = new Blob([response.data], { type: response.headers['content-type'] || 'application/pdf' }); // Use content-type from header
-            const blobUrl = URL.createObjectURL(fileBlob);
-
-            // Open the blob URL in a new tab
-            window.open(blobUrl, '_blank');
-
-            // Optional: Revoke the object URL after a delay or when no longer needed
-            // URL.revokeObjectURL(blobUrl); // Be careful with timing if the new tab needs it
-
-        } catch (err: any) { // Fix 6: Add type to err
-            console.error("Download failed:", err);
-            // Provide more specific error feedback
-            const errorMessage = axios.isAxiosError(err) && err.response?.data instanceof Blob
-                ? "Failed to fetch file data." // If response is blob, it's likely not a JSON error message
-                : err.response?.data?.message || err.message || 'An unknown error occurred during download.';
+            const blob = new Blob([response.data], { type: response.headers['content-type'] });
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+        } catch (error: any) {
+            const errorMessage = error.response?.data instanceof Blob ?
+                await error.response.data.text() :
+                error.response?.data?.message || error.message || 'An unknown error occurred during download.';
             alert(`Failed to download ${filename}: ${errorMessage}`);
         }
     };
-
 
     if (isLoading) return <div className="text-center p-4">Loading job details...</div>;
     if (fetchError) return <div className="text-center p-4 text-red-600">Error: {fetchError}</div>;
     if (!jobApplication || !cvData) return <div className="text-center p-4">Job application data not found.</div>;
 
-
     return (
         <div className="container mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4">Review and Finalize: {jobApplication.jobTitle} at {jobApplication.companyName}</h1>
 
+            {/* Job Details Section */}
+            <div className="mb-6 p-4 border rounded shadow-sm bg-white">
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <h2 className="text-xl font-semibold mb-2">Job Details</h2>
+                        <p className="text-gray-600 mb-2">Company: {jobApplication.companyName}</p>
+                        <p className="text-gray-600 mb-2">Title: {jobApplication.jobTitle}</p>
+                    </div>
+                    <button
+                        onClick={handleRefreshJobDetails}
+                        disabled={isRefreshing || !jobApplication.jobUrl}
+                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isRefreshing ? 'Refreshing...' : 'Refresh Job Details'}
+                    </button>
+                </div>
+                {refreshError && <p className="text-red-500 mb-2">{refreshError}</p>}
+                <div className="mt-4">
+                    <h3 className="font-semibold mb-2">Job Description:</h3>
+                    <div className="p-3 bg-gray-50 rounded max-h-60 overflow-y-auto">
+                        {jobApplication.jobDescriptionText || 'No job description available.'}
+                    </div>
+                </div>
+            </div>
+
             {/* CV Editor Section */}
             <div className="mb-6 p-4 border rounded shadow-sm bg-white">
-                <h2 className="text-xl font-semibold mb-3">Edit CV</h2>
-                {/* Fix 5: Use data prop instead of initialData */}
-                {cvData ? (
-                    <CvFormEditor data={cvData} onChange={handleCvChange} />
-                ) : (
-                    <div>Loading CV data...</div>
-                )}
+                <div className="flex justify-between items-center mb-3">
+                    <h2 className="text-xl font-semibold">Edit CV</h2>
+                    <button
+                        onClick={handleAnalyzeCv}
+                        disabled={isAnalyzing || !cvData}
+                        className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                    >
+                        {isAnalyzing ? 'Analyzing...' : 'Analyze Tailored CV'}
+                    </button>
+                </div>
+                {analyzeError && <p className="text-red-500 mb-2">{analyzeError}</p>}
+                <CvFormEditor data={cvData} onChange={handleCvChange} />
             </div>
 
             {/* Cover Letter Editor Section */}
@@ -196,49 +232,53 @@ const ReviewFinalizePage: React.FC = () => {
             {/* Action Buttons */}
             <div className="mt-6 p-4 border rounded shadow-sm bg-white flex flex-col items-start space-y-4">
                 {saveError && <p className="text-red-500">Save Error: {saveError}</p>}
-                <button
-                    onClick={handleSaveChanges}
-                    disabled={isSaving || isRenderingPdf} // Disable if saving or rendering
-                    className={`px-4 py-2 rounded text-white font-semibold ${isSaving ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50`}
-                >
-                    {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-
                 {renderError && <p className="text-red-500">Render Error: {renderError}</p>}
-                <button
-                    onClick={handleGenerateFinalPdfs}
-                    disabled={isRenderingPdf || isSaving} // Disable if rendering or saving
-                    className={`px-4 py-2 rounded text-white font-semibold ${isRenderingPdf ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 disabled:opacity-50`}
-                >
-                    {isRenderingPdf ? 'Generating PDFs...' : 'Generate Final PDFs'}
-                </button>
+
+                <div className="flex gap-4 flex-wrap">
+                    <button
+                        onClick={handleSaveChanges}
+                        disabled={isSaving || isRenderingPdf}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        {isSaving ? 'Saving...' : 'Save Changes'}
+                    </button>
+
+                    <button
+                        onClick={handleGenerateFinalPdfs}
+                        disabled={isRenderingPdf || isSaving}
+                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                    >
+                        {isRenderingPdf ? 'Generating PDFs...' : 'Generate Draft Documents'}
+                    </button>
+                </div>
 
                 {/* Download Links/Buttons */}
-                <div className="mt-4 space-y-2">
-                    {finalPdfFiles.cv && (
-                        <button
-                            onClick={() => handleDownload(finalPdfFiles.cv)}
-                            className="px-4 py-2 rounded text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
-                        >
-                            Download Final CV
-                        </button>
-                    )}
-                    {finalPdfFiles.cl && (
-                        <button
-                            onClick={() => handleDownload(finalPdfFiles.cl)}
-                            className="px-4 py-2 rounded text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50"
-                        >
-                            Download Final Cover Letter
-                        </button>
-                    )}
-                </div>
+                {(finalPdfFiles.cv || finalPdfFiles.cl) && (
+                    <div className="flex gap-4 flex-wrap">
+                        {finalPdfFiles.cv && (
+                            <button
+                                onClick={() => handleDownload(finalPdfFiles.cv)}
+                                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                            >
+                                Download Final CV
+                            </button>
+                        )}
+                        {finalPdfFiles.cl && (
+                            <button
+                                onClick={() => handleDownload(finalPdfFiles.cl)}
+                                className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                            >
+                                Download Final Cover Letter
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
-
-            {/* Button to go back */}
+            {/* Back button */}
             <button
-                onClick={() => navigate('/dashboard')} // Or navigate(-1)
-                className="mt-6 px-4 py-2 rounded bg-gray-500 hover:bg-gray-600 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50"
+                onClick={() => navigate('/dashboard')}
+                className="mt-6 px-4 py-2 rounded bg-gray-500 hover:bg-gray-600 text-white font-semibold"
             >
                 Back to Dashboard
             </button>
