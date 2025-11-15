@@ -1,7 +1,7 @@
-// client/src/components/UserInputModal.tsx
+// client/src/components/generator/UserInputModal.tsx
 import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 // Import the type definition from the API service
-import type { RequiredInputInfo } from '../services/generatorApi'; // Use the type for props
+import type { RequiredInputInfo } from '../../services/generatorApi'; // Use the type for props
 
 interface UserInputModalProps {
   isOpen: boolean; // Control visibility from parent
@@ -173,3 +173,4 @@ const UserInputModal: React.FC<UserInputModalProps> = ({
 };
 
 export default UserInputModal;
+

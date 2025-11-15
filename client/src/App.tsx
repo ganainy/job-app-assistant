@@ -11,7 +11,7 @@ import RegisterPage from './pages/RegisterPage';
 import CVManagementPage from './pages/CVManagementPage';
 import ReviewFinalizePage from './pages/ReviewFinalizePage';
 import AnalysisPage from './pages/AnalysisPage';
-import ProtectedRoute from './components/ProtectedRoute'; // Assuming you have this
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 // Example: Placeholder for ProfilePage if you were to use the commented route
 // import ProfilePage from './pages/ProfilePage';
