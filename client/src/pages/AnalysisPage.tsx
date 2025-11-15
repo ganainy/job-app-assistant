@@ -2,6 +2,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { uploadCvForAnalysis, getAnalysis, AnalysisResult } from '../services/analysisApi';
+import FileUploadZone from '../components/analysis/FileUploadZone';
+import AnalysisProgress from '../components/analysis/AnalysisProgress';
+import ScoreCard from '../components/analysis/ScoreCard';
+import ResultsAccordion from '../components/analysis/ResultsAccordion';
+import Spinner from '../components/common/Spinner';
+import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import Toast from '../components/common/Toast';
 
 type AnalysisStatus = 'idle' | 'uploading' | 'polling' | 'completed' | 'error';
 
@@ -20,28 +27,74 @@ const AnalysisPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const pollingIntervalId = useRef<NodeJS.Timeout | null>(null);
     const [improvements, setImprovements] = useState<Record<string, ImprovementState>>({});
+    const [isDragging, setIsDragging] = useState<boolean>(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
 
     const POLLING_INTERVAL_MS = 5000;
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files && event.target.files[0]) {
-            setSelectedFile(event.target.files[0]);
-            setAnalysisId(null);
-            setAnalysisResult(null);
-            setStatus('idle');
-            setError(null);
-            if (pollingIntervalId.current) {
-                clearInterval(pollingIntervalId.current);
-                pollingIntervalId.current = null;
+    const handleFileSelect = (file: File) => {
+        setSelectedFile(file);
+        setAnalysisId(null);
+        setAnalysisResult(null);
+        setStatus('idle');
+        setError(null);
+        if (pollingIntervalId.current) {
+            clearInterval(pollingIntervalId.current);
+            pollingIntervalId.current = null;
+        }
+    };
+
+    const handleFileRemove = () => {
+        setSelectedFile(null);
+        setAnalysisId(null);
+        setAnalysisResult(null);
+        setStatus('idle');
+        setError(null);
+        const fileInput = document.getElementById('cvFileInput') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+        if (pollingIntervalId.current) {
+            clearInterval(pollingIntervalId.current);
+            pollingIntervalId.current = null;
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const files = e.dataTransfer.files;
+        if (files && files[0]) {
+            const file = files[0];
+            const validExtensions = ['.pdf', '.docx'];
+            const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+
+            if (!validExtensions.includes(fileExtension)) {
+                setToast({ message: 'Please drop a valid PDF or DOCX file.', type: 'error' });
+                return;
             }
-        } else {
-            setSelectedFile(null);
+
+            handleFileSelect(file);
         }
     };
 
     const handleUpload = async () => {
         if (!selectedFile) {
-            setError('Please select a CV file first.');
+            setToast({ message: 'Please select a CV file first.', type: 'error' });
             return;
         }
 
@@ -53,10 +106,10 @@ const AnalysisPage: React.FC = () => {
             const response = await uploadCvForAnalysis(selectedFile);
             setAnalysisId(response.analysisId);
             setStatus('polling');
-            console.log('Upload successful, analysis ID:', response.analysisId);
+            setToast({ message: 'CV uploaded successfully. Analysis in progress...', type: 'info' });
         } catch (err: any) {
             console.error('Upload failed:', err);
-            setError(err.message || 'Failed to start analysis.');
+            setToast({ message: err.message || 'Failed to start analysis.', type: 'error' });
             setStatus('error');
             setAnalysisId(null);
         }
@@ -65,31 +118,28 @@ const AnalysisPage: React.FC = () => {
     const pollAnalysisStatus = useCallback(async () => {
         if (!analysisId) return;
 
-        console.log(`Polling for analysis results (ID: ${analysisId})...`);
         try {
             const result = await getAnalysis(analysisId);
             setAnalysisResult(result);
 
             if (result.status === 'completed') {
-                console.log('Analysis completed:', result);
                 setStatus('completed');
+                setToast({ message: 'Analysis completed successfully!', type: 'success' });
                 if (pollingIntervalId.current) {
                     clearInterval(pollingIntervalId.current);
                     pollingIntervalId.current = null;
                 }
             } else if (result.status === 'failed') {
-                console.error('Analysis failed:', result.errorInfo);
-                setError(`Analysis failed: ${result.errorInfo || 'Unknown error'}`);
+                setToast({ message: `Analysis failed: ${result.errorInfo || 'Unknown error'}`, type: 'error' });
                 setStatus('error');
                 if (pollingIntervalId.current) {
                     clearInterval(pollingIntervalId.current);
                     pollingIntervalId.current = null;
                 }
-            } else if (result.status === 'pending') {
-                console.log('Analysis still pending...');
             }
         } catch (err: any) {
             console.error('Polling error:', err);
+            setToast({ message: 'Error fetching analysis results.', type: 'error' });
         }
     }, [analysisId]);
 
@@ -119,7 +169,6 @@ const AnalysisPage: React.FC = () => {
     const handleImprovement = async (checkType: string, currentContent: string) => {
         if (!analysisId) return;
 
-        // Map check types to their parent sections
         const checkToSectionMap: Record<string, string> = {
             impactQuantification: 'experience',
             activeVoiceUsage: 'experience',
@@ -128,14 +177,14 @@ const AnalysisPage: React.FC = () => {
             buzzwordsAndCliches: 'summary',
             summaryObjectiveQuality: 'summary',
             skillsOrganization: 'skills',
-            educationPresentation: 'education'
+            educationPresentation: 'education',
         };
 
         const section = checkToSectionMap[checkType] || checkType;
 
-        setImprovements(prev => ({
+        setImprovements((prev) => ({
             ...prev,
-            [checkType]: { isGenerating: true }
+            [checkType]: { isGenerating: true },
         }));
 
         try {
@@ -144,7 +193,7 @@ const AnalysisPage: React.FC = () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ content: currentContent })
+                body: JSON.stringify({ content: currentContent }),
             });
 
             if (!response.ok) {
@@ -152,160 +201,338 @@ const AnalysisPage: React.FC = () => {
             }
 
             const { improvement } = await response.json();
-            setImprovements(prev => ({
+            setImprovements((prev) => ({
                 ...prev,
-                [checkType]: { isGenerating: false, content: improvement }
+                [checkType]: { isGenerating: false, content: improvement },
             }));
+            setToast({ message: 'Improvement generated successfully!', type: 'success' });
         } catch (err: any) {
             console.error(`Error generating improvement for ${checkType}:`, err);
-            setImprovements(prev => ({
+            setImprovements((prev) => ({
                 ...prev,
-                [checkType]: { isGenerating: false, error: err.message }
+                [checkType]: { isGenerating: false, error: err.message },
             }));
+            setToast({ message: `Failed to generate improvement: ${err.message}`, type: 'error' });
         }
     };
 
-    const renderResults = () => {
-        if (!analysisResult) return null;
+    const getProgressStage = (): 'idle' | 'uploading' | 'processing' | 'analyzing' | 'completed' | 'error' => {
+        if (status === 'error') return 'error';
+        if (status === 'uploading') return 'uploading';
+        if (status === 'polling' && !analysisResult) return 'processing';
+        if (status === 'polling' && analysisResult?.status === 'pending') return 'analyzing';
+        if (status === 'completed') return 'completed';
+        return 'idle';
+    };
 
-    return (
-        <div className="mt-6 p-4 border dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800">
-                <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">Analysis Results (ID: {analysisResult._id})</h3>
-                <p className="text-gray-900 dark:text-gray-300"><strong>Status:</strong> <span className={`font-medium ${analysisResult.status === 'completed' ? 'text-green-600 dark:text-green-400' :
-                        analysisResult.status === 'failed' ? 'text-red-600 dark:text-red-400' :
-                            'text-yellow-600 dark:text-yellow-400'}`}>{analysisResult.status}</span></p>
-                {analysisResult.status === 'completed' && (
-                    <>
-                        <p className="text-gray-900 dark:text-gray-300"><strong>Overall Score:</strong> {analysisResult.overallScore ?? 'N/A'} / 100</p>
-                        <p className="text-gray-900 dark:text-gray-300"><strong>Issues Found:</strong> {analysisResult.issueCount ?? 0}</p>
-
-                        {analysisResult.categoryScores && Object.keys(analysisResult.categoryScores).length > 0 && (
-                            <div className="mt-4">
-                                <h4 className="font-semibold text-gray-800 dark:text-gray-200">Category Scores:</h4>
-                                <ul className="list-disc list-inside ml-4 text-gray-900 dark:text-gray-300">
-                                    {Object.entries(analysisResult.categoryScores).map(([category, score]) => (
-                                        <li key={category}>{category}: {score}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-
-                        {analysisResult.detailedResults && Object.keys(analysisResult.detailedResults).length > 0 && (
-                            <div className="mt-4">
-                                <h4 className="font-semibold text-gray-800 dark:text-gray-200">Detailed Checks:</h4>
-                                {Object.entries(analysisResult.detailedResults)
-                                    .sort(([, a], [, b]) => {
-                                        const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-                                        return priorityOrder[a.priority] - priorityOrder[b.priority];
-                                    })
-                                    .map(([key, detail]) => (
-                                        <div key={key} className={`mt-2 p-3 border rounded bg-white dark:bg-gray-700 shadow-sm ${detail.priority === 'high' ? 'border-red-300 dark:border-red-700' :
-                                                detail.priority === 'medium' ? 'border-yellow-300 dark:border-yellow-700' :
-                                                    'border-green-300 dark:border-green-700'}`}>
-                                            <div className="flex justify-between items-start">
-                                                <p className="font-medium text-gray-900 dark:text-gray-200">{detail.checkName}</p>
-                                                <span className={`px-2 py-1 rounded text-xs font-medium ${detail.priority === 'high' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
-                                                        detail.priority === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                                                            'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'}`}>
-                                                    {detail.priority.toUpperCase()} Priority
-                                                </span>
-                                            </div>
-                                            <p className="text-gray-900 dark:text-gray-300">Status: <span className={`font-medium ${detail.status === 'pass' ? 'text-green-500 dark:text-green-400' :
-                                                    detail.status === 'fail' ? 'text-red-500 dark:text-red-400' :
-                                                        'text-yellow-500 dark:text-yellow-400'}`}>{detail.status}</span>
-                                                {detail.score !== undefined ? ` (Score: ${detail.score})` : ''}
-                                            </p>
-                                            {detail.issues && detail.issues.length > 0 && (
-                                                <div>
-                                                    <p className="text-sm font-semibold mt-1 text-gray-900 dark:text-gray-300">Issues:</p>
-                                                    <ul className="list-disc list-inside ml-4 text-sm text-red-700 dark:text-red-400">
-                                                        {detail.issues.map((issue, index) => <li key={index}>{issue}</li>)}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                            {detail.suggestions && detail.suggestions.length > 0 && (
-                                                <div>
-                                                    <p className="text-sm font-semibold mt-1 text-gray-900 dark:text-gray-300">Suggestions:</p>
-                                                    <ul className="list-disc list-inside ml-4 text-sm text-blue-700 dark:text-blue-400">
-                                                        {detail.suggestions.map((suggestion, index) => <li key={index}>{suggestion}</li>)}
-                                                    </ul>
-
-                                                    <div className="mt-2">
-                                                        <button
-                                                            onClick={() => handleImprovement(key, detail.originalContent || '')}
-                                                            disabled={improvements[key]?.isGenerating}
-                                                            className="px-3 py-1 text-sm bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
-                                                        >
-                                                            {improvements[key]?.isGenerating ? 'Generating...' : 'Apply Suggestions'}
-                                                        </button>
-
-                                                        {improvements[key]?.error && (
-                                                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{improvements[key].error}</p>
-                                                        )}
-
-                                                        {improvements[key]?.content && (
-                                                            <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded">
-                                                                <p className="text-sm font-medium text-green-800 dark:text-green-300">Improved Version:</p>
-                                                                <p className="text-sm mt-1 whitespace-pre-wrap dark:text-gray-200">{improvements[key].content}</p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                            </div>
-                        )}
-                    </>
-                )}
-                {analysisResult.status === 'failed' && analysisResult.errorInfo && (
-                    <p className="mt-2 text-red-600 dark:text-red-400"><strong>Error Details:</strong> {analysisResult.errorInfo}</p>
-                )}
-            </div>
-        );
+    const getScoreColor = (score: number): 'blue' | 'green' | 'yellow' | 'red' | 'purple' => {
+        if (score >= 80) return 'green';
+        if (score >= 60) return 'yellow';
+        return 'red';
     };
 
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">CV Analysis</h1>
+        <div className="container mx-auto p-4 pb-8">
+            <div className="mb-6">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">CV Analysis</h1>
+                <p className="text-gray-600 dark:text-gray-400">
+                    Upload your CV to get detailed feedback and improvement suggestions.
+                </p>
+            </div>
 
             {!analysisIdParam && (
-                <div className="mb-4 p-4 border dark:border-gray-700 rounded shadow-sm bg-white dark:bg-gray-800">
-                    <label htmlFor="cvFile" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Select CV File (PDF or DOCX)
-                    </label>
-                    <input
-                        type="file"
-                        id="cvFile"
-                        accept=".pdf,.docx"
-                        onChange={handleFileChange}
-                        className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-700 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50 disabled:opacity-50"
+                <div className="mb-6 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+                            <svg
+                                className="w-6 h-6 text-blue-600 dark:text-blue-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                />
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Upload CV</h2>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Select or drag and drop your CV file (PDF or DOCX)
+                            </p>
+                        </div>
+                    </div>
+
+                    <FileUploadZone
+                        selectedFile={selectedFile}
+                        onFileSelect={handleFileSelect}
+                        onFileRemove={handleFileRemove}
+                        isDragging={isDragging}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
                         disabled={status === 'uploading' || status === 'polling'}
                     />
-                    {selectedFile && <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Selected: {selectedFile.name}</p>}
 
                     <button
                         onClick={handleUpload}
                         disabled={!selectedFile || status === 'uploading' || status === 'polling'}
-                        className="mt-4 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                        className="w-full md:w-auto px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium transition-colors"
                     >
-                        {status === 'uploading' && 'Uploading...'}
-                        {status === 'polling' && 'Analyzing...'}
-                        {(status === 'idle' || status === 'completed' || status === 'error') && 'Analyze CV'}
+                        {status === 'uploading' && (
+                            <>
+                                <Spinner size="sm" />
+                                Uploading...
+                            </>
+                        )}
+                        {status === 'polling' && (
+                            <>
+                                <Spinner size="sm" />
+                                Analyzing...
+                            </>
+                        )}
+                        {(status === 'idle' || status === 'completed' || status === 'error') && (
+                            <>
+                                <svg
+                                    className="w-5 h-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                    />
+                                </svg>
+                                Analyze CV
+                            </>
+                        )}
                     </button>
                 </div>
             )}
 
-            {error && (
-                <div className="my-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 rounded">
-                    <strong>Error:</strong> {error}
+            {(status === 'uploading' || status === 'polling') && (
+                <div className="mb-6 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+                    <AnalysisProgress stage={getProgressStage()} />
+                    {status === 'polling' && (
+                        <div className="mt-4 flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                            <Spinner size="sm" />
+                            <span>
+                                {analysisResult?.status === 'pending'
+                                    ? 'Analysis in progress...'
+                                    : 'Waiting for results...'}
+                            </span>
+                        </div>
+                    )}
                 </div>
             )}
-            {status === 'uploading' && <p className="text-blue-600 dark:text-blue-400">Uploading file, please wait...</p>}
-            {status === 'polling' && !analysisResult && <p className="text-yellow-600 dark:text-yellow-400">Analysis started. Waiting for results...</p>}
-            {status === 'polling' && analysisResult?.status === 'pending' && <p className="text-yellow-600 dark:text-yellow-400">Analysis in progress (Status: Pending)... Checking again soon.</p>}
 
-            {renderResults()}
+            {status === 'polling' && !analysisResult && (
+                <div className="mb-6 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+                    <LoadingSkeleton lines={5} />
+                </div>
+            )}
+
+            {analysisResult && analysisResult.status === 'completed' && (
+                <div className="space-y-6">
+                    {/* Score Overview Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <ScoreCard
+                            title="Overall Score"
+                            score={analysisResult.overallScore ?? 0}
+                            subtitle="CV Quality Assessment"
+                            icon={
+                                <svg
+                                    className="w-6 h-6"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                    />
+                                </svg>
+                            }
+                            color={getScoreColor(analysisResult.overallScore ?? 0)}
+                        />
+                        <ScoreCard
+                            title="Issues Found"
+                            score={analysisResult.issueCount ?? 0}
+                            maxScore={50}
+                            subtitle="Areas to improve"
+                            icon={
+                                <svg
+                                    className="w-6 h-6"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                    />
+                                </svg>
+                            }
+                            color={analysisResult.issueCount === 0 ? 'green' : analysisResult.issueCount! < 5 ? 'yellow' : 'red'}
+                        />
+                        {analysisResult.categoryScores &&
+                            Object.entries(analysisResult.categoryScores)
+                                .slice(0, 2)
+                                .map(([category, score]) => (
+                                    <ScoreCard
+                                        key={category}
+                                        title={category.charAt(0).toUpperCase() + category.slice(1)}
+                                        score={score}
+                                        subtitle="Category score"
+                                        color={getScoreColor(score)}
+                                        icon={
+                                            <svg
+                                                className="w-6 h-6"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                />
+                                            </svg>
+                                        }
+                                    />
+                                ))}
+                    </div>
+
+                    {/* Category Scores Grid */}
+                    {analysisResult.categoryScores &&
+                        Object.keys(analysisResult.categoryScores).length > 2 && (
+                            <div className="p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+                                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+                                    Category Scores
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {Object.entries(analysisResult.categoryScores)
+                                        .slice(2)
+                                        .map(([category, score]) => (
+                                            <ScoreCard
+                                                key={category}
+                                                title={category.charAt(0).toUpperCase() + category.slice(1)}
+                                                score={score}
+                                                subtitle="Category score"
+                                                color={getScoreColor(score)}
+                                                className="mb-0"
+                                            />
+                                        ))}
+                                </div>
+                            </div>
+                        )}
+
+                    {/* Detailed Results with Filters */}
+                    {analysisResult.detailedResults &&
+                        Object.keys(analysisResult.detailedResults).length > 0 && (
+                            <div className="p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+                                <div className="mb-6">
+                                    <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+                                        Detailed Analysis Results
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label
+                                                htmlFor="searchQuery"
+                                                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                                            >
+                                                Search
+                                            </label>
+                                            <input
+                                                type="text"
+                                                id="searchQuery"
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                placeholder="Search checks, issues, or suggestions..."
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label
+                                                htmlFor="priorityFilter"
+                                                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                                            >
+                                                Filter by Priority
+                                            </label>
+                                            <select
+                                                id="priorityFilter"
+                                                value={priorityFilter}
+                                                onChange={(e) =>
+                                                    setPriorityFilter(
+                                                        e.target.value as 'all' | 'high' | 'medium' | 'low'
+                                                    )
+                                                }
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            >
+                                                <option value="all">All Priorities</option>
+                                                <option value="high">High Priority</option>
+                                                <option value="medium">Medium Priority</option>
+                                                <option value="low">Low Priority</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <ResultsAccordion
+                                    detailedResults={analysisResult.detailedResults}
+                                    improvements={improvements}
+                                    onImprove={handleImprovement}
+                                    searchQuery={searchQuery}
+                                    priorityFilter={priorityFilter}
+                                />
+                            </div>
+                        )}
+                </div>
+            )}
+
+            {analysisResult && analysisResult.status === 'failed' && (
+                <div className="p-6 border border-red-300 dark:border-red-700 rounded-lg shadow-sm bg-red-50 dark:bg-red-900/30">
+                    <div className="flex items-center gap-3 mb-2">
+                        <svg
+                            className="w-6 h-6 text-red-600 dark:text-red-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                        </svg>
+                        <h3 className="text-lg font-semibold text-red-900 dark:text-red-300">Analysis Failed</h3>
+                    </div>
+                    {analysisResult.errorInfo && (
+                        <p className="text-red-700 dark:text-red-400">{analysisResult.errorInfo}</p>
+                    )}
+                </div>
+            )}
+
+            {/* Toast Notification */}
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
         </div>
     );
 };
