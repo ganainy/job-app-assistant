@@ -331,24 +331,14 @@ export const getCvHtml = (resume: JsonResumeSchema): string => {
 
 // --- Cover Letter Template Function ---
 // Takes the cover letter text and returns an HTML string
+// Note: The cover letter text already includes sender contact info, so we don't add it again
 export const getCoverLetterHtml = (letterText: string, cvData: JsonResumeSchema): string => {
     const basics = cvData.basics || {};
-    const location = basics.location || {};
     const name = basics.name || 'Applicant';
 
-    // Simple template, just wraps the text in basic HTML
-    // Add sender address etc. based on cvData
+    // Convert newlines to <br> tags for proper HTML formatting
+    // The cover letter text already includes the sender's contact information at the top
     const formattedText = letterText.replace(/\n/g, '<br>'); // Convert newlines to <br>
-
-    const senderInfo = `
-        <div style="margin-bottom: 20px; font-size: 11pt;">
-            <strong>${name}</strong><br>
-            ${location.address ? `${location.address}<br>` : ''}
-            ${location.city ? `${location.city}${location.postalCode ? ` ${location.postalCode}` : ''}${location.region ? `, ${location.region}` : ''}<br>` : ''}
-            ${basics.phone ? `${basics.phone}<br>` : ''}
-            ${basics.email ? `<a href="mailto:${basics.email}">${basics.email}</a><br>` : ''}
-        </div>
-    `;
 
     return `
          <!DOCTYPE html>
@@ -360,10 +350,13 @@ export const getCoverLetterHtml = (letterText: string, cvData: JsonResumeSchema)
                 ${basicStyles} /* Reuse CV styles */
                 /* Add specific cover letter styles if needed */
                 body { font-size: 11pt; } /* Ensure consistent base size */
+                .cover-letter-body { 
+                    line-height: 1.6;
+                    margin-top: 20px;
+                }
              </style>
         </head>
         <body>
-            ${senderInfo}
             <div class="cover-letter-body">
              <p>${formattedText}</p>
             </div>

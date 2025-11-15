@@ -10,8 +10,8 @@ if (!GEMINI_API_KEY) {
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-// Using a model that supports file input (gemini-1.5-flash-latest should work)
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+// Using a model that supports file input (gemini-2.5-flash)
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // Get a model instance that can handle images (for PDF/DOCX analysis)
 const visionModel = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
