@@ -79,6 +79,13 @@ const getJobByIdHandler: RequestHandler = async (req, res) => {
     res.status(401).json({ message: 'User not authenticated correctly.' });
     return;
   }
+
+  // Validate jobId format first
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    res.status(400).json({ message: 'Invalid job ID format' });
+    return;
+  }
+
   try {
     const job = await JobApplication.findOne({ _id: req.params.id, userId: req.user._id }); // Filter by userId
     if (!job) {
@@ -89,10 +96,6 @@ const getJobByIdHandler: RequestHandler = async (req, res) => {
     res.status(200).json(job);
   } catch (error) {
     console.error("Error fetching job by id:", error);
-    if (error instanceof Error && error.name === 'CastError') {
-      res.status(400).json({ message: 'Invalid job ID format' });
-      return;
-    }
     res.status(500).json({ message: 'Error fetching job application' });
   }
 };
@@ -280,20 +283,26 @@ router.post('/create-from-url', createJobFromUrlHandler); // Add the new route
 // ---  Get Draft Data Endpoint ---
 // GET /api/jobs/:id/draft
 const getJobDraftHandler: RequestHandler = async (req, res) => {
-  // Use type assertion for req.user, assuming authMiddleware populates it
-  const user = req.user as { _id: mongoose.Types.ObjectId | string }; // Adjust based on your actual user type in req
+  const user = req.user as { _id: mongoose.Types.ObjectId | string };
   if (!user) {
     res.status(401).json({ message: 'User not authenticated correctly.' });
     return;
   }
+
   const { id: jobId } = req.params;
+  // Validate jobId format first
+  if (!mongoose.Types.ObjectId.isValid(jobId)) {
+    res.status(400).json({ message: 'Invalid job ID format.' });
+    return;
+  }
+
   const userId = user._id;
 
   try {
     // Find the job, ensure it belongs to the user, and select only the draft fields + status
     const job = await JobApplication.findOne(
       { _id: jobId, userId: userId },
-      'draftCvJson draftCoverLetterText generationStatus companyName jobTitle' // Select fields to return (_id is included by default)
+      'draftCvJson draftCoverLetterText generationStatus companyName jobTitle'
     );
 
     if (!job) {
@@ -301,22 +310,17 @@ const getJobDraftHandler: RequestHandler = async (req, res) => {
       return;
     }
 
-    // Return the draft data (or null if fields are empty)
     res.status(200).json({
-      jobId: job._id, // Include IDs for context
+      jobId: job._id,
       jobTitle: job.jobTitle,
       companyName: job.companyName,
       generationStatus: job.generationStatus,
-      draftCvJson: job.draftCvJson || null, // Return null if field doesn't exist/is empty
+      draftCvJson: job.draftCvJson || null,
       draftCoverLetterText: job.draftCoverLetterText || null,
     });
 
   } catch (error: any) {
     console.error(`Error fetching draft data for job ${jobId}:`, error);
-    if (error instanceof Error && error.name === 'CastError') {
-      res.status(400).json({ message: 'Invalid job ID format.' });
-      return;
-    }
     res.status(500).json({ message: 'Server error fetching draft data.' });
   }
 };
@@ -328,29 +332,30 @@ router.get('/:id/draft', getJobDraftHandler);
 // ---  Update Draft Data Endpoint ---
 // PUT /api/jobs/:id/draft
 const updateJobDraftHandler: RequestHandler = async (req, res) => {
-  // Use type assertion for req.user, assuming authMiddleware populates it
-  const user = req.user as { _id: mongoose.Types.ObjectId | string }; // Adjust based on your actual user type in req
+  const user = req.user as { _id: mongoose.Types.ObjectId | string };
   if (!user) {
     res.status(401).json({ message: 'User not authenticated.' });
     return;
   }
 
   const { id: jobId } = req.params;
-  const userId = user._id;
-  // Expecting updated draft data in the body
-  const { draftCvJson, draftCoverLetterText } = req.body as { draftCvJson?: JsonResumeSchema | any, draftCoverLetterText?: string }; // Make optional
+  // Validate jobId format first
+  if (!mongoose.Types.ObjectId.isValid(jobId)) {
+    res.status(400).json({ message: 'Invalid job ID format.' });
+    return;
+  }
 
-  // Basic validation: Ensure at least one part of the draft is provided
-  if (draftCvJson === undefined && draftCoverLetterText === undefined) { // Check for undefined instead of falsy
+  const userId = user._id;
+  const { draftCvJson, draftCoverLetterText } = req.body as { draftCvJson?: JsonResumeSchema | any, draftCoverLetterText?: string };
+
+  if (draftCvJson === undefined && draftCoverLetterText === undefined) {
     res.status(400).json({ message: 'No draft data provided for update.' });
     return;
   }
-  // Add more robust validation for the structure of draftCvJson if desired here
 
   try {
-    // Prepare the update object conditionally
     const updateData: any = {
-      generationStatus: 'draft_ready' // Keep status as draft_ready after edit
+      generationStatus: 'draft_ready'
     };
     if (draftCvJson !== undefined) {
       updateData.draftCvJson = draftCvJson;
@@ -359,11 +364,10 @@ const updateJobDraftHandler: RequestHandler = async (req, res) => {
       updateData.draftCoverLetterText = draftCoverLetterText;
     }
 
-    // Find the job belonging to the user and update only the draft fields
     const updatedJob = await JobApplication.findOneAndUpdate(
       { _id: jobId, userId: userId },
-      { $set: updateData }, // Use the prepared update object
-      { new: true, runValidators: true } // Return updated doc, run schema checks
+      { $set: updateData },
+      { new: true, runValidators: true }
     );
 
     if (!updatedJob) {
@@ -371,24 +375,12 @@ const updateJobDraftHandler: RequestHandler = async (req, res) => {
       return;
     }
 
-    console.log(`Draft updated successfully for job ${jobId}`);
     res.status(200).json({
       message: 'Draft updated successfully.',
-      // Optionally return the updated draft data or just success message
-      // draftCvJson: updatedJob.draftCvJson,
-      // draftCoverLetterText: updatedJob.draftCoverLetterText
     });
 
   } catch (error: any) {
     console.error(`Error updating draft for job ${jobId}:`, error);
-    if (error instanceof Error && error.name === 'CastError') {
-      res.status(400).json({ message: 'Invalid job ID format.' });
-      return;
-    }
-    if (error instanceof Error && error.name === 'ValidationError') {
-      res.status(400).json({ message: 'Draft data validation failed.', errors: error.message });
-      return;
-    }
     res.status(500).json({ message: 'Server error updating draft data.' });
   }
 };

@@ -1,14 +1,13 @@
 import mongoose, { Document, Schema, Types } from 'mongoose';
 
 // Interface defining the structure of the detailed results
-// This can be expanded as specific analyzer modules are built
 interface IDetailedResultItem {
     checkName: string;
-    score?: number; // Optional score (e.g., for AI-based checks)
+    score?: number | null; // Optional score that can be null
     issues: string[];
     suggestions?: string[]; // Optional suggestions from AI
     status: 'pass' | 'fail' | 'warning' | 'not-applicable';
-    priority: 'high' | 'medium' | 'low'; // Priority level for fixing this issue
+    priority: 'high' | 'medium' | 'low';
 }
 
 // Interface for the CvAnalysis document
@@ -18,13 +17,41 @@ export interface ICvAnalysis extends Document {
     status: 'pending' | 'completed' | 'failed';
     overallScore: number;
     issueCount: number;
-    categoryScores: Record<string, number>; // e.g., { content: 75, format: 90, ... }
-    detailedResults: Record<string, IDetailedResultItem>; // Storing structured results from each analyzer
-    cvFileRef?: string; // Optional: reference to the originally uploaded file
-    errorInfo?: string; // Optional: store error messages if analysis fails
+    categoryScores: Record<string, number>;
+    detailedResults: Record<string, IDetailedResultItem>;
+    cvFileRef?: string;
+    errorInfo?: string;
 }
 
-const CvAnalysisSchema: Schema = new Schema({
+const DetailedResultSchema = new Schema<IDetailedResultItem>({
+    checkName: { type: String, required: true },
+    score: {
+        type: Number,
+        required: false,
+        default: undefined,
+        // Add custom validation to allow null/undefined
+        validate: {
+            validator: function (v: any) {
+                return v === null || v === undefined || !isNaN(v);
+            },
+            message: 'Score must be a number, null, or undefined'
+        }
+    },
+    issues: [{ type: String }],
+    suggestions: [{ type: String }],
+    status: {
+        type: String,
+        enum: ['pass', 'fail', 'warning', 'not-applicable'],
+        required: true
+    },
+    priority: {
+        type: String,
+        enum: ['high', 'medium', 'low'],
+        required: true
+    }
+}, { _id: false });
+
+const CvAnalysisSchema = new Schema({
     userId: {
         type: Schema.Types.ObjectId,
         ref: 'User',
@@ -51,20 +78,13 @@ const CvAnalysisSchema: Schema = new Schema({
         default: 0
     },
     categoryScores: {
-        type: Map, // Using Map for flexible key-value pairs
+        type: Map,
         of: Number,
         default: {}
     },
     detailedResults: {
-        type: Map, // Using Map for flexible key-value pairs
-        of: new Schema<IDetailedResultItem>({
-            checkName: { type: String, required: true },
-            score: { type: Number },
-            issues: [{ type: String }],
-            suggestions: [{ type: String }],
-            status: { type: String, enum: ['pass', 'fail', 'warning', 'not-applicable'], required: true },
-            priority: { type: String, enum: ['high', 'medium', 'low'], required: true } // Adding priority field
-        }, { _id: false }), // _id: false for subdocuments within the map
+        type: Map,
+        of: DetailedResultSchema,
         default: {}
     },
     cvFileRef: {
@@ -74,7 +94,7 @@ const CvAnalysisSchema: Schema = new Schema({
         type: String
     }
 }, {
-    timestamps: true // Adds createdAt and updatedAt timestamps
+    timestamps: true
 });
 
 const CvAnalysis = mongoose.model<ICvAnalysis>('CvAnalysis', CvAnalysisSchema);

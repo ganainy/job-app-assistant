@@ -1,9 +1,9 @@
 // client/src/pages/ReviewFinalizePage.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi } from '../services/jobApi';
 import { renderFinalPdfs, getDownloadUrl } from '../services/generatorApi';
-import { analyzeCv } from '../services/analysisApi';
+import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi'; // Import AnalysisResult type
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
 import axios from 'axios';
@@ -17,7 +17,6 @@ const ReviewFinalizePage: React.FC = () => {
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isSaving, setIsSaving] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-    const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [isRenderingPdf, setIsRenderingPdf] = useState<boolean>(false);
@@ -25,6 +24,10 @@ const ReviewFinalizePage: React.FC = () => {
     const [refreshError, setRefreshError] = useState<string | null>(null);
     const [analyzeError, setAnalyzeError] = useState<string | null>(null);
     const [finalPdfFiles, setFinalPdfFiles] = useState<{ cv: string | null, cl: string | null }>({ cv: null, cl: null });
+    const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null); // State to hold analysis results
+    const [analyzingSections, setAnalyzingSections] = useState<Record<string, boolean>>({});
+    const pollingIntervalId = useRef<NodeJS.Timeout | null>(null);
+    const POLLING_INTERVAL_MS = 2000;
 
     const fetchJobData = useCallback(async () => {
         if (!jobId) return;
@@ -79,21 +82,79 @@ const ReviewFinalizePage: React.FC = () => {
         }
     };
 
-    const handleAnalyzeCv = async () => {
+    const pollAnalysisResults = useCallback(async (id: string) => {
+        try {
+            const response = await getAnalysis(id);
+
+            if (response.status === 'completed') {
+                setAnalysisResult(prev => ({
+                    ...prev,
+                    ...response
+                }));
+                if (pollingIntervalId.current) {
+                    clearInterval(pollingIntervalId.current);
+                    pollingIntervalId.current = null;
+                }
+            } else if (response.status === 'failed') {
+                setAnalyzeError(response.errorInfo || 'Analysis failed');
+                if (pollingIntervalId.current) {
+                    clearInterval(pollingIntervalId.current);
+                    pollingIntervalId.current = null;
+                }
+            }
+        } catch (error: any) {
+            console.error('Error polling analysis results:', error);
+            setAnalyzeError(error.message || 'Failed to get analysis results');
+        }
+    }, []);
+
+    const handleAnalyzeSection = async (section: string) => {
         if (!jobId || !cvData) return;
 
-        setIsAnalyzing(true);
+        setAnalyzingSections(prev => ({ ...prev, [section]: true }));
         setAnalyzeError(null);
+
         try {
-            const response = await analyzeCv(cvData);
-            navigate(`/analysis/${response.analysisId}`);
+            // Create a partial CV with just the section being analyzed
+            const sectionData = {
+                ...cvData,
+                // Keep basics section always as it may be needed for context
+                basics: cvData.basics,
+                // Only include the section being analyzed
+                work: section === 'work' ? cvData.work : undefined,
+                education: section === 'education' ? cvData.education : undefined,
+                skills: section === 'skills' ? cvData.skills : undefined,
+                projects: section === 'projects' ? cvData.projects : undefined,
+                languages: section === 'languages' ? cvData.languages : undefined,
+                certificates: section === 'certificates' ? cvData.certificates : undefined,
+            };
+
+            const jobContext = jobApplication?.jobDescriptionText ? { jobDescription: jobApplication.jobDescriptionText } : undefined;
+            const response = await analyzeCv(sectionData, jobContext);
+
+            // Start polling for results
+            if (pollingIntervalId.current) {
+                clearInterval(pollingIntervalId.current);
+            }
+            pollAnalysisResults(response.id);
+            pollingIntervalId.current = setInterval(() => pollAnalysisResults(response.id), POLLING_INTERVAL_MS);
+
         } catch (error: any) {
-            console.error("Error analyzing CV:", error);
-            setAnalyzeError(error.message || 'Failed to analyze CV.');
+            console.error(`Error analyzing ${section}:`, error);
+            setAnalyzeError(error.message || `Failed to analyze ${section}.`);
         } finally {
-            setIsAnalyzing(false);
+            setAnalyzingSections(prev => ({ ...prev, [section]: false }));
         }
     };
+
+    useEffect(() => {
+        return () => {
+            if (pollingIntervalId.current) {
+                clearInterval(pollingIntervalId.current);
+                pollingIntervalId.current = null;
+            }
+        };
+    }, []);
 
     const handleSaveChanges = async () => {
         if (!jobId || !jobApplication || !cvData) return false;
@@ -206,16 +267,15 @@ const ReviewFinalizePage: React.FC = () => {
             <div className="mb-6 p-4 border rounded shadow-sm bg-white">
                 <div className="flex justify-between items-center mb-3">
                     <h2 className="text-xl font-semibold">Edit CV</h2>
-                    <button
-                        onClick={handleAnalyzeCv}
-                        disabled={isAnalyzing || !cvData}
-                        className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
-                    >
-                        {isAnalyzing ? 'Analyzing...' : 'Analyze Tailored CV'}
-                    </button>
                 </div>
-                {analyzeError && <p className="text-red-500 mb-2">{analyzeError}</p>}
-                <CvFormEditor data={cvData} onChange={handleCvChange} />
+                {analyzeError && <p className="text-red-500 mb-2">Analysis Error: {analyzeError}</p>}
+                <CvFormEditor
+                    data={cvData}
+                    onChange={handleCvChange}
+                    analysisResult={analysisResult}
+                    onAnalyzeSection={handleAnalyzeSection}
+                    analyzingSections={analyzingSections}
+                />
             </div>
 
             {/* Cover Letter Editor Section */}

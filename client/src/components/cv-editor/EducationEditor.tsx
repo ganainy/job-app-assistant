@@ -2,9 +2,18 @@ import React, { useState } from 'react';
 import { EditorProps } from './types';
 import { JsonResumeEducationItem } from '../../../../server/src/types/jsonresume';
 import ArrayItemControls from './ArrayItemControls';
+import { SectionScore } from '../../services/analysisApi'; // Import SectionScore
+import SectionAnalysisPanel from './SectionAnalysisPanel'; // Import the panel
 
-const EducationEditor: React.FC<EditorProps<JsonResumeEducationItem[] | undefined>> = ({ data = [], onChange }) => {
+// Update props to include analysis and onApplyImprovements
+interface EducationEditorProps extends EditorProps<JsonResumeEducationItem[] | undefined> {
+    analysis?: SectionScore | null;
+    onApplyImprovements?: () => Promise<void>;
+}
+
+const EducationEditor: React.FC<EducationEditorProps> = ({ data = [], onChange, analysis }) => {
     const [isExpanded, setIsExpanded] = useState(data.length > 0);
+    const [showAnalysis, setShowAnalysis] = useState(false);
 
     const handleItemChange = (index: number, field: keyof JsonResumeEducationItem, value: string | string[]) => {
         const newData = [...data];
@@ -19,16 +28,13 @@ const EducationEditor: React.FC<EditorProps<JsonResumeEducationItem[] | undefine
         onChange(newData);
     };
 
-    // Renamed from handleCourseChange and updated logic for comma-separated string
     const handleCoursesChange = (eduIndex: number, value: string) => {
-        const newData = [...data];
         const courses = value.split(',').map(c => c.trim()).filter(c => c);
         handleItemChange(eduIndex, 'courses', courses);
     };
 
     const handleDelete = (index: number) => {
-        const newData = data.filter((_, i) => i !== index);
-        onChange(newData);
+        onChange(data.filter((_, i) => i !== index));
     };
 
     const handleAdd = () => {
@@ -39,7 +45,20 @@ const EducationEditor: React.FC<EditorProps<JsonResumeEducationItem[] | undefine
     return (
         <div className="p-4 border rounded shadow-sm bg-white">
             <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-semibold">Education</h3>
+                <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-semibold">Education</h3>
+                    {/* Show analysis button only if there are issues or suggestions */}
+                    {analysis && (analysis.issues.length > 0 || analysis.suggestions.length > 0) && (
+                        <button
+                            type="button"
+                            onClick={() => setShowAnalysis(!showAnalysis)}
+                            className="text-sm text-purple-600 hover:text-purple-800 focus:outline-none"
+                            title={showAnalysis ? "Hide Analysis" : "Show Analysis"}
+                        >
+                            {`Analysis (${analysis.issues.length} issues)`} {showAnalysis ? '▲' : '▼'}
+                        </button>
+                    )}
+                </div>
                 <button
                     type="button"
                     onClick={() => setIsExpanded(!isExpanded)}
@@ -48,6 +67,12 @@ const EducationEditor: React.FC<EditorProps<JsonResumeEducationItem[] | undefine
                     {isExpanded ? 'Collapse' : 'Expand'}
                 </button>
             </div>
+
+            {/* Conditionally render the analysis panel */}
+            {showAnalysis && analysis && (
+                <SectionAnalysisPanel issues={analysis.issues} suggestions={analysis.suggestions} />
+            )}
+
             {isExpanded && (
                 <>
                     {data.length === 0 ? (

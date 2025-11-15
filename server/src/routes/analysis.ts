@@ -1,20 +1,16 @@
-// Placeholder for Analysis API routes
-import express from 'express';
-import { analyzeCv, getAnalysisResults, deleteAnalysis, generateImprovement } from '../controllers/analysisController';
-import protect from '../middleware/authMiddleware'; // Import default export and alias it as 'protect'
+import express, { Router } from 'express';
+import { analyzeCv, getAnalysisResults, generateImprovement, deleteAnalysis } from '../controllers/analysisController';
+import authMiddleware from '../middleware/authMiddleware';
 
-const router = express.Router();
+const router: Router = express.Router();
 
-// POST /api/analysis/analyze
-router.post('/analyze', protect, analyzeCv);
+// Protect all routes with authentication
+router.use(authMiddleware);
 
-// GET /api/analysis/:id
-router.get('/:id', protect, getAnalysisResults);
-
-// DELETE /api/analysis/:id
-router.delete('/:id', protect, deleteAnalysis);
-
-// POST /api/analysis/:id/improve/:section
-router.post('/:id/improve/:section', protect, generateImprovement);
+// Analysis routes
+router.post('/analyze', analyzeCv as express.RequestHandler);
+router.get('/:id', getAnalysisResults as express.RequestHandler);
+router.post('/:id/improve/:section', generateImprovement as express.RequestHandler);
+router.delete('/:id', deleteAnalysis as express.RequestHandler);
 
 export default router;

@@ -37,216 +37,104 @@ const upload = multer({
     }
 }).single('cvFile');
 
-export const analyzeCv = (req: Request, res: Response) => {
-    // Check if we're getting JSON data instead of a file
-    if (req.headers['content-type']?.includes('application/json')) {
-        handleJsonAnalysis(req, res);
-        return;
-    }
-
-    // Handle file upload
-    upload(req, res, async (err) => {
-        if (err instanceof multer.MulterError) {
-            console.error('Multer error:', err);
-            res.status(400).json({ message: 'File upload error: ' + err.message });
-            return;
-        } else if (err) {
-            console.error('Unknown upload error:', err);
-            res.status(400).json({ message: err.message || 'File upload failed.' });
-            return;
-        }
-
-        if (!req.file) {
-            res.status(400).json({ message: 'No CV file uploaded.' });
-            return;
-        }
-        if (!req.user) {
-            res.status(401).json({ message: 'Not authorized' });
-            return;
-        }
-
-        const userId = req.user.id;
-        const filePath = req.file.path;
-        const originalFilename = req.file.originalname;
-
-        try {
-            const newAnalysis = new CvAnalysis({
-                userId: userId,
-                status: 'pending',
-                cvFileRef: originalFilename,
-            });
-            await newAnalysis.save();
-
-            const analysisId = newAnalysis._id as Types.ObjectId;
-            res.status(202).json({ analysisId: analysisId, message: 'Analysis started.' });
-
-            setImmediate(() => {
-                performAnalysis(filePath, userId, analysisId).catch(error => {
-                    console.error(`Error during async analysis for ${analysisId}:`, error);
-                    CvAnalysis.findByIdAndUpdate(analysisId, {
-                        status: 'failed',
-                        errorInfo: error.message || 'Unknown analysis error'
-                    }).exec();
-                });
-            });
-        } catch (error: any) {
-            console.error('Error starting analysis:', error);
-            fs.unlink(filePath, (unlinkErr) => {
-                if (unlinkErr) console.error(`Error deleting uploaded file ${filePath} after failure:`, unlinkErr);
-            });
-            res.status(500).json({ message: 'Server error starting analysis.' });
-        }
-    });
-};
-
-const handleJsonAnalysis = async (req: Request, res: Response) => {
-    if (!req.user) {
-        res.status(401).json({ message: 'Not authorized' });
-        return;
-    }
-
-    const userId = req.user.id;
-    const cvJson = req.body.cvJson as JsonResumeSchema;
-
-    if (!cvJson || typeof cvJson !== 'object') {
-        res.status(400).json({ message: 'Invalid or missing CV JSON data.' });
-        return;
-    }
-
+export const analyzeCv = async (req: Request, res: Response) => {
     try {
-        const newAnalysis = new CvAnalysis({
-            userId: userId,
+        const cvData: JsonResumeSchema = req.body.cv;
+        const jobData = req.body.job;
+
+        if (!cvData) {
+            return res.status(400).json({ message: 'CV data is required' });
+        }
+
+        const userId = req.user?.id ? new Types.ObjectId(req.user.id) : new Types.ObjectId();
+
+        // Create the analysis document first
+        const analysis = await CvAnalysis.create({
+            userId,
             status: 'pending',
+            overallScore: 0,
+            issueCount: 0,
+            categoryScores: {},
+            detailedResults: {}
         });
-        await newAnalysis.save();
 
-        const analysisId = newAnalysis._id as Types.ObjectId;
-        res.status(202).json({ analysisId: analysisId, message: 'Analysis started.' });
-
-        setImmediate(() => {
-            performJsonAnalysis(cvJson, userId, analysisId).catch(error => {
-                console.error(`Error during async JSON analysis for ${analysisId}:`, error);
-                CvAnalysis.findByIdAndUpdate(analysisId, {
-                    status: 'failed',
-                    errorInfo: error.message || 'Unknown analysis error'
-                }).exec();
+        // Start analysis in background
+        performJsonAnalysis(cvData, userId, analysis._id as unknown as Types.ObjectId, jobData)
+            .catch(error => {
+                console.error('Background analysis failed:', error);
             });
-        });
+
+        res.json(analysis);
     } catch (error: any) {
-        console.error('Error starting JSON analysis:', error);
-        res.status(500).json({ message: 'Server error starting analysis.' });
+        console.error('Error analyzing CV:', error);
+        res.status(500).json({ message: error.message || 'Error analyzing CV' });
     }
 };
 
 export const getAnalysisResults = async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const userId = req.user?.id;
-
-    if (!userId) {
-        res.status(401).json({ message: 'Not authorized' });
-        return;
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-        res.status(400).json({ message: 'Invalid analysis ID format' });
-        return;
-    }
-
     try {
+        const { id } = req.params;
         const analysis = await CvAnalysis.findById(id);
 
         if (!analysis) {
-            res.status(404).json({ message: 'Analysis not found' });
-            return;
+            return res.status(404).json({ message: 'Analysis not found' });
         }
 
-        if (analysis.userId.toString() !== userId.toString()) {
-            console.warn(`Unauthorized attempt to access analysis ${id} by user ${userId}`);
-            res.status(403).json({ message: 'Forbidden: You do not own this analysis' });
-            return;
+        if (analysis.userId.toString() !== req.user?.id) {
+            return res.status(403).json({ message: 'Unauthorized access to analysis' });
         }
 
-        res.status(200).json(analysis);
-
+        res.json(analysis);
     } catch (error: any) {
-        console.error(`Error retrieving analysis ${id} for user ${userId}:`, error);
-        res.status(500).json({ message: 'Server error retrieving analysis results.' });
-    }
-};
-
-export const deleteAnalysis = async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const userId = req.user?.id;
-
-    if (!userId) {
-        res.status(401).json({ message: 'Not authorized' });
-        return;
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-        res.status(400).json({ message: 'Invalid analysis ID format' });
-        return;
-    }
-
-    try {
-        const analysisToDelete = await CvAnalysis.findOne({ _id: id, userId: userId });
-
-        if (!analysisToDelete) {
-            console.warn(`Attempt to delete non-existent or unauthorized analysis ${id} by user ${userId}`);
-            res.status(404).json({ message: 'Analysis not found or not owned by user' });
-            return;
-        }
-
-        await CvAnalysis.findByIdAndDelete(id);
-        console.log(`Analysis ${id} deleted successfully by user ${userId}`);
-        res.status(200).json({ message: 'Analysis deleted successfully' });
-
-    } catch (error: any) {
-        console.error(`Error deleting analysis ${id} for user ${userId}:`, error);
-        res.status(500).json({ message: 'Server error deleting analysis.' });
+        console.error('Error fetching analysis:', error);
+        res.status(500).json({ message: error.message || 'Error fetching analysis' });
     }
 };
 
 export const generateImprovement = async (req: Request, res: Response) => {
-    const { id, section } = req.params;
-    const userId = req.user?.id;
-
-    if (!userId) {
-        res.status(401).json({ message: 'Not authorized' });
-        return;
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-        res.status(400).json({ message: 'Invalid analysis ID format' });
-        return;
-    }
-
     try {
-        const analysis = await CvAnalysis.findById(id);
+        const { analysisId, section, currentContent } = req.body;
 
+        if (!analysisId || !section || !currentContent) {
+            return res.status(400).json({
+                message: 'Analysis ID, section, and current content are required'
+            });
+        }
+
+        const analysis = await CvAnalysis.findById(analysisId);
         if (!analysis) {
-            res.status(404).json({ message: 'Analysis not found' });
-            return;
+            return res.status(404).json({ message: 'Analysis not found' });
         }
 
-        if (analysis.userId.toString() !== userId.toString()) {
-            console.warn(`Unauthorized attempt to generate improvement for analysis ${id} by user ${userId}`);
-            res.status(403).json({ message: 'Forbidden: You do not own this analysis' });
-            return;
-        }
-
-        // Get the current CV content from the request
-        const { currentContent } = req.body;
-        if (!currentContent) {
-            res.status(400).json({ message: 'Current content is required' });
-            return;
+        if (analysis.userId.toString() !== req.user?.id) {
+            return res.status(403).json({ message: 'Unauthorized access to analysis' });
         }
 
         const improvement = await generateSectionImprovement(analysis, section, currentContent);
-        res.status(200).json({ improvement });
-
+        res.json({ improvement });
     } catch (error: any) {
-        console.error(`Error generating improvement for analysis ${id}, section ${section}:`, error);
-        res.status(500).json({ message: 'Failed to generate improvement: ' + (error.message || 'Unknown error') });
+        console.error('Error generating improvement:', error);
+        res.status(500).json({ message: error.message || 'Error generating improvement' });
+    }
+};
+
+export const deleteAnalysis = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const analysis = await CvAnalysis.findById(id);
+
+        if (!analysis) {
+            return res.status(404).json({ message: 'Analysis not found' });
+        }
+
+        if (analysis.userId.toString() !== req.user?.id) {
+            return res.status(403).json({ message: 'Unauthorized access to analysis' });
+        }
+
+        await analysis.deleteOne();
+        res.json({ message: 'Analysis deleted successfully' });
+    } catch (error: any) {
+        console.error('Error deleting analysis:', error);
+        res.status(500).json({ message: error.message || 'Error deleting analysis' });
     }
 };

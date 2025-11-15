@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { EditorProps } from './types';
-import { JsonResumeBasics, JsonResumeProfile } from '../../../../server/src/types/jsonresume'; // Fix: Use JsonResumeProfile
+import { JsonResumeBasics, JsonResumeProfile } from '../../../../server/src/types/jsonresume';
+import { SectionScore } from '../../services/analysisApi'; // Import SectionScore
+import SectionAnalysisPanel from './SectionAnalysisPanel'; // Import the panel
 import ArrayItemControls from './ArrayItemControls'; // Import ArrayItemControls
 
-const BasicsEditor: React.FC<EditorProps<JsonResumeBasics | undefined>> = ({ data = {}, onChange }) => {
+// Update props to include analysis and onApplyImprovements
+interface BasicsEditorProps extends EditorProps<JsonResumeBasics | undefined> {
+    analysis?: SectionScore | null;
+    onApplyImprovements?: () => Promise<void>;
+}
+
+const BasicsEditor: React.FC<BasicsEditorProps> = ({ data = {}, onChange, analysis }) => {
     const [isExpanded, setIsExpanded] = useState(!!data?.name); // Expand if name exists
+    const [showAnalysis, setShowAnalysis] = useState(false);
 
     const handleChange = (field: keyof JsonResumeBasics, value: string) => {
         onChange({ ...data, [field]: value });
@@ -21,7 +30,7 @@ const BasicsEditor: React.FC<EditorProps<JsonResumeBasics | undefined>> = ({ dat
     };
 
     // Handlers for profiles array
-    const handleProfileChange = (index: number, field: keyof JsonResumeProfile, value: string) => { // Fix: Use JsonResumeProfile
+    const handleProfileChange = (index: number, field: keyof JsonResumeProfile, value: string) => {
         const profiles = [...(data?.profiles || [])];
         if (!profiles[index]) {
             profiles[index] = { network: '', username: '', url: '' };
@@ -44,6 +53,16 @@ const BasicsEditor: React.FC<EditorProps<JsonResumeBasics | undefined>> = ({ dat
         <div className="p-4 border rounded shadow-sm bg-white">
             <div className="flex justify-between items-center mb-3">
                 <h3 className="text-lg font-semibold">Basic Information</h3>
+                {/* Show button only if there are issues or suggestions */}
+                {analysis && (analysis.issues.length > 0 || analysis.suggestions.length > 0) && (
+                    <button
+                        onClick={() => setShowAnalysis(!showAnalysis)}
+                        className="text-sm text-purple-600 hover:text-purple-800 focus:outline-none"
+                        title={showAnalysis ? "Hide Analysis" : "Show Analysis"}
+                    >
+                        {`Analysis (${analysis.issues.length} issues)`} {showAnalysis ? '▲' : '▼'}
+                    </button>
+                )}
                 <button
                     type="button"
                     onClick={() => setIsExpanded(!isExpanded)}
@@ -52,6 +71,12 @@ const BasicsEditor: React.FC<EditorProps<JsonResumeBasics | undefined>> = ({ dat
                     {isExpanded ? 'Collapse' : 'Expand'}
                 </button>
             </div>
+
+            {/* Conditionally render the analysis panel */}
+            {showAnalysis && analysis && (
+                <SectionAnalysisPanel issues={analysis.issues} suggestions={analysis.suggestions} />
+            )}
+
             {isExpanded && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Name */}
@@ -202,7 +227,7 @@ const BasicsEditor: React.FC<EditorProps<JsonResumeBasics | undefined>> = ({ dat
                         <h4 className="text-md font-semibold mb-2 mt-3">Profiles (e.g., LinkedIn, GitHub)</h4>
                         {data.profiles && data.profiles.length > 0 ? (
                             <ul className="space-y-3">
-                                {data.profiles.map((profile: JsonResumeProfile, index: number) => ( // Fix: Use JsonResumeProfile
+                                {data.profiles.map((profile: JsonResumeProfile, index: number) => (
                                     <li key={index} className="p-3 border rounded bg-gray-50 space-y-2">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                             <div>
@@ -211,7 +236,7 @@ const BasicsEditor: React.FC<EditorProps<JsonResumeBasics | undefined>> = ({ dat
                                                     type="text"
                                                     id={`profile-network-${index}`}
                                                     value={profile.network || ''}
-                                                    onChange={(e) => handleProfileChange(index, 'network', e.target.value)} // Use handler
+                                                    onChange={(e) => handleProfileChange(index, 'network', e.target.value)}
                                                     placeholder="e.g., LinkedIn, GitHub"
                                                     className="w-full px-2 py-1 border rounded text-sm"
                                                 />
@@ -222,7 +247,7 @@ const BasicsEditor: React.FC<EditorProps<JsonResumeBasics | undefined>> = ({ dat
                                                     type="text"
                                                     id={`profile-username-${index}`}
                                                     value={profile.username || ''}
-                                                    onChange={(e) => handleProfileChange(index, 'username', e.target.value)} // Use handler
+                                                    onChange={(e) => handleProfileChange(index, 'username', e.target.value)}
                                                     placeholder="Your username"
                                                     className="w-full px-2 py-1 border rounded text-sm"
                                                 />
@@ -233,13 +258,13 @@ const BasicsEditor: React.FC<EditorProps<JsonResumeBasics | undefined>> = ({ dat
                                                     type="url"
                                                     id={`profile-url-${index}`}
                                                     value={profile.url || ''}
-                                                    onChange={(e) => handleProfileChange(index, 'url', e.target.value)} // Use handler
+                                                    onChange={(e) => handleProfileChange(index, 'url', e.target.value)}
                                                     placeholder="https://linkedin.com/in/yourprofile"
                                                     className="w-full px-2 py-1 border rounded text-sm"
                                                 />
                                             </div>
                                         </div>
-                                        <ArrayItemControls index={index} onDelete={() => handleDeleteProfile(index)} /> {/* Use handler */}
+                                        <ArrayItemControls index={index} onDelete={() => handleDeleteProfile(index)} />
                                     </li>
                                 ))}
                             </ul>
@@ -248,7 +273,7 @@ const BasicsEditor: React.FC<EditorProps<JsonResumeBasics | undefined>> = ({ dat
                         )}
                         <button
                             type="button"
-                            onClick={handleAddProfile} // Use handler
+                            onClick={handleAddProfile}
                             className="mt-3 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
                         >
                             Add Profile

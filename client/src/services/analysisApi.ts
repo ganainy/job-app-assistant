@@ -40,55 +40,78 @@ export const uploadCvForAnalysis = async (cvFile: File): Promise<{ analysisId: s
 };
 
 // Function to analyze CV JSON directly
-export const analyzeCv = async (cvJson: JsonResumeSchema): Promise<{ analysisId: string; message: string }> => {
+export interface SectionScore {
+    score: number;
+    issues: string[];
+    suggestions: string[];
+}
+
+export interface DetailedResultItem {
+    checkName: string;
+    score?: number;
+    issues: string[];
+    suggestions?: string[];
+    status: 'pass' | 'fail' | 'warning' | 'not-applicable';
+    priority: 'high' | 'medium' | 'low';
+    originalContent?: string;
+}
+
+export interface AnalysisResult {
+    _id: string;
+    id: string; // Alias for _id for compatibility
+    status: 'pending' | 'completed' | 'failed';
+    overallScore: number;
+    issueCount: number;
+    categoryScores: Record<string, number>;
+    detailedResults: Record<string, DetailedResultItem>;
+    sectionScores: Record<string, SectionScore>;
+    errorInfo?: string;
+}
+
+export const analyzeCv = async (cvData: JsonResumeSchema, jobData?: any): Promise<AnalysisResult> => {
     const token = getAuthToken();
     if (!token) {
         throw new Error('No authentication token found.');
     }
 
     try {
-        const response = await axios.post<{ analysisId: string; message: string }>(
-            `${API_BASE_URL}/analysis/analyze`,
-            { cvJson },
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
+        const response = await axios.post(`${API_BASE_URL}/analysis/analyze`, {
+            cv: cvData,
+            job: jobData
+        }, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
             }
-        );
-        return response.data;
-    } catch (error: any) {
-        console.error('Error analyzing CV:', error.response?.data || error.message);
-        throw new Error(error.response?.data?.message || 'Failed to analyze CV');
+        });
+
+        const result = response.data;
+
+        // Transform the response into the expected format
+        return {
+            ...result,
+            id: result._id,
+            sectionScores: Object.entries(result.detailedResults || {}).reduce<Record<string, SectionScore>>((acc, [key, value]) => {
+                const detail = value as DetailedResultItem; // Type assertion since we know the structure
+                return {
+                    ...acc,
+                    [key]: {
+                        score: detail.score ?? 0,
+                        issues: detail.issues || [],
+                        suggestions: detail.suggestions || []
+                    }
+                };
+            }, {})
+        };
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            throw new Error(error.response?.data?.message || 'Failed to analyze CV');
+        }
+        throw error;
     }
 };
 
 // 2. Get Analysis Results
-// Define an interface for the expected analysis result structure (based on CvAnalysis model)
-// You might want to refine this based on exactly what the frontend needs
-export interface AnalysisResult {
-    _id: string;
-    userId: string;
-    analysisDate: string;
-    status: 'pending' | 'completed' | 'failed';
-    overallScore?: number;
-    issueCount?: number;
-    categoryScores?: Record<string, number>;
-    detailedResults?: Record<string, {
-        checkName: string;
-        score?: number;
-        issues: string[];
-        suggestions?: string[];
-        status: 'pass' | 'fail' | 'warning' | 'not-applicable';
-        priority: 'high' | 'medium' | 'low';
-    }>;
-    cvFileRef?: string;
-    errorInfo?: string;
-    createdAt: string;
-    updatedAt: string;
-}
-
 export const getAnalysis = async (analysisId: string): Promise<AnalysisResult> => {
     const token = getAuthToken();
     if (!token) {
@@ -109,7 +132,23 @@ export const getAnalysis = async (analysisId: string): Promise<AnalysisResult> =
             }
         );
         console.log(`Get Analysis (${analysisId}) Response:`, response.data);
-        return response.data;
+        const result = response.data;
+        // Add transformation logic similar to analyzeCv
+        return {
+            ...result,
+            id: result._id, // Ensure id alias is present
+            sectionScores: Object.entries(result.detailedResults || {}).reduce<Record<string, SectionScore>>((acc, entry) => {
+                const [key, detail] = entry as [string, DetailedResultItem];
+                return {
+                    ...acc,
+                    [key]: {
+                        score: detail.score ?? 0, // Use nullish coalescing for potentially undefined score
+                        issues: detail.issues || [],
+                        suggestions: detail.suggestions || []
+                    }
+                };
+            }, {})
+        };
     } catch (error: any) {
         console.error(`Error fetching analysis ${analysisId}:`, error.response?.data || error.message);
         throw new Error(error.response?.data?.message || 'Failed to fetch analysis results');
@@ -145,31 +184,40 @@ export const deleteAnalysis = async (analysisId: string): Promise<{ message: str
 };
 
 // 4. Generate Improvement for a Section
+export interface ImprovementResult {
+    improvement: string;
+    score?: number;
+}
+
 export const generateImprovement = async (
     analysisId: string,
     section: string,
     currentContent: string
-): Promise<{ improvement: string }> => {
+): Promise<ImprovementResult> => {
     const token = getAuthToken();
     if (!token) {
         throw new Error('No authentication token found.');
     }
 
     try {
-        const response = await axios.post<{ improvement: string }>(
-            `${API_BASE_URL}/analysis/${analysisId}/improve/${section}`,
-            { currentContent },
+        const response = await axios.post(
+            `${API_BASE_URL}/analysis/${analysisId}/improve`,
+            {
+                section,
+                currentContent
+            },
             {
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
+                    'Content-Type': 'application/json'
+                }
             }
         );
-        console.log(`Generate Improvement Response for ${section}:`, response.data);
         return response.data;
-    } catch (error: any) {
-        console.error('Error generating improvement:', error.response?.data || error.message);
-        throw new Error(error.response?.data?.message || 'Failed to generate improvement');
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            throw new Error(error.response?.data?.message || 'Failed to generate improvement');
+        }
+        throw error;
     }
 };

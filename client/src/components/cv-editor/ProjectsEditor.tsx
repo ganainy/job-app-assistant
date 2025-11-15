@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { EditorProps } from './types';
 import { JsonResumeProjectItem } from '../../../../server/src/types/jsonresume';
-import ArrayItemControls from './ArrayItemControls'; // Import the controls
+import ArrayItemControls from './ArrayItemControls';
+import { SectionScore } from '../../services/analysisApi'; // Import SectionScore
+import SectionAnalysisPanel from './SectionAnalysisPanel'; // Import the panel
 
-const ProjectsEditor: React.FC<EditorProps<JsonResumeProjectItem[] | undefined>> = ({ data = [], onChange }) => {
+// Update props to include analysis and onApplyImprovements
+interface ProjectsEditorProps extends EditorProps<JsonResumeProjectItem[] | undefined> {
+    analysis?: SectionScore | null;
+    onApplyImprovements?: () => Promise<void>;
+}
+
+const ProjectsEditor: React.FC<ProjectsEditorProps> = ({ data = [], onChange, analysis }) => {
     const [isExpanded, setIsExpanded] = useState(data.length > 0);
+    const [showAnalysis, setShowAnalysis] = useState(false);
 
     const handleItemChange = (index: number, field: keyof JsonResumeProjectItem, value: string | string[]) => {
         const newData = [...data];
@@ -22,7 +31,6 @@ const ProjectsEditor: React.FC<EditorProps<JsonResumeProjectItem[] | undefined>>
         handleItemChange(index, field, arrayValue);
     };
 
-
     const handleDelete = (index: number) => {
         const newData = data.filter((_, i) => i !== index);
         onChange(newData);
@@ -36,7 +44,20 @@ const ProjectsEditor: React.FC<EditorProps<JsonResumeProjectItem[] | undefined>>
     return (
         <div className="p-4 border rounded shadow-sm bg-white">
             <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-semibold">Projects</h3>
+                <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-semibold">Projects</h3>
+                    {/* Show analysis button only if there are issues or suggestions */}
+                    {analysis && (analysis.issues.length > 0 || analysis.suggestions.length > 0) && (
+                        <button
+                            type="button"
+                            onClick={() => setShowAnalysis(!showAnalysis)}
+                            className="text-sm text-purple-600 hover:text-purple-800 focus:outline-none"
+                            title={showAnalysis ? "Hide Analysis" : "Show Analysis"}
+                        >
+                            {`Analysis (${analysis.issues.length} issues)`} {showAnalysis ? '▲' : '▼'}
+                        </button>
+                    )}
+                </div>
                 <button
                     type="button"
                     onClick={() => setIsExpanded(!isExpanded)}
@@ -45,6 +66,12 @@ const ProjectsEditor: React.FC<EditorProps<JsonResumeProjectItem[] | undefined>>
                     {isExpanded ? 'Collapse' : 'Expand'}
                 </button>
             </div>
+
+            {/* Conditionally render the analysis panel */}
+            {showAnalysis && analysis && (
+                <SectionAnalysisPanel issues={analysis.issues} suggestions={analysis.suggestions} />
+            )}
+
             {isExpanded && (
                 <>
                     {data.length === 0 ? (

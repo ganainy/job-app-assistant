@@ -2,11 +2,25 @@ import React, { useState } from 'react';
 import { EditorProps } from './types';
 import ArrayItemControls from './ArrayItemControls';
 import { JsonResumeWorkItem } from '../../../../server/src/types/jsonresume';
+import { SectionScore } from '../../services/analysisApi';
+import SectionAnalysisPanel from './SectionAnalysisPanel';
 
 type WorkItem = JsonResumeWorkItem;
 
-const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ data = [], onChange }) => {
+interface WorkExperienceEditorProps extends EditorProps<WorkItem[] | undefined> {
+    analysis?: SectionScore | null;
+    onApplyImprovements?: (improvements: string) => void;
+}
+
+const WorkExperienceEditor: React.FC<WorkExperienceEditorProps> = ({
+    data = [],
+    onChange,
+    analysis,
+    onApplyImprovements
+}) => {
     const [isExpanded, setIsExpanded] = useState(data.length > 0);
+    const [showAnalysis, setShowAnalysis] = useState(false);
+    const [pendingImprovements, setPendingImprovements] = useState<string | null>(null);
 
     const handleItemChange = (index: number, field: keyof WorkItem, value: string | string[]) => {
         const newItems = [...data];
@@ -14,8 +28,13 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
         onChange(newItems);
     };
 
+    const handleArrayFieldChange = (index: number, field: keyof WorkItem, value: string, delimiter: string) => {
+        const arrayValue = value.split(delimiter).map(s => s.trim()).filter(s => s);
+        handleItemChange(index, field, arrayValue);
+    };
+
     const addItem = () => {
-        const newItem: WorkItem = { // Provide default structure for a new item
+        const newItem: WorkItem = {
             name: '',
             position: '',
             startDate: '',
@@ -26,20 +45,37 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
     };
 
     const deleteItem = (index: number) => {
-        const newItems = data.filter((_: WorkItem, i: number) => i !== index); // Added types for _ and i
+        const newItems = data.filter((_: WorkItem, i: number) => i !== index);
         onChange(newItems);
     };
 
-    // New function to handle array fields
-    const handleArrayFieldChange = (index: number, field: keyof WorkItem, value: string, delimiter: string) => {
-        const arrayValue = value.split(delimiter).map(s => s.trim()).filter(s => s); // Split, trim, and remove empty strings
-        handleItemChange(index, field, arrayValue);
+    const handleAcceptChanges = () => {
+        if (pendingImprovements && onApplyImprovements) {
+            onApplyImprovements(pendingImprovements);
+            setPendingImprovements(null);
+        }
+    };
+
+    const handleCancelChanges = () => {
+        setPendingImprovements(null);
     };
 
     return (
         <div className="p-4 border rounded shadow-sm bg-white">
             <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-semibold">Work Experience</h3>
+                <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-semibold">Work Experience</h3>
+                    {analysis && (analysis.issues.length > 0 || analysis.suggestions.length > 0) && (
+                        <button
+                            type="button"
+                            onClick={() => setShowAnalysis(!showAnalysis)}
+                            className="text-sm text-purple-600 hover:text-purple-800 focus:outline-none"
+                            title={showAnalysis ? "Hide Analysis" : "Show Analysis"}
+                        >
+                            {`Analysis (${analysis.issues.length} issues)`} {showAnalysis ? '▲' : '▼'}
+                        </button>
+                    )}
+                </div>
                 <button
                     type="button"
                     onClick={() => setIsExpanded(!isExpanded)}
@@ -48,6 +84,16 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
                     {isExpanded ? 'Collapse' : 'Expand'}
                 </button>
             </div>
+
+            {showAnalysis && analysis && (
+                <SectionAnalysisPanel
+                    issues={analysis.issues}
+                    suggestions={analysis.suggestions}
+                    onAcceptChanges={onApplyImprovements ? handleAcceptChanges : undefined}
+                    onCancelChanges={pendingImprovements ? handleCancelChanges : undefined}
+                />
+            )}
+
             {isExpanded && (
                 <>
                     {data.length === 0 ? (
@@ -57,19 +103,17 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
                             {data.map((item, index) => (
                                 <li key={index} className="p-3 border rounded bg-gray-50 space-y-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                        {/* Company/Name */}
                                         <div>
                                             <label htmlFor={`work-name-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
                                             <input
                                                 type="text"
                                                 id={`work-name-${index}`}
-                                                value={item.name || ''} // Use 'name' for company name as per schema
+                                                value={item.name || ''}
                                                 onChange={(e) => handleItemChange(index, 'name', e.target.value)}
                                                 placeholder="Company Name"
                                                 className="w-full px-2 py-1 border rounded text-sm"
                                             />
                                         </div>
-                                        {/* Position */}
                                         <div>
                                             <label htmlFor={`work-position-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Position/Job Title</label>
                                             <input
@@ -81,7 +125,6 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
                                                 className="w-full px-2 py-1 border rounded text-sm"
                                             />
                                         </div>
-                                        {/* Start Date */}
                                         <div>
                                             <label htmlFor={`work-startDate-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                                             <input
@@ -93,7 +136,6 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
                                                 className="w-full px-2 py-1 border rounded text-sm"
                                             />
                                         </div>
-                                        {/* End Date */}
                                         <div>
                                             <label htmlFor={`work-endDate-${index}`} className="block text-sm font-medium text-gray-700 mb-1">End Date (or Present)</label>
                                             <input
@@ -105,7 +147,6 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
                                                 className="w-full px-2 py-1 border rounded text-sm"
                                             />
                                         </div>
-                                        {/* Location */}
                                         <div>
                                             <label htmlFor={`work-location-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Location (Optional)</label>
                                             <input
@@ -117,7 +158,6 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
                                                 className="w-full px-2 py-1 border rounded text-sm"
                                             />
                                         </div>
-                                        {/* URL */}
                                         <div>
                                             <label htmlFor={`work-url-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Company URL (Optional)</label>
                                             <input
@@ -129,7 +169,6 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
                                                 className="w-full px-2 py-1 border rounded text-sm"
                                             />
                                         </div>
-                                        {/* Summary */}
                                         <div className="md:col-span-2">
                                             <label htmlFor={`work-summary-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Summary (Optional)</label>
                                             <textarea
@@ -141,7 +180,6 @@ const WorkExperienceEditor: React.FC<EditorProps<WorkItem[] | undefined>> = ({ d
                                                 rows={3}
                                             />
                                         </div>
-                                        {/* Highlights (as textarea) */}
                                         <div className="md:col-span-2">
                                             <label htmlFor={`work-highlights-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Key Responsibilities/Achievements (one per line)</label>
                                             <textarea

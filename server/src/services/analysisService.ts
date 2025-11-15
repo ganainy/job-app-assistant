@@ -10,7 +10,7 @@ import { JsonResumeSchema } from '../types/jsonresume'; // Import JSON resume sc
 // This should align with the IDetailedResultItem interface in CvAnalysis.ts
 interface GeminiDetailedResultItem {
     checkName: string; // e.g., "Impact Quantification", "Grammar", "Keyword Relevance"
-    score?: number; // Optional score (0-100) reflecting quality/severity
+    score?: number | null; // Optional score (0-100) reflecting quality/severity
     issues: string[]; // List of specific issues found (e.g., "Sentence in passive voice: ...", "Lacks metrics in project description X")
     suggestions?: string[]; // Specific suggestions for improvement (e.g., "Rephrase sentence to active voice: ...", "Add data point for Y achievement")
     status: 'pass' | 'fail' | 'warning' | 'not-applicable'; // Overall status for this check
@@ -29,6 +29,17 @@ function getMimeType(filePath: string): string {
         default: throw new Error(`Unsupported file type: ${ext}`);
     }
 }
+
+// Function to determine if a section is analyzable
+const isSectionAnalyzable = (section: any): boolean => {
+    if (Array.isArray(section)) {
+        return section.length > 0;
+    }
+    if (typeof section === 'object' && section !== null) {
+        return Object.keys(section).length > 0;
+    }
+    return false;
+};
 
 // Master prompt for Gemini analysis (Corrected quotes)
 const MASTER_ANALYSIS_PROMPT = `
@@ -192,11 +203,12 @@ export const performAnalysis = async (filePath: string, userId: string | Types.O
     }
 };
 
-// New function to analyze CV JSON directly
+// Updated function to analyze CV JSON directly
 export const performJsonAnalysis = async (
     cvJson: JsonResumeSchema,
     userId: string | Types.ObjectId,
-    analysisId: Types.ObjectId
+    analysisId: Types.ObjectId,
+    jobContext?: any
 ): Promise<void> => {
     console.log(`Starting JSON-based AI analysis for ID: ${analysisId}, User: ${userId}`);
     let analysisStatus: ICvAnalysis['status'] = 'failed';
@@ -207,14 +219,49 @@ export const performJsonAnalysis = async (
     try {
         // Convert CV JSON to string for analysis
         const cvString = JSON.stringify(cvJson, null, 2);
+
+        // Add job context to the prompt if available
+        let prompt = MASTER_ANALYSIS_PROMPT;
+        if (jobContext?.jobDescription) {
+            prompt = `${prompt}\n\nJob Description Context:\n${jobContext.jobDescription}\n\nAnalyze the CV in relation to this job description.`;
+        }
+
+        // Determine which sections are present and analyzable in the CV
+        const sectionsToAnalyze = Object.entries(cvJson)
+            .filter(([key, value]) =>
+                value !== undefined &&
+                key !== '_id' &&
+                key !== '__v' &&
+                isSectionAnalyzable(value)
+            )
+            .map(([key]) => key);
+
+        console.log('Analyzing sections:', sectionsToAnalyze);
+
+        // Generate initial analysis
         analysisResults = await generateJsonAnalysis<GeminiAnalysisResult>(
-            MASTER_ANALYSIS_PROMPT,
+            prompt,
             cvString
         );
 
         if (typeof analysisResults !== 'object' || analysisResults === null) {
             throw new Error("AI analysis did not return a valid object structure.");
         }
+
+        // Mark sections as not-applicable if they're empty or missing
+        const allPossibleSections = ['basics', 'work', 'education', 'skills', 'projects', 'languages', 'certificates'];
+        allPossibleSections.forEach(section => {
+            if (!sectionsToAnalyze.includes(section) && !analysisResults![section]) {
+                analysisResults![section] = {
+                    checkName: `${section} Analysis`,
+                    score: null,
+                    issues: [],
+                    suggestions: [],
+                    status: 'not-applicable',
+                    priority: 'low'
+                };
+            }
+        });
 
         calculatedScores = calculateScores(analysisResults);
         analysisStatus = 'completed';
@@ -226,7 +273,6 @@ export const performJsonAnalysis = async (
         errorInfo = error instanceof Error ? error.message : 'Unknown analysis error';
         analysisResults = null;
         calculatedScores = { overallScore: 0, categoryScores: {}, issueCount: 0 };
-
     } finally {
         try {
             const updateData: Partial<ICvAnalysis> = {

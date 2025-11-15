@@ -1,10 +1,12 @@
 import { JsonResumeSchema } from '../../../../server/src/types/jsonresume'; // Adjust path if needed
+import { AnalysisResult } from '../../services/analysisApi'; // Import AnalysisResult
 
 export type CvData = JsonResumeSchema | any; // Use a more specific type if possible
 
 export interface EditorProps<T> {
     data: T;
     onChange: (newData: T) => void;
+    analysisResult?: AnalysisResult | null; // Add optional analysisResult prop
 }
 
 export interface ArrayEditorProps<T> {

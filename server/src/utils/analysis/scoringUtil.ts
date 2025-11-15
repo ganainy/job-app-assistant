@@ -27,13 +27,23 @@ export const calculateScores = (analysisResults: GeminiAnalysisResult): Scores =
 
     // Calculate weighted scores based on priority and status
     Object.entries(analysisResults).forEach(([category, result]) => {
-        // Base score from status
-        let categoryScore = result.score ?? (
-            result.status === 'pass' ? 100 :
-                result.status === 'warning' ? 50 :
-                    result.status === 'fail' ? 0 :
-                        result.status === 'not-applicable' ? 100 : 0
-        );
+        // Skip not-applicable items for scoring
+        if (result.status === 'not-applicable') {
+            scores.categoryScores[category] = -1; // Use -1 to indicate not applicable
+            return;
+        }
+
+        // If there's an explicit score, use it
+        let categoryScore: number;
+        if (typeof result.score === 'number' && !isNaN(result.score)) {
+            categoryScore = result.score;
+        } else {
+            // Otherwise derive from status
+            categoryScore =
+                result.status === 'pass' ? 100 :
+                    result.status === 'warning' ? 50 :
+                        result.status === 'fail' ? 0 : 0;
+        }
 
         // Apply priority-based weight
         const weight = priorityWeights[result.priority];
@@ -51,4 +61,4 @@ export const calculateScores = (analysisResults: GeminiAnalysisResult): Scores =
     scores.overallScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
 
     return scores;
-}
+};

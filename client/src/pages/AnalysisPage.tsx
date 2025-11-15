@@ -1,7 +1,7 @@
 // client/src/pages/AnalysisPage.tsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { uploadCvForAnalysis, getAnalysis, generateImprovement, AnalysisResult } from '../services/analysisApi';
+import { uploadCvForAnalysis, getAnalysis, AnalysisResult } from '../services/analysisApi';
 
 type AnalysisStatus = 'idle' | 'uploading' | 'polling' | 'completed' | 'error';
 
@@ -85,7 +85,7 @@ const AnalysisPage: React.FC = () => {
                     clearInterval(pollingIntervalId.current);
                     pollingIntervalId.current = null;
                 }
-            } else {
+            } else if (result.status === 'pending') {
                 console.log('Analysis still pending...');
             }
         } catch (err: any) {
@@ -139,7 +139,19 @@ const AnalysisPage: React.FC = () => {
         }));
 
         try {
-            const { improvement } = await generateImprovement(analysisId, section, currentContent);
+            const response = await fetch(`/api/analysis/${analysisId}/improve/${section}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ content: currentContent })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to generate improvement');
+            }
+
+            const { improvement } = await response.json();
             setImprovements(prev => ({
                 ...prev,
                 [checkType]: { isGenerating: false, content: improvement }
@@ -159,7 +171,9 @@ const AnalysisPage: React.FC = () => {
         return (
             <div className="mt-6 p-4 border rounded bg-gray-50">
                 <h3 className="text-lg font-semibold mb-3">Analysis Results (ID: {analysisResult._id})</h3>
-                <p><strong>Status:</strong> <span className={`font-medium ${analysisResult.status === 'completed' ? 'text-green-600' : analysisResult.status === 'failed' ? 'text-red-600' : 'text-yellow-600'}`}>{analysisResult.status}</span></p>
+                <p><strong>Status:</strong> <span className={`font-medium ${analysisResult.status === 'completed' ? 'text-green-600' :
+                        analysisResult.status === 'failed' ? 'text-red-600' :
+                            'text-yellow-600'}`}>{analysisResult.status}</span></p>
                 {analysisResult.status === 'completed' && (
                     <>
                         <p><strong>Overall Score:</strong> {analysisResult.overallScore ?? 'N/A'} / 100</p>
@@ -181,27 +195,24 @@ const AnalysisPage: React.FC = () => {
                                 <h4 className="font-semibold">Detailed Checks:</h4>
                                 {Object.entries(analysisResult.detailedResults)
                                     .sort(([, a], [, b]) => {
-                                        const priorityOrder = { high: 0, medium: 1, low: 2 };
+                                        const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
                                         return priorityOrder[a.priority] - priorityOrder[b.priority];
                                     })
                                     .map(([key, detail]) => (
                                         <div key={key} className={`mt-2 p-3 border rounded bg-white shadow-sm ${detail.priority === 'high' ? 'border-red-300' :
-                                            detail.priority === 'medium' ? 'border-yellow-300' :
-                                                'border-green-300'
-                                            }`}>
+                                                detail.priority === 'medium' ? 'border-yellow-300' :
+                                                    'border-green-300'}`}>
                                             <div className="flex justify-between items-start">
                                                 <p className="font-medium">{detail.checkName}</p>
                                                 <span className={`px-2 py-1 rounded text-xs font-medium ${detail.priority === 'high' ? 'bg-red-100 text-red-800' :
-                                                    detail.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-green-100 text-green-800'
-                                                    }`}>
+                                                        detail.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                                            'bg-green-100 text-green-800'}`}>
                                                     {detail.priority.toUpperCase()} Priority
                                                 </span>
                                             </div>
                                             <p>Status: <span className={`font-medium ${detail.status === 'pass' ? 'text-green-500' :
-                                                detail.status === 'fail' ? 'text-red-500' :
-                                                    'text-yellow-500'
-                                                }`}>{detail.status}</span>
+                                                    detail.status === 'fail' ? 'text-red-500' :
+                                                        'text-yellow-500'}`}>{detail.status}</span>
                                                 {detail.score !== undefined ? ` (Score: ${detail.score})` : ''}
                                             </p>
                                             {detail.issues && detail.issues.length > 0 && (
@@ -221,7 +232,7 @@ const AnalysisPage: React.FC = () => {
 
                                                     <div className="mt-2">
                                                         <button
-                                                            onClick={() => handleImprovement(key, 'Current content placeholder')}
+                                                            onClick={() => handleImprovement(key, detail.originalContent || '')}
                                                             disabled={improvements[key]?.isGenerating}
                                                             className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                                                         >
