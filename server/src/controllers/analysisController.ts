@@ -6,6 +6,7 @@ import CvAnalysis from '../models/CvAnalysis';
 import { performAnalysis, performJsonAnalysis, generateSectionImprovement } from '../services/analysisService';
 import mongoose, { Types } from 'mongoose';
 import { JsonResumeSchema } from '../types/jsonresume';
+import { ValidatedRequest } from '../middleware/validateRequest';
 import { ValidationError, NotFoundError, AuthorizationError, InternalServerError } from '../utils/errors/AppError';
 
 // Ensure temp_uploads directory exists
@@ -38,13 +39,9 @@ const upload = multer({
     }
 }).single('cvFile');
 
-export const analyzeCv = async (req: Request, res: Response) => {
-    const cvData: JsonResumeSchema = req.body.cv;
-    const jobData = req.body.job;
-
-    if (!cvData) {
-        throw new ValidationError('CV data is required');
-    }
+export const analyzeCv = async (req: ValidatedRequest, res: Response) => {
+    const cvData: JsonResumeSchema = req.validated!.body!.cv;
+    const jobData = req.validated!.body!.job;
 
     const userId = req.user?.id ? new Types.ObjectId(req.user.id) : new Types.ObjectId();
 
@@ -67,8 +64,8 @@ export const analyzeCv = async (req: Request, res: Response) => {
     res.json(analysis);
 };
 
-export const getAnalysisResults = async (req: Request, res: Response) => {
-    const { id } = req.params;
+export const getAnalysisResults = async (req: ValidatedRequest, res: Response) => {
+    const { id } = req.validated!.params!;
     const analysis = await CvAnalysis.findById(id);
 
     if (!analysis) {
@@ -82,14 +79,20 @@ export const getAnalysisResults = async (req: Request, res: Response) => {
     res.json(analysis);
 };
 
-export const generateImprovement = async (req: Request, res: Response) => {
-    const { analysisId, section, currentContent } = req.body;
+export const generateImprovement = async (req: ValidatedRequest, res: Response) => {
+    // Get section from params if available, otherwise from body
+    const sectionFromParams = req.validated!.params?.section;
+    const { analysisId, section: sectionFromBody, currentContent } = req.validated!.body!;
+    const section = sectionFromParams || sectionFromBody;
+    
+    // Use id from params as analysisId if not in body
+    const analysisIdToUse = analysisId || req.validated!.params?.id;
 
-    if (!analysisId || !section || !currentContent) {
+    if (!analysisIdToUse || !section || !currentContent) {
         throw new ValidationError('Analysis ID, section, and current content are required');
     }
 
-    const analysis = await CvAnalysis.findById(analysisId);
+    const analysis = await CvAnalysis.findById(analysisIdToUse);
     if (!analysis) {
         throw new NotFoundError('Analysis not found');
     }
@@ -102,8 +105,8 @@ export const generateImprovement = async (req: Request, res: Response) => {
     res.json({ improvement });
 };
 
-export const deleteAnalysis = async (req: Request, res: Response) => {
-    const { id } = req.params;
+export const deleteAnalysis = async (req: ValidatedRequest, res: Response) => {
+    const { id } = req.validated!.params!;
     const analysis = await CvAnalysis.findById(id);
 
     if (!analysis) {

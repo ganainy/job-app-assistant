@@ -6,6 +6,15 @@ import { scrapeJobDescription } from '../utils/scraper';
 import { extractJobDataFromUrl, ExtractedJobData } from '../utils/aiExtractor';
 import mongoose from 'mongoose'; // Import mongoose for ObjectId type
 import { JsonResumeSchema } from '../types/jsonresume'; // Import if needed for validation
+import { validateRequest, ValidatedRequest } from '../middleware/validateRequest';
+import {
+  createJobBodySchema,
+  updateJobBodySchema,
+  scrapeJobBodySchema,
+  createJobFromUrlBodySchema,
+  updateDraftBodySchema,
+} from '../validations/jobApplicationSchemas';
+import { objectIdParamSchema, jobIdParamSchema, filenameParamSchema } from '../validations/commonSchemas';
 
 const router: Router = express.Router();
 
@@ -36,17 +45,12 @@ const getJobsHandler: RequestHandler = async (req, res) => {
 router.get('/', getJobsHandler);
 
 // POST /api/jobs - Create a new job application FOR THE LOGGED-IN USER
-const createJobHandler: RequestHandler = async (req, res) => {
-  const { jobTitle, companyName, status, jobUrl, notes, jobDescriptionText } = req.body;
-
+const createJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   if (!req.user) {
     res.status(401).json({ message: 'User not authenticated correctly.' });
     return;
   }
-  if (!jobTitle || !companyName) {
-    res.status(400).json({ message: 'Job Title and Company Name are required.' });
-    return;
-  }
+  const { jobTitle, companyName, status, jobUrl, notes, jobDescriptionText } = req.validated!.body!;
 
   try {
     const newJob = new JobApplication({
@@ -71,23 +75,17 @@ const createJobHandler: RequestHandler = async (req, res) => {
     res.status(500).json({ message: 'Error creating job application' });
   }
 };
-router.post('/', createJobHandler);
+router.post('/', validateRequest({ body: createJobBodySchema }), createJobHandler);
 
 // GET /api/jobs/:id - Retrieve a single job application (ensure it belongs to user)
-const getJobByIdHandler: RequestHandler = async (req, res) => {
+const getJobByIdHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   if (!req.user) {
     res.status(401).json({ message: 'User not authenticated correctly.' });
     return;
   }
 
-  // Validate jobId format first
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    res.status(400).json({ message: 'Invalid job ID format' });
-    return;
-  }
-
   try {
-    const job = await JobApplication.findOne({ _id: req.params.id, userId: req.user._id }); // Filter by userId
+    const job = await JobApplication.findOne({ _id: req.validated!.params!.id, userId: req.user._id }); // Filter by userId
     if (!job) {
       // Respond with 404 even if job exists but belongs to another user for security
       res.status(404).json({ message: 'Job application not found' });
@@ -99,10 +97,10 @@ const getJobByIdHandler: RequestHandler = async (req, res) => {
     res.status(500).json({ message: 'Error fetching job application' });
   }
 };
-router.get('/:id', getJobByIdHandler);
+router.get('/:id', validateRequest({ params: objectIdParamSchema }), getJobByIdHandler);
 
 // PUT /api/jobs/:id - Update a job application (ensure it belongs to user)
-const updateJobHandler: RequestHandler = async (req, res) => {
+const updateJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   if (!req.user) {
     res.status(401).json({ message: 'User not authenticated correctly.' });
     return;
@@ -112,8 +110,8 @@ const updateJobHandler: RequestHandler = async (req, res) => {
     // delete req.body.userId; // Optional safeguard
 
     const updatedJob = await JobApplication.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id }, // Find by ID and userId
-      req.body, // Pass the updates
+      { _id: req.validated!.params!.id, userId: req.user._id }, // Find by ID and userId
+      req.validated!.body!, // Pass the validated updates
       { new: true, runValidators: true } // Options: return updated doc, run schema checks
     );
     if (!updatedJob) {
@@ -134,16 +132,16 @@ const updateJobHandler: RequestHandler = async (req, res) => {
     res.status(500).json({ message: 'Error updating job application' });
   }
 };
-router.put('/:id', updateJobHandler);
+router.put('/:id', validateRequest({ params: objectIdParamSchema, body: updateJobBodySchema }), updateJobHandler);
 
 // DELETE /api/jobs/:id - Delete a job application (ensure it belongs to user)
-const deleteJobHandler: RequestHandler = async (req, res) => {
+const deleteJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   if (!req.user) {
     res.status(401).json({ message: 'User not authenticated correctly.' });
     return;
   }
   try {
-    const deletedJob = await JobApplication.findOneAndDelete({ _id: req.params.id, userId: req.user._id }); // Find by ID and userId
+    const deletedJob = await JobApplication.findOneAndDelete({ _id: req.validated!.params!.id, userId: req.user._id }); // Find by ID and userId
     if (!deletedJob) {
       res.status(404).json({ message: 'Job application not found or not authorized to delete' });
       return;
@@ -160,19 +158,19 @@ const deleteJobHandler: RequestHandler = async (req, res) => {
     res.status(500).json({ message: 'Error deleting job application' });
   }
 };
-router.delete('/:id', deleteJobHandler);
+router.delete('/:id', validateRequest({ params: objectIdParamSchema }), deleteJobHandler);
 
 
 // ---  Scrape Job Description Endpoint ---
 // PATCH /api/jobs/:id/scrape - Using PATCH as we're partially updating
-const scrapeJobHandler: RequestHandler = async (req, res) => {
+const scrapeJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   if (!req.user) {
     res.status(401).json({ message: 'User not authenticated correctly.' });
     return;
   }
-  const { id: jobId } = req.params; // Get jobId from route parameters
+  const { id: jobId } = req.validated!.params!; // Get jobId from validated params
   const userId = req.user._id;
-  let jobUrlToScrape = req.body.url; // Optionally allow passing URL in body
+  let jobUrlToScrape = req.validated!.body?.url; // Optionally allow passing URL in body
 
   try {
     // 1. Find the job application
@@ -225,21 +223,17 @@ const scrapeJobHandler: RequestHandler = async (req, res) => {
     });
   }
 };
-router.patch('/:id/scrape', scrapeJobHandler);
+router.patch('/:id/scrape', validateRequest({ params: objectIdParamSchema, body: scrapeJobBodySchema }), scrapeJobHandler);
 
 
 // ---  Create Job From URL Endpoint ---
 // POST /api/jobs/create-from-url
-const createJobFromUrlHandler: RequestHandler = async (req, res) => {
+const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   if (!req.user) {
     res.status(401).json({ message: 'User not authenticated.' });
     return;
   }
-  const { url } = req.body; // Expect URL in the request body
-  if (!url || typeof url !== 'string' || !url.startsWith('http')) {
-    res.status(400).json({ message: 'Valid URL is required in the request body.' });
-    return;
-  }
+  const { url } = req.validated!.body!; // Expect URL in the validated request body
 
   const userId = req.user._id;
 
@@ -277,25 +271,19 @@ const createJobFromUrlHandler: RequestHandler = async (req, res) => {
     });
   }
 };
-router.post('/create-from-url', createJobFromUrlHandler); // Add the new route
+router.post('/create-from-url', validateRequest({ body: createJobFromUrlBodySchema }), createJobFromUrlHandler); // Add the new route
 
 
 // ---  Get Draft Data Endpoint ---
 // GET /api/jobs/:id/draft
-const getJobDraftHandler: RequestHandler = async (req, res) => {
+const getJobDraftHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   const user = req.user as { _id: mongoose.Types.ObjectId | string };
   if (!user) {
     res.status(401).json({ message: 'User not authenticated correctly.' });
     return;
   }
 
-  const { id: jobId } = req.params;
-  // Validate jobId format first
-  if (!mongoose.Types.ObjectId.isValid(jobId)) {
-    res.status(400).json({ message: 'Invalid job ID format.' });
-    return;
-  }
-
+  const { id: jobId } = req.validated!.params!;
   const userId = user._id;
 
   try {
@@ -326,32 +314,21 @@ const getJobDraftHandler: RequestHandler = async (req, res) => {
 };
 // Define the route AFTER the generic /:id GET route to avoid conflict
 // Or ensure it's distinct enough. Putting it here should be fine.
-router.get('/:id/draft', getJobDraftHandler);
+router.get('/:id/draft', validateRequest({ params: objectIdParamSchema }), getJobDraftHandler);
 
 
 // ---  Update Draft Data Endpoint ---
 // PUT /api/jobs/:id/draft
-const updateJobDraftHandler: RequestHandler = async (req, res) => {
+const updateJobDraftHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   const user = req.user as { _id: mongoose.Types.ObjectId | string };
   if (!user) {
     res.status(401).json({ message: 'User not authenticated.' });
     return;
   }
 
-  const { id: jobId } = req.params;
-  // Validate jobId format first
-  if (!mongoose.Types.ObjectId.isValid(jobId)) {
-    res.status(400).json({ message: 'Invalid job ID format.' });
-    return;
-  }
-
+  const { id: jobId } = req.validated!.params!;
   const userId = user._id;
-  const { draftCvJson, draftCoverLetterText } = req.body as { draftCvJson?: JsonResumeSchema | any, draftCoverLetterText?: string };
-
-  if (draftCvJson === undefined && draftCoverLetterText === undefined) {
-    res.status(400).json({ message: 'No draft data provided for update.' });
-    return;
-  }
+  const { draftCvJson, draftCoverLetterText } = req.validated!.body!;
 
   try {
     const updateData: any = {
@@ -385,7 +362,7 @@ const updateJobDraftHandler: RequestHandler = async (req, res) => {
   }
 };
 // Add the new route
-router.put('/:id/draft', updateJobDraftHandler);
+router.put('/:id/draft', validateRequest({ params: objectIdParamSchema, body: updateDraftBodySchema }), updateJobDraftHandler);
 
 
 export default router; // Export the configured router

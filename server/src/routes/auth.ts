@@ -2,6 +2,9 @@
 import express, { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User'; // Import User model
+import { validateRequest } from '../middleware/validateRequest';
+import { registerBodySchema, loginBodySchema } from '../validations/authSchemas';
+import { ValidatedRequest } from '../middleware/validateRequest';
 
 const router: Router = express.Router();
 
@@ -16,19 +19,12 @@ const JWT_EXPIRY = process.env.JWT_EXPIRY || '1d'; // Default to 1 day expiry
 
 // --- Registration Route ---
 // POST /api/auth/register
-router.post('/register', async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-
-    // Basic validation
-    if (!email || !password) {
-         res.status(400).json({ message: 'Email and password are required.' });
-         return;
-    }
-    // Add password strength validation later if desired
+router.post('/register', validateRequest({ body: registerBodySchema }), async (req: ValidatedRequest, res: Response) => {
+    const { email, password } = req.validated!.body!;
 
     try {
         // Check if user already exists
-        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        const existingUser = await User.findOne({ email });
         if (existingUser) {
              res.status(400).json({ message: 'User with this email already exists.' });
              return;
@@ -37,7 +33,7 @@ router.post('/register', async (req: Request, res: Response) => {
         // Create new user instance - Assign plain password to passwordHash temporarily
         // The pre-save hook in the model will hash it before saving
         const newUser = new User({
-            email: email.toLowerCase(),
+            email,
             passwordHash: password, // Assign plain password here, hook will hash it
         });
 
@@ -61,17 +57,12 @@ router.post('/register', async (req: Request, res: Response) => {
 
 // --- Login Route ---
 // POST /api/auth/login
-router.post('/login', async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-         res.status(400).json({ message: 'Email and password are required.' });
-         return ;
-    }
+router.post('/login', validateRequest({ body: loginBodySchema }), async (req: ValidatedRequest, res: Response) => {
+    const { email, password } = req.validated!.body!;
 
     try {
         // Find user by email
-        const user = await User.findOne({ email: email.toLowerCase() });
+        const user = await User.findOne({ email });
         if (!user) {
              res.status(401).json({ message: 'Invalid credentials.' }); // Use generic message
              return ;

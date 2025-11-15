@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
-import { AppError } from '../utils/errors/AppError';
+import { z } from 'zod';
+import { AppError, ValidationError } from '../utils/errors/AppError';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 
 /**
@@ -19,10 +20,33 @@ export const errorHandler = (
   let message = 'Internal server error';
   let details: any = undefined;
 
-  // Handle custom AppError instances
-  if (err instanceof AppError) {
+  // Handle Zod validation errors
+  if (err instanceof z.ZodError) {
+    statusCode = 400;
+    message = 'Validation failed';
+    details = err.errors.map((error) => ({
+      field: error.path.join('.'),
+      message: error.message,
+      code: error.code,
+    }));
+  }
+  // Handle custom AppError instances (including ValidationError from validateRequest)
+  else if (err instanceof AppError) {
     statusCode = err.statusCode;
     message = err.message;
+    
+    // Extract details from ValidationError if available
+    if (err instanceof ValidationError && (err as any).details) {
+      details = (err as any).details;
+    } else if ((err as any).zodError instanceof z.ZodError) {
+      // Handle ValidationError that wraps ZodError
+      const zodError = (err as any).zodError as z.ZodError;
+      details = zodError.errors.map((error) => ({
+        field: error.path.join('.'),
+        message: error.message,
+        code: error.code,
+      }));
+    }
   }
   // Handle Mongoose ValidationError
   else if (err instanceof mongoose.Error.ValidationError) {

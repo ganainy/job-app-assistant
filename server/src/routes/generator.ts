@@ -9,6 +9,9 @@ import { GoogleGenerativeAIError } from '@google/generative-ai';
 import { JsonResumeSchema } from '../types/jsonresume';
 import mongoose from 'mongoose';
 import { generateCvPdfFromJsonResume, generateCoverLetterPdf } from '../utils/pdfGenerator'; // Import PDF generators
+import { validateRequest, ValidatedRequest } from '../middleware/validateRequest';
+import { generateDocumentsBodySchema, finalizeGenerationBodySchema } from '../validations/generatorSchemas';
+import { jobIdParamSchema, filenameParamSchema } from '../validations/commonSchemas';
 
 const router: Router = express.Router();
 router.use(authMiddleware as RequestHandler); // Apply auth to all routes in this file
@@ -105,13 +108,13 @@ interface AuthenticatedUser {
 
 // ---  POST /api/generator/:jobId ---
 // This endpoint now generates DRAFTS or returns pending_input
-const generateDocumentsHandler: RequestHandler = async (req, res) => {
+const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, res) => {
     // Use type assertion for req.user
     const user = req.user as AuthenticatedUser;
     if (!user) { res.status(401).json({ message: 'User not authenticated correctly.' }); return; }
 
-    const { jobId } = req.params;
-    const requestedLanguage = req.body.language === 'de' ? 'de' : 'en';
+    const { jobId } = req.validated!.params!;
+    const requestedLanguage = req.validated!.body?.language === 'de' ? 'de' : 'en';
     const languageName = requestedLanguage === 'de' ? 'German' : 'English';
     const userId = user._id.toString(); // Now TS knows _id exists
 
@@ -328,7 +331,7 @@ const generateDocumentsHandler: RequestHandler = async (req, res) => {
 
 
 // --- Finalize Endpoint (Needs update to NOT expect theme/prefixes in intermediateData) ---
-const finalizeGenerationHandler: RequestHandler = async (req, res) => {
+const finalizeGenerationHandler: RequestHandler = async (req: ValidatedRequest, res) => {
     console.log("--- Finalize Endpoint Hit ---");
     // Use type assertion for req.user
     const user = req.user as AuthenticatedUser;
@@ -336,17 +339,11 @@ const finalizeGenerationHandler: RequestHandler = async (req, res) => {
 
     // Adjust expected IntermediateData type (Omit theme, prefixes)
     // Ensure intermediateData type matches the updated definition (no theme)
-    const { intermediateData, userInputData } = req.body as { intermediateData: IntermediateData, userInputData: UserInputData };
+    const { intermediateData, userInputData } = req.validated!.body!;
 
-
-    // Validation
-    if (!intermediateData || typeof intermediateData !== 'object' || !userInputData || typeof userInputData !== 'object') {
-        console.error("Finalize Error: Missing or invalid intermediateData or userInputData.");
-        res.status(400).json({ message: 'Missing required data for finalization.' }); return;
-    }
-    // Validate required fields within intermediateData and check user ID match
-    if (!intermediateData.tailoredCvJson || !intermediateData.coverLetterTemplate || !intermediateData.language || !intermediateData.jobId || !intermediateData.userId || intermediateData.userId !== user._id.toString()) {
-        console.error("Finalize Error: Invalid intermediate data structure or user mismatch.", { intermediateUserId: intermediateData.userId, reqUserId: user._id.toString() });
+    // Validate user ID match
+    if (intermediateData.userId !== user._id.toString()) {
+        console.error("Finalize Error: User mismatch.", { intermediateUserId: intermediateData.userId, reqUserId: user._id.toString() });
         res.status(400).json({ message: 'Invalid or incomplete intermediate data provided, or user mismatch.' }); return;
     }
 
@@ -456,7 +453,7 @@ const finalizeGenerationHandler: RequestHandler = async (req, res) => {
 
 
 // --- NEW: Render Final PDFs Endpoint ---
-const renderFinalPdfsHandler: RequestHandler = async (req, res): Promise<void> => {
+const renderFinalPdfsHandler: RequestHandler = async (req: ValidatedRequest, res): Promise<void> => {
     console.log("--- Render Final PDFs Endpoint Hit ---");
     const user = req.user as IUser;
     if (!user || !user._id) {
@@ -464,7 +461,7 @@ const renderFinalPdfsHandler: RequestHandler = async (req, res): Promise<void> =
         return;
     }
     const userId = user._id;
-    const { jobId } = req.params;
+    const { jobId } = req.validated!.params!;
     const TEMP_PDF_DIR = path.join(__dirname, '..', '..', 'temp_pdfs'); // Define PDF directory path
 
     try {
@@ -587,11 +584,10 @@ const renderFinalPdfsHandler: RequestHandler = async (req, res): Promise<void> =
 
 
 // --- Download Endpoint (Keep as is - still needed AFTER final rendering step) ---
-const downloadFileHandler: RequestHandler = async (req, res) => {
+const downloadFileHandler: RequestHandler = async (req: ValidatedRequest, res) => {
     if (!req.user) { res.status(401).json({ message: 'Authentication required to download.' }); return; }
-    const { filename } = req.params;
+    const { filename } = req.validated!.params!;
     const safeFilename = path.basename(filename);
-    if (safeFilename !== filename || filename.includes('..')) { res.status(400).json({ message: 'Invalid filename.' }); return; }
     const TEMP_PDF_DIR = path.join(__dirname, '..', '..', 'temp_pdfs');
     const filePath = path.join(TEMP_PDF_DIR, safeFilename);
 
@@ -624,9 +620,9 @@ const downloadFileHandler: RequestHandler = async (req, res) => {
 
 
 // === ROUTE DEFINITIONS (Order Matters!) ===
-router.post('/finalize', finalizeGenerationHandler); // Finalize draft content
-router.post('/:jobId/render-pdf', renderFinalPdfsHandler); // NEW: Render final PDFs from draft
-router.post('/:jobId', generateDocumentsHandler); // Generate initial draft or ask for input
-router.get('/download/:filename', downloadFileHandler); // Download generated files
+router.post('/finalize', validateRequest({ body: finalizeGenerationBodySchema }), finalizeGenerationHandler); // Finalize draft content
+router.post('/:jobId/render-pdf', validateRequest({ params: jobIdParamSchema }), renderFinalPdfsHandler); // NEW: Render final PDFs from draft
+router.post('/:jobId', validateRequest({ params: jobIdParamSchema, body: generateDocumentsBodySchema }), generateDocumentsHandler); // Generate initial draft or ask for input
+router.get('/download/:filename', validateRequest({ params: filenameParamSchema }), downloadFileHandler); // Download generated files
 
 export default router;
