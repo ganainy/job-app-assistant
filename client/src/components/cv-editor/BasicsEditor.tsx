@@ -50,14 +50,14 @@ const BasicsEditor: React.FC<BasicsEditorProps> = ({ data = {}, onChange, analys
     };
 
     return (
-        <div className="p-4 border rounded shadow-sm bg-white">
+        <div className="p-4 border dark:border-gray-700 rounded shadow-sm bg-white dark:bg-gray-800">
             <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-semibold">Basic Information</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Basic Information</h3>
                 {/* Show button only if there are issues or suggestions */}
                 {analysis && (analysis.issues.length > 0 || analysis.suggestions.length > 0) && (
                     <button
                         onClick={() => setShowAnalysis(!showAnalysis)}
-                        className="text-sm text-purple-600 hover:text-purple-800 focus:outline-none"
+                        className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 focus:outline-none"
                         title={showAnalysis ? "Hide Analysis" : "Show Analysis"}
                     >
                         {`Analysis (${analysis.issues.length} issues)`} {showAnalysis ? '▲' : '▼'}
@@ -66,7 +66,7 @@ const BasicsEditor: React.FC<BasicsEditorProps> = ({ data = {}, onChange, analys
                 <button
                     type="button"
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-sm text-blue-600 hover:text-blue-800"
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                 >
                     {isExpanded ? 'Collapse' : 'Expand'}
                 </button>
@@ -81,186 +81,186 @@ const BasicsEditor: React.FC<BasicsEditorProps> = ({ data = {}, onChange, analys
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Name */}
                     <div>
-                        <label htmlFor="basics-name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <label htmlFor="basics-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
                         <input
                             type="text"
                             id="basics-name"
                             value={data.name || ''}
                             onChange={(e) => handleChange('name', e.target.value)}
                             placeholder="Your Full Name"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Label/Title */}
                     <div>
-                        <label htmlFor="basics-label" className="block text-sm font-medium text-gray-700 mb-1">Label / Job Title</label>
+                        <label htmlFor="basics-label" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Label / Job Title</label>
                         <input
                             type="text"
                             id="basics-label"
                             value={data.label || ''}
                             onChange={(e) => handleChange('label', e.target.value)}
                             placeholder="e.g., Software Engineer"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Email */}
                     <div>
-                        <label htmlFor="basics-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <label htmlFor="basics-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
                         <input
                             type="email"
                             id="basics-email"
                             value={data.email || ''}
                             onChange={(e) => handleChange('email', e.target.value)}
                             placeholder="your.email@example.com"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Phone */}
                     <div>
-                        <label htmlFor="basics-phone" className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                        <label htmlFor="basics-phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
                         <input
                             type="tel"
                             id="basics-phone"
                             value={data.phone || ''}
                             onChange={(e) => handleChange('phone', e.target.value)}
                             placeholder="+1 123-456-7890"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Website URL */}
                     <div>
-                        <label htmlFor="basics-url" className="block text-sm font-medium text-gray-700 mb-1">Website/Portfolio URL</label>
+                        <label htmlFor="basics-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Website/Portfolio URL</label>
                         <input
                             type="url"
                             id="basics-url"
                             value={data.url || ''}
                             onChange={(e) => handleChange('url', e.target.value)}
                             placeholder="https://your-portfolio.com"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Location: Address */}
                     <div>
-                        <label htmlFor="basics-location-address" className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                        <label htmlFor="basics-location-address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
                         <input
                             type="text"
                             id="basics-location-address"
                             value={data.location?.address || ''}
                             onChange={(e) => handleLocationChange('address', e.target.value)}
                             placeholder="123 Main St"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Location: Postal Code */}
                     <div>
-                        <label htmlFor="basics-location-postalCode" className="block text-sm font-medium text-gray-700 mb-1">Postal Code</label>
+                        <label htmlFor="basics-location-postalCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Postal Code</label>
                         <input
                             type="text"
                             id="basics-location-postalCode"
                             value={data.location?.postalCode || ''}
                             onChange={(e) => handleLocationChange('postalCode', e.target.value)}
                             placeholder="90210"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Location: City */}
                     <div>
-                        <label htmlFor="basics-location-city" className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                        <label htmlFor="basics-location-city" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
                         <input
                             type="text"
                             id="basics-location-city"
                             value={data.location?.city || ''}
                             onChange={(e) => handleLocationChange('city', e.target.value)}
                             placeholder="Beverly Hills"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Location: Country Code */}
                     <div>
-                        <label htmlFor="basics-location-countryCode" className="block text-sm font-medium text-gray-700 mb-1">Country Code</label>
+                        <label htmlFor="basics-location-countryCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country Code</label>
                         <input
                             type="text"
                             id="basics-location-countryCode"
                             value={data.location?.countryCode || ''}
                             onChange={(e) => handleLocationChange('countryCode', e.target.value)}
                             placeholder="US"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Location: Region/State */}
                     <div>
-                        <label htmlFor="basics-location-region" className="block text-sm font-medium text-gray-700 mb-1">Region/State</label>
+                        <label htmlFor="basics-location-region" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Region/State</label>
                         <input
                             type="text"
                             id="basics-location-region"
                             value={data.location?.region || ''}
                             onChange={(e) => handleLocationChange('region', e.target.value)}
                             placeholder="California"
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                         />
                     </div>
 
                     {/* Summary */}
                     <div className="md:col-span-2">
-                        <label htmlFor="basics-summary" className="block text-sm font-medium text-gray-700 mb-1">Summary / Professional Profile</label>
+                        <label htmlFor="basics-summary" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Summary / Professional Profile</label>
                         <textarea
                             id="basics-summary"
                             value={data.summary || ''}
                             onChange={(e) => handleChange('summary', e.target.value)}
                             placeholder="A brief summary about yourself..."
-                            className="w-full px-2 py-1 border rounded text-sm"
+                            className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                             rows={4}
                         />
                     </div>
 
                     {/* Profiles - Rendered separately below */}
                     <div className="md:col-span-2">
-                        <h4 className="text-md font-semibold mb-2 mt-3">Profiles (e.g., LinkedIn, GitHub)</h4>
+                        <h4 className="text-md font-semibold mb-2 mt-3 dark:text-gray-200">Profiles (e.g., LinkedIn, GitHub)</h4>
                         {data.profiles && data.profiles.length > 0 ? (
                             <ul className="space-y-3">
                                 {data.profiles.map((profile: JsonResumeProfile, index: number) => (
-                                    <li key={index} className="p-3 border rounded bg-gray-50 space-y-2">
+                                    <li key={index} className="p-3 border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 space-y-2">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                             <div>
-                                                <label htmlFor={`profile-network-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Network</label>
+                                                <label htmlFor={`profile-network-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Network</label>
                                                 <input
                                                     type="text"
                                                     id={`profile-network-${index}`}
                                                     value={profile.network || ''}
                                                     onChange={(e) => handleProfileChange(index, 'network', e.target.value)}
                                                     placeholder="e.g., LinkedIn, GitHub"
-                                                    className="w-full px-2 py-1 border rounded text-sm"
+                                                    className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                                                 />
                                             </div>
                                             <div>
-                                                <label htmlFor={`profile-username-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                                                <label htmlFor={`profile-username-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
                                                 <input
                                                     type="text"
                                                     id={`profile-username-${index}`}
                                                     value={profile.username || ''}
                                                     onChange={(e) => handleProfileChange(index, 'username', e.target.value)}
                                                     placeholder="Your username"
-                                                    className="w-full px-2 py-1 border rounded text-sm"
+                                                    className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                                                 />
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label htmlFor={`profile-url-${index}`} className="block text-sm font-medium text-gray-700 mb-1">URL</label>
+                                                <label htmlFor={`profile-url-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
                                                 <input
                                                     type="url"
                                                     id={`profile-url-${index}`}
                                                     value={profile.url || ''}
                                                     onChange={(e) => handleProfileChange(index, 'url', e.target.value)}
                                                     placeholder="https://linkedin.com/in/yourprofile"
-                                                    className="w-full px-2 py-1 border rounded text-sm"
+                                                    className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                                                 />
                                             </div>
                                         </div>
@@ -269,12 +269,12 @@ const BasicsEditor: React.FC<BasicsEditorProps> = ({ data = {}, onChange, analys
                                 ))}
                             </ul>
                         ) : (
-                            <p className="text-gray-500 italic text-sm">No profiles added yet.</p>
+                            <p className="text-gray-500 dark:text-gray-400 italic text-sm">No profiles added yet.</p>
                         )}
                         <button
                             type="button"
                             onClick={handleAddProfile}
-                            className="mt-3 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                            className="mt-3 px-3 py-1 bg-blue-500 dark:bg-blue-700 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-800 text-sm"
                         >
                             Add Profile
                         </button>

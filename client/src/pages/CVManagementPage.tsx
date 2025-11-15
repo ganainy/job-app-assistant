@@ -115,17 +115,17 @@ const CVManagementPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Manage Your CV</h1>
+      <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100">Manage Your CV</h1>
 
-      <p className="mb-4 text-gray-600">
+      <p className="mb-4 text-gray-600 dark:text-gray-400">
         Upload your CV in PDF or RTF format. We will use AI to parse it into a structured format
         for generating tailored applications. Uploading a new CV will replace the existing one.
       </p>
 
       {/* ... existing upload form ... */}
-      <form onSubmit={handleSubmit} className="mb-8 p-6 border rounded-lg shadow-sm bg-white">
+      <form onSubmit={handleSubmit} className="mb-8 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
         <div className="mb-4">
-          <label htmlFor="cvFileInput" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="cvFileInput" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Select CV File (PDF or RTF)
           </label>
           <input
@@ -133,53 +133,53 @@ const CVManagementPage: React.FC = () => {
             id="cvFileInput"
             accept=".pdf,.rtf,application/pdf,application/rtf,text/rtf" // Specify accepted types
             onChange={handleFileChange}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+            className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-700 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50 disabled:opacity-50"
             disabled={isUploading}
           />
-          {selectedFile && <p className="text-xs text-gray-500 mt-1">Selected: {selectedFile.name}</p>}
+          {selectedFile && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Selected: {selectedFile.name}</p>}
         </div>
 
-        {uploadError && <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300">{uploadError}</div>}
-        {uploadSuccess && <div className="mb-4 p-3 bg-green-100 text-green-700 text-sm rounded border border-green-300">{uploadSuccess}</div>}
+        {uploadError && <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded border border-red-300 dark:border-red-800">{uploadError}</div>}
+        {uploadSuccess && <div className="mb-4 p-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm rounded border border-green-300 dark:border-green-800">{uploadSuccess}</div>}
 
         <button
           type="submit"
           disabled={!selectedFile || isUploading}
-          className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-5 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isUploading ? 'Uploading...' : 'Upload and Process CV'}
         </button>
       </form>
 
-      <hr className="my-6" />
+      <hr className="my-6 dark:border-gray-700" />
 
-      <h2 className="text-2xl font-semibold mb-4">Current Processed CV Data</h2>
+      <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Current Processed CV Data</h2>
       {isLoadingCv ? (
-        <p>Loading current CV data...</p>
+        <p className="text-gray-900 dark:text-gray-300">Loading current CV data...</p>
       ) : currentCvData ? (
         <div className="space-y-6">
           {/* JSON Preview (Optional, maybe collapsible) */}
-          <details className="p-4 bg-gray-50 rounded border border-gray-200">
-            <summary className="text-lg font-medium mb-2 cursor-pointer">Preview Raw JSON Data</summary>
-            <pre className="text-xs whitespace-pre-wrap break-words overflow-auto max-h-96 bg-gray-100 p-3 rounded mt-2">
+          <details className="p-4 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+            <summary className="text-lg font-medium mb-2 cursor-pointer text-gray-900 dark:text-gray-200">Preview Raw JSON Data</summary>
+            <pre className="text-xs whitespace-pre-wrap break-words overflow-auto max-h-96 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-3 rounded mt-2">
               {JSON.stringify(currentCvData, null, 2)}
             </pre>
           </details>
 
           {/* CV Editor */}
-          <div className="p-4 border rounded shadow-sm bg-white">
-            <h3 className="text-xl font-semibold mb-4">Edit CV Data</h3>
+          <div className="p-4 border dark:border-gray-700 rounded shadow-sm bg-white dark:bg-gray-800">
+            <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Edit CV Data</h3>
             <CvFormEditor data={currentCvData} onChange={handleCvChange} />
 
             {/* Save Button and Messages */}
             <div className="mt-6 flex flex-col items-start space-y-3">
-              {saveError && <div className="p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300 w-full">{saveError}</div>}
-              {saveSuccess && <div className="p-3 bg-green-100 text-green-700 text-sm rounded border border-green-300 w-full">{saveSuccess}</div>}
+              {saveError && <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded border border-red-300 dark:border-red-800 w-full">{saveError}</div>}
+              {saveSuccess && <div className="p-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm rounded border border-green-300 dark:border-green-800 w-full">{saveSuccess}</div>}
               <button
                 type="button"
                 onClick={handleSaveCv}
                 disabled={isSaving || isUploading}
-                className="px-5 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? 'Saving Changes...' : 'Save CV Changes'}
               </button>
@@ -187,7 +187,7 @@ const CVManagementPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        <p>No CV data found. Please upload your CV.</p>
+        <p className="text-gray-900 dark:text-gray-300">No CV data found. Please upload your CV.</p>
       )}
     </div>
   );

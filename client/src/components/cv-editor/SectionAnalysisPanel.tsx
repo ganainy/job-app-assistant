@@ -18,8 +18,8 @@ const SectionAnalysisPanel: React.FC<SectionAnalysisPanelProps> = ({
     // If there are no issues and no suggestions, show a success message
     if (issues.length === 0 && suggestions.length === 0) {
         return (
-            <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded">
-                <p className="text-green-700">
+            <div className="mt-3 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded">
+                <p className="text-green-700 dark:text-green-300">
                     <span className="font-medium">Great job!</span> This section looks good and follows best practices.
                 </p>
             </div>
@@ -27,13 +27,13 @@ const SectionAnalysisPanel: React.FC<SectionAnalysisPanelProps> = ({
     }
 
     return (
-        <div className="mt-3 p-4 bg-orange-50 border border-orange-200 rounded">
+        <div className="mt-3 p-4 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded">
             {issues.length > 0 && (
                 <div className="mb-4">
-                    <h4 className="font-medium text-orange-800 mb-2">Issues Found:</h4>
+                    <h4 className="font-medium text-orange-800 dark:text-orange-300 mb-2">Issues Found:</h4>
                     <ul className="list-disc list-inside space-y-1">
                         {issues.map((issue, index) => (
-                            <li key={index} className="text-orange-700 text-sm">{issue}</li>
+                            <li key={index} className="text-orange-700 dark:text-orange-300 text-sm">{issue}</li>
                         ))}
                     </ul>
                 </div>
@@ -41,10 +41,10 @@ const SectionAnalysisPanel: React.FC<SectionAnalysisPanelProps> = ({
 
             {suggestions.length > 0 && (
                 <div className="mb-4">
-                    <h4 className="font-medium text-blue-800 mb-2">Suggested Improvements:</h4>
+                    <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-2">Suggested Improvements:</h4>
                     <ul className="list-disc list-inside space-y-1">
                         {suggestions.map((suggestion, index) => (
-                            <li key={index} className="text-blue-700 text-sm">{suggestion}</li>
+                            <li key={index} className="text-blue-700 dark:text-blue-300 text-sm">{suggestion}</li>
                         ))}
                     </ul>
                 </div>
@@ -55,7 +55,7 @@ const SectionAnalysisPanel: React.FC<SectionAnalysisPanelProps> = ({
                     {onAcceptChanges && (
                         <button
                             onClick={onAcceptChanges}
-                            className="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                            className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white text-sm rounded hover:bg-green-700 dark:hover:bg-green-800"
                         >
                             Apply Changes
                         </button>
@@ -63,7 +63,7 @@ const SectionAnalysisPanel: React.FC<SectionAnalysisPanelProps> = ({
                     {onCancelChanges && (
                         <button
                             onClick={onCancelChanges}
-                            className="px-4 py-2 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
+                            className="px-4 py-2 bg-gray-500 dark:bg-gray-700 text-white text-sm rounded hover:bg-gray-600 dark:hover:bg-gray-800"
                         >
                             Cancel
                         </button>

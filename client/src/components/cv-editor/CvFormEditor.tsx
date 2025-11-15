@@ -59,14 +59,14 @@ const CvFormEditor: React.FC<CvFormEditorProps> = ({
 
     return (
         <div className="space-y-6">
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Basic Information</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Basic Information</h3>
                     {onAnalyzeSection && (
                         <button
                             onClick={() => onAnalyzeSection('basics')}
                             disabled={analyzingSections['basics']}
-                            className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            className="px-3 py-1 text-sm bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50"
                         >
                             {analyzingSections['basics'] ? 'Analyzing...' : 'Analyze Section'}
                         </button>
@@ -80,14 +80,14 @@ const CvFormEditor: React.FC<CvFormEditorProps> = ({
                 />
             </div>
 
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Work Experience</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Work Experience</h3>
                     {onAnalyzeSection && (
                         <button
                             onClick={() => onAnalyzeSection('work')}
                             disabled={analyzingSections['work']}
-                            className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            className="px-3 py-1 text-sm bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50"
                         >
                             {analyzingSections['work'] ? 'Analyzing...' : 'Analyze Section'}
                         </button>
@@ -101,14 +101,14 @@ const CvFormEditor: React.FC<CvFormEditorProps> = ({
                 />
             </div>
 
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Education</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Education</h3>
                     {onAnalyzeSection && (
                         <button
                             onClick={() => onAnalyzeSection('education')}
                             disabled={analyzingSections['education']}
-                            className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            className="px-3 py-1 text-sm bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50"
                         >
                             {analyzingSections['education'] ? 'Analyzing...' : 'Analyze Section'}
                         </button>
@@ -122,14 +122,14 @@ const CvFormEditor: React.FC<CvFormEditorProps> = ({
                 />
             </div>
 
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Skills</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Skills</h3>
                     {onAnalyzeSection && (
                         <button
                             onClick={() => onAnalyzeSection('skills')}
                             disabled={analyzingSections['skills']}
-                            className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            className="px-3 py-1 text-sm bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50"
                         >
                             {analyzingSections['skills'] ? 'Analyzing...' : 'Analyze Section'}
                         </button>
@@ -143,14 +143,14 @@ const CvFormEditor: React.FC<CvFormEditorProps> = ({
                 />
             </div>
 
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Projects</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Projects</h3>
                     {onAnalyzeSection && (
                         <button
                             onClick={() => onAnalyzeSection('projects')}
                             disabled={analyzingSections['projects']}
-                            className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            className="px-3 py-1 text-sm bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50"
                         >
                             {analyzingSections['projects'] ? 'Analyzing...' : 'Analyze Section'}
                         </button>
@@ -164,14 +164,14 @@ const CvFormEditor: React.FC<CvFormEditorProps> = ({
                 />
             </div>
 
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Languages</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Languages</h3>
                     {onAnalyzeSection && (
                         <button
                             onClick={() => onAnalyzeSection('languages')}
                             disabled={analyzingSections['languages']}
-                            className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            className="px-3 py-1 text-sm bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50"
                         >
                             {analyzingSections['languages'] ? 'Analyzing...' : 'Analyze Section'}
                         </button>
@@ -185,14 +185,14 @@ const CvFormEditor: React.FC<CvFormEditorProps> = ({
                 />
             </div>
 
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Certificates</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Certificates</h3>
                     {onAnalyzeSection && (
                         <button
                             onClick={() => onAnalyzeSection('certificates')}
                             disabled={analyzingSections['certificates']}
-                            className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            className="px-3 py-1 text-sm bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50"
                         >
                             {analyzingSections['certificates'] ? 'Analyzing...' : 'Analyze Section'}
                         </button>

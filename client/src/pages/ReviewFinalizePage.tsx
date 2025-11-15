@@ -230,45 +230,45 @@ const ReviewFinalizePage: React.FC = () => {
         }
     };
 
-    if (isLoading) return <div className="text-center p-4">Loading job details...</div>;
-    if (fetchError) return <div className="text-center p-4 text-red-600">Error: {fetchError}</div>;
-    if (!jobApplication || !cvData) return <div className="text-center p-4">Job application data not found.</div>;
+    if (isLoading) return <div className="text-center p-4 text-gray-900 dark:text-gray-300">Loading job details...</div>;
+    if (fetchError) return <div className="text-center p-4 text-red-600 dark:text-red-400">Error: {fetchError}</div>;
+    if (!jobApplication || !cvData) return <div className="text-center p-4 text-gray-900 dark:text-gray-300">Job application data not found.</div>;
 
     return (
         <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4">Review and Finalize: {jobApplication.jobTitle} at {jobApplication.companyName}</h1>
+            <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Review and Finalize: {jobApplication.jobTitle} at {jobApplication.companyName}</h1>
 
             {/* Job Details Section */}
-            <div className="mb-6 p-4 border rounded shadow-sm bg-white">
+            <div className="mb-6 p-4 border dark:border-gray-700 rounded shadow-sm bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-start mb-4">
                     <div>
-                        <h2 className="text-xl font-semibold mb-2">Job Details</h2>
-                        <p className="text-gray-600 mb-2">Company: {jobApplication.companyName}</p>
-                        <p className="text-gray-600 mb-2">Title: {jobApplication.jobTitle}</p>
+                        <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Job Details</h2>
+                        <p className="text-gray-600 dark:text-gray-400 mb-2">Company: {jobApplication.companyName}</p>
+                        <p className="text-gray-600 dark:text-gray-400 mb-2">Title: {jobApplication.jobTitle}</p>
                     </div>
                     <button
                         onClick={handleRefreshJobDetails}
                         disabled={isRefreshing || !jobApplication.jobUrl}
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 bg-blue-500 dark:bg-blue-700 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isRefreshing ? 'Refreshing...' : 'Refresh Job Details'}
                     </button>
                 </div>
-                {refreshError && <p className="text-red-500 mb-2">{refreshError}</p>}
+                {refreshError && <p className="text-red-500 dark:text-red-400 mb-2">{refreshError}</p>}
                 <div className="mt-4">
-                    <h3 className="font-semibold mb-2">Job Description:</h3>
-                    <div className="p-3 bg-gray-50 rounded max-h-60 overflow-y-auto">
+                    <h3 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">Job Description:</h3>
+                    <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded max-h-60 overflow-y-auto text-gray-900 dark:text-gray-300">
                         {jobApplication.jobDescriptionText || 'No job description available.'}
                     </div>
                 </div>
             </div>
 
             {/* CV Editor Section */}
-            <div className="mb-6 p-4 border rounded shadow-sm bg-white">
+            <div className="mb-6 p-4 border dark:border-gray-700 rounded shadow-sm bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-center mb-3">
-                    <h2 className="text-xl font-semibold">Edit CV</h2>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV</h2>
                 </div>
-                {analyzeError && <p className="text-red-500 mb-2">Analysis Error: {analyzeError}</p>}
+                {analyzeError && <p className="text-red-500 dark:text-red-400 mb-2">Analysis Error: {analyzeError}</p>}
                 <CvFormEditor
                     data={cvData}
                     onChange={handleCvChange}
@@ -279,26 +279,26 @@ const ReviewFinalizePage: React.FC = () => {
             </div>
 
             {/* Cover Letter Editor Section */}
-            <div className="mb-6 p-4 border rounded shadow-sm bg-white">
-                <h2 className="text-xl font-semibold mb-3">Edit Cover Letter</h2>
+            <div className="mb-6 p-4 border dark:border-gray-700 rounded shadow-sm bg-white dark:bg-gray-800">
+                <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">Edit Cover Letter</h2>
                 <textarea
                     value={coverLetterText}
                     onChange={handleCoverLetterChange}
-                    className="w-full h-64 p-2 border rounded focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full h-64 p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Edit your cover letter here..."
                 />
             </div>
 
             {/* Action Buttons */}
-            <div className="mt-6 p-4 border rounded shadow-sm bg-white flex flex-col items-start space-y-4">
-                {saveError && <p className="text-red-500">Save Error: {saveError}</p>}
-                {renderError && <p className="text-red-500">Render Error: {renderError}</p>}
+            <div className="mt-6 p-4 border dark:border-gray-700 rounded shadow-sm bg-white dark:bg-gray-800 flex flex-col items-start space-y-4">
+                {saveError && <p className="text-red-500 dark:text-red-400">Save Error: {saveError}</p>}
+                {renderError && <p className="text-red-500 dark:text-red-400">Render Error: {renderError}</p>}
 
                 <div className="flex gap-4 flex-wrap">
                     <button
                         onClick={handleSaveChanges}
                         disabled={isSaving || isRenderingPdf}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                        className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50"
                     >
                         {isSaving ? 'Saving...' : 'Save Changes'}
                     </button>
@@ -306,7 +306,7 @@ const ReviewFinalizePage: React.FC = () => {
                     <button
                         onClick={handleGenerateFinalPdfs}
                         disabled={isRenderingPdf || isSaving}
-                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                        className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50"
                     >
                         {isRenderingPdf ? 'Generating PDFs...' : 'Generate Draft Documents'}
                     </button>
@@ -318,7 +318,7 @@ const ReviewFinalizePage: React.FC = () => {
                         {finalPdfFiles.cv && (
                             <button
                                 onClick={() => handleDownload(finalPdfFiles.cv)}
-                                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                                className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-800"
                             >
                                 Download Final CV
                             </button>
@@ -326,7 +326,7 @@ const ReviewFinalizePage: React.FC = () => {
                         {finalPdfFiles.cl && (
                             <button
                                 onClick={() => handleDownload(finalPdfFiles.cl)}
-                                className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                                className="px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800"
                             >
                                 Download Final Cover Letter
                             </button>
@@ -338,7 +338,7 @@ const ReviewFinalizePage: React.FC = () => {
             {/* Back button */}
             <button
                 onClick={() => navigate('/dashboard')}
-                className="mt-6 px-4 py-2 rounded bg-gray-500 hover:bg-gray-600 text-white font-semibold"
+                className="mt-6 px-4 py-2 rounded bg-gray-500 dark:bg-gray-700 hover:bg-gray-600 dark:hover:bg-gray-800 text-white font-semibold"
             >
                 Back to Dashboard
             </button>

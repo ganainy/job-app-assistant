@@ -35,16 +35,16 @@ const LanguagesEditor: React.FC<LanguagesEditorProps> = ({ data = [], onChange, 
     };
 
     return (
-        <div className="p-4 border rounded shadow-sm bg-white">
+        <div className="p-4 border dark:border-gray-700 rounded shadow-sm bg-white dark:bg-gray-800">
             <div className="flex justify-between items-center mb-3">
                 <div className="flex items-center gap-4">
-                    <h3 className="text-lg font-semibold">Languages</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Languages</h3>
                     {/* Show analysis button only if there are issues or suggestions */}
                     {analysis && (analysis.issues.length > 0 || analysis.suggestions.length > 0) && (
                         <button
                             type="button"
                             onClick={() => setShowAnalysis(!showAnalysis)}
-                            className="text-sm text-purple-600 hover:text-purple-800 focus:outline-none"
+                            className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 focus:outline-none"
                             title={showAnalysis ? "Hide Analysis" : "Show Analysis"}
                         >
                             {`Analysis (${analysis.issues.length} issues)`} {showAnalysis ? '▲' : '▼'}
@@ -54,7 +54,7 @@ const LanguagesEditor: React.FC<LanguagesEditorProps> = ({ data = [], onChange, 
                 <button
                     type="button"
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-sm text-blue-600 hover:text-blue-800"
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                 >
                     {isExpanded ? 'Collapse' : 'Expand'}
                 </button>
@@ -68,32 +68,32 @@ const LanguagesEditor: React.FC<LanguagesEditorProps> = ({ data = [], onChange, 
             {isExpanded && (
                 <>
                     {data.length === 0 ? (
-                        <p className="text-gray-500 italic">No languages added yet.</p>
+                        <p className="text-gray-500 dark:text-gray-400 italic">No languages added yet.</p>
                     ) : (
                         <ul className="space-y-4">
                             {data.map((item, index) => (
-                                <li key={index} className="p-3 border rounded bg-gray-50 space-y-2">
+                                <li key={index} className="p-3 border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 space-y-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                         <div>
-                                            <label htmlFor={`lang-language-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                                            <label htmlFor={`lang-language-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Language</label>
                                             <input
                                                 type="text"
                                                 id={`lang-language-${index}`}
                                                 value={item.language || ''}
                                                 onChange={(e) => handleItemChange(index, 'language', e.target.value)}
                                                 placeholder="e.g., English, Spanish"
-                                                className="w-full px-2 py-1 border rounded text-sm"
+                                                className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
                                             />
                                         </div>
                                         <div>
-                                            <label htmlFor={`lang-fluency-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Fluency</label>
+                                            <label htmlFor={`lang-fluency-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fluency</label>
                                             <input
                                                 type="text"
                                                 id={`lang-fluency-${index}`}
                                                 value={item.fluency || ''}
                                                 onChange={(e) => handleItemChange(index, 'fluency', e.target.value)}
                                                 placeholder="e.g., Native, Fluent, Conversational"
-                                                className="w-full px-2 py-1 border rounded text-sm"
+                                                className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
                                             />
                                         </div>
                                     </div>
@@ -105,7 +105,7 @@ const LanguagesEditor: React.FC<LanguagesEditorProps> = ({ data = [], onChange, 
                     <button
                         type="button"
                         onClick={handleAdd}
-                        className="mt-4 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                        className="mt-4 px-3 py-1 bg-blue-500 dark:bg-blue-700 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-800 text-sm"
                     >
                         Add Language
                     </button>

@@ -234,14 +234,14 @@ const DashboardPage: React.FC = () => {
 
   // --- Render Loading State ---
   if (isLoading) {
-    return <div className="text-center p-10">Loading jobs...</div>;
+    return <div className="text-center p-10 text-gray-900 dark:text-gray-300">Loading jobs...</div>;
   }
 
   // --- Render Error State ---
   if (error && !isLoading) {
     return (
       <div className="container mx-auto p-4 relative">
-        <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg border border-red-300" role="alert">
+        <div className="p-4 mb-4 text-sm text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-lg border border-red-300 dark:border-red-800" role="alert">
           <span className="font-medium">Error:</span> {error}
           <button onClick={() => window.location.reload()} className='ml-4 underline text-xs'>Try Reloading</button>
         </div>
@@ -252,14 +252,14 @@ const DashboardPage: React.FC = () => {
   // --- Main Dashboard Content ---
   return (
     <div className="container mx-auto p-4 relative">
-      <h1 className="text-3xl font-bold mb-6">Job Application Dashboard</h1>
+      <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100">Job Application Dashboard</h1>
 
       {/* Add Job Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
           <button
             onClick={handleOpenAddModal}
-            className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            className="w-full md:w-auto px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50"
             disabled={isSubmitting || isCreatingFromUrl}
           >
             Add New Job Manually
@@ -272,40 +272,40 @@ const DashboardPage: React.FC = () => {
             onChange={(e) => { setUrlInput(e.target.value); setCreateFromUrlError(null); }}
             placeholder="Paste Job URL to auto-create..."
             required
-            className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="flex-grow w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             disabled={isCreatingFromUrl}
           />
           <button
             type="submit"
-            className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full md:w-auto px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={isCreatingFromUrl || !urlInput}
           >
             {isCreatingFromUrl ? 'Processing URL...' : 'Create from URL'}
           </button>
         </form>
       </div>
-      {createFromUrlError && <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300">{createFromUrlError}</div>}
+      {createFromUrlError && <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded border border-red-300 dark:border-red-800">{createFromUrlError}</div>}
 
       {/* Filter Controls */}
-      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border rounded-lg bg-gray-50">
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
         <div>
-          <label htmlFor="filterText" className="block text-sm font-medium text-gray-700 mb-1">Filter by Title/Company:</label>
+          <label htmlFor="filterText" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Title/Company:</label>
           <input
             type="text"
             id="filterText"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder="Enter text..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm"
           />
         </div>
         <div>
-          <label htmlFor="filterStatus" className="block text-sm font-medium text-gray-700 mb-1">Filter by Status:</label>
+          <label htmlFor="filterStatus" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Status:</label>
           <select
             id="filterStatus"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm"
           >
             <option value="">All Statuses</option>
             {statusOptions.map(status => (
@@ -317,48 +317,48 @@ const DashboardPage: React.FC = () => {
 
       {/* Job List */}
       {displayedJobs.length === 0 ? (
-        <p className='text-center text-gray-500 mt-6'>
+        <p className='text-center text-gray-500 dark:text-gray-400 mt-6'>
           {jobs.length > 0 ? 'No job applications match your current filters.' : 'No job applications found. Add one manually or paste a URL above.'}
         </p>
       ) : (
         <div className="overflow-x-auto shadow-md sm:rounded-lg">
-          <table className="min-w-full bg-white border border-gray-200 text-sm">
-            <thead className="bg-gray-100 text-gray-600 uppercase text-xs leading-normal">
+          <table className="min-w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
+            <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 uppercase text-xs leading-normal">
               <tr>
-                <th onClick={() => handleSort('jobTitle')} className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200">
+                <th onClick={() => handleSort('jobTitle')} className="py-3 px-4 border-b border-gray-200 dark:border-gray-600 text-left cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600">
                   Job Title{renderSortArrow('jobTitle')}
                 </th>
-                <th onClick={() => handleSort('companyName')} className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200">
+                <th onClick={() => handleSort('companyName')} className="py-3 px-4 border-b border-gray-200 dark:border-gray-600 text-left cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600">
                   Company{renderSortArrow('companyName')}
                 </th>
-                <th onClick={() => handleSort('status')} className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200">
+                <th onClick={() => handleSort('status')} className="py-3 px-4 border-b border-gray-200 dark:border-gray-600 text-left cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600">
                   Status{renderSortArrow('status')}
                 </th>
-                <th onClick={() => handleSort('createdAt')} className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200">
+                <th onClick={() => handleSort('createdAt')} className="py-3 px-4 border-b border-gray-200 dark:border-gray-600 text-left cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600">
                   Date Added{renderSortArrow('createdAt')}
                 </th>
-                <th onClick={() => handleSort('language')} className="py-3 px-4 border-b border-gray-200 text-left cursor-pointer hover:bg-gray-200">
+                <th onClick={() => handleSort('language')} className="py-3 px-4 border-b border-gray-200 dark:border-gray-600 text-left cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600">
                   Language{renderSortArrow('language')}
                 </th>
-                <th className="py-3 px-4 border-b border-gray-200 text-center">Actions</th>
+                <th className="py-3 px-4 border-b border-gray-200 dark:border-gray-600 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="text-gray-700">
+            <tbody className="text-gray-900 dark:text-gray-300">
               {displayedJobs.map((job) => (
                 <tr
                   key={job._id}
                   onClick={() => handleRowClick(job._id)}
-                  className="border-b border-gray-200 hover:bg-gray-50 cursor-pointer"
+                  className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                 >
-                  <td className="py-3 px-4">{job.jobTitle}</td>
-                  <td className="py-3 px-4">{job.companyName}</td>
+                  <td className="py-3 px-4 text-gray-900 dark:text-gray-300">{job.jobTitle}</td>
+                  <td className="py-3 px-4 text-gray-900 dark:text-gray-300">{job.companyName}</td>
                   <td className="py-3 px-4">
-                    <span className="px-2 py-1 text-xs rounded bg-gray-200 font-medium">{job.status}</span>
+                    <span className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium">{job.status}</span>
                   </td>
-                  <td className="py-3 px-4">{new Date(job.createdAt).toLocaleDateString()}</td>
+                  <td className="py-3 px-4 text-gray-900 dark:text-gray-300">{new Date(job.createdAt).toLocaleDateString()}</td>
                   <td className="py-3 px-4">
                     {job.language ? (
-                      <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 font-medium uppercase">
+                      <span className="px-2 py-1 text-xs rounded bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 font-medium uppercase">
                         {job.language}
                       </span>
                     ) : ('-')}
@@ -366,13 +366,13 @@ const DashboardPage: React.FC = () => {
                   <td className="py-3 px-4 text-center">
                     <button
                       onClick={(e) => handleOpenEditModal(job, e)}
-                      className="text-blue-600 hover:underline text-xs font-medium mx-2"
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-medium mx-2"
                     >
                       Edit
                     </button>
                     <button
                       onClick={(e) => handleDeleteJob(job._id, e)}
-                      className="text-red-600 hover:underline text-xs font-medium mx-2"
+                      className="text-red-600 dark:text-red-400 hover:underline text-xs font-medium mx-2"
                     >
                       Delete
                     </button>
@@ -386,22 +386,22 @@ const DashboardPage: React.FC = () => {
 
       {/* Add/Edit Modal */}
       {modalMode && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 sm:mx-0">
-            <h2 className="text-2xl font-semibold mb-5 text-gray-800">
+        <div className="fixed inset-0 bg-black bg-opacity-60 dark:bg-opacity-80 flex justify-center items-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 sm:mx-0">
+            <h2 className="text-2xl font-semibold mb-5 text-gray-900 dark:text-gray-100">
               {modalMode === 'add' ? 'Add New Job Manually' : 'Edit Job Application'}
             </h2>
             <form onSubmit={handleFormSubmit}>
               {modalError && (
-                <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm rounded border border-red-300">
+                <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded border border-red-300 dark:border-red-800">
                   {modalError}
                 </div>
               )}
 
               {/* Job Title */}
               <div className="mb-4">
-                <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 mb-1">
-                  Job Title <span className="text-red-500">*</span>
+                <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Job Title <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -410,14 +410,14 @@ const DashboardPage: React.FC = () => {
                   value={formData.jobTitle || ''}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               {/* Company Name */}
               <div className="mb-4">
-                <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Name <span className="text-red-500">*</span>
+                <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Company Name <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -426,13 +426,13 @@ const DashboardPage: React.FC = () => {
                   value={formData.companyName || ''}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               {/* Status */}
               <div className="mb-4">
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Status
                 </label>
                 <select
@@ -440,7 +440,7 @@ const DashboardPage: React.FC = () => {
                   name="status"
                   value={formData.status || 'Not Applied'}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   {statusOptions.map(status => (
                     <option key={status} value={status}>{status}</option>
@@ -450,7 +450,7 @@ const DashboardPage: React.FC = () => {
 
               {/* Job URL */}
               <div className="mb-4">
-                <label htmlFor="jobUrl" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="jobUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Job URL
                 </label>
                 <input
@@ -459,14 +459,14 @@ const DashboardPage: React.FC = () => {
                   name="jobUrl"
                   value={formData.jobUrl || ''}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="https://..."
                 />
               </div>
 
               {/* Notes */}
               <div className="mb-4">
-                <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Notes
                 </label>
                 <textarea
@@ -475,24 +475,24 @@ const DashboardPage: React.FC = () => {
                   rows={3}
                   value={formData.notes || ''}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               {/* Modal Action Buttons */}
-              <div className="flex justify-end gap-3 mt-6 border-t pt-4 border-gray-200">
+              <div className="flex justify-end gap-3 mt-6 border-t pt-4 border-gray-200 dark:border-gray-700">
                 <button
                   type="button"
                   onClick={handleCloseModal}
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-400"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {isSubmitting ? (modalMode === 'add' ? 'Adding...' : 'Updating...') : (modalMode === 'add' ? 'Add Job' : 'Update Job')}
                 </button>

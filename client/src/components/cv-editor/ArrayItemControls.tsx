@@ -12,7 +12,7 @@ const ArrayItemControls: React.FC<ArrayItemControlsProps> = ({ index, onDelete }
             <button
                 type="button"
                 onClick={() => onDelete(index)}
-                className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+                className="px-2 py-1 text-xs bg-red-500 dark:bg-red-700 text-white rounded hover:bg-red-600 dark:hover:bg-red-800"
                 title="Delete item"
             >
                 Delete
