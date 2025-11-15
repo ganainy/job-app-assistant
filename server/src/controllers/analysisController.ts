@@ -6,6 +6,7 @@ import CvAnalysis from '../models/CvAnalysis';
 import { performAnalysis, performJsonAnalysis, generateSectionImprovement } from '../services/analysisService';
 import mongoose, { Types } from 'mongoose';
 import { JsonResumeSchema } from '../types/jsonresume';
+import { ValidationError, NotFoundError, AuthorizationError, InternalServerError } from '../utils/errors/AppError';
 
 // Ensure temp_uploads directory exists
 const uploadDir = path.join(__dirname, '../../temp_uploads');
@@ -38,103 +39,81 @@ const upload = multer({
 }).single('cvFile');
 
 export const analyzeCv = async (req: Request, res: Response) => {
-    try {
-        const cvData: JsonResumeSchema = req.body.cv;
-        const jobData = req.body.job;
+    const cvData: JsonResumeSchema = req.body.cv;
+    const jobData = req.body.job;
 
-        if (!cvData) {
-            return res.status(400).json({ message: 'CV data is required' });
-        }
+    if (!cvData) {
+        throw new ValidationError('CV data is required');
+    }
 
-        const userId = req.user?.id ? new Types.ObjectId(req.user.id) : new Types.ObjectId();
+    const userId = req.user?.id ? new Types.ObjectId(req.user.id) : new Types.ObjectId();
 
-        // Create the analysis document first
-        const analysis = await CvAnalysis.create({
-            userId,
-            status: 'pending',
-            overallScore: 0,
-            issueCount: 0,
-            categoryScores: {},
-            detailedResults: {}
+    // Create the analysis document first
+    const analysis = await CvAnalysis.create({
+        userId,
+        status: 'pending',
+        overallScore: 0,
+        issueCount: 0,
+        categoryScores: {},
+        detailedResults: {}
+    });
+
+    // Start analysis in background
+    performJsonAnalysis(cvData, userId, analysis._id as unknown as Types.ObjectId, jobData)
+        .catch(error => {
+            console.error('Background analysis failed:', error);
         });
 
-        // Start analysis in background
-        performJsonAnalysis(cvData, userId, analysis._id as unknown as Types.ObjectId, jobData)
-            .catch(error => {
-                console.error('Background analysis failed:', error);
-            });
-
-        res.json(analysis);
-    } catch (error: any) {
-        console.error('Error analyzing CV:', error);
-        res.status(500).json({ message: error.message || 'Error analyzing CV' });
-    }
+    res.json(analysis);
 };
 
 export const getAnalysisResults = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const analysis = await CvAnalysis.findById(id);
+    const { id } = req.params;
+    const analysis = await CvAnalysis.findById(id);
 
-        if (!analysis) {
-            return res.status(404).json({ message: 'Analysis not found' });
-        }
-
-        if (analysis.userId.toString() !== req.user?.id) {
-            return res.status(403).json({ message: 'Unauthorized access to analysis' });
-        }
-
-        res.json(analysis);
-    } catch (error: any) {
-        console.error('Error fetching analysis:', error);
-        res.status(500).json({ message: error.message || 'Error fetching analysis' });
+    if (!analysis) {
+        throw new NotFoundError('Analysis not found');
     }
+
+    if (analysis.userId.toString() !== req.user?.id) {
+        throw new AuthorizationError('Unauthorized access to analysis');
+    }
+
+    res.json(analysis);
 };
 
 export const generateImprovement = async (req: Request, res: Response) => {
-    try {
-        const { analysisId, section, currentContent } = req.body;
+    const { analysisId, section, currentContent } = req.body;
 
-        if (!analysisId || !section || !currentContent) {
-            return res.status(400).json({
-                message: 'Analysis ID, section, and current content are required'
-            });
-        }
-
-        const analysis = await CvAnalysis.findById(analysisId);
-        if (!analysis) {
-            return res.status(404).json({ message: 'Analysis not found' });
-        }
-
-        if (analysis.userId.toString() !== req.user?.id) {
-            return res.status(403).json({ message: 'Unauthorized access to analysis' });
-        }
-
-        const improvement = await generateSectionImprovement(analysis, section, currentContent);
-        res.json({ improvement });
-    } catch (error: any) {
-        console.error('Error generating improvement:', error);
-        res.status(500).json({ message: error.message || 'Error generating improvement' });
+    if (!analysisId || !section || !currentContent) {
+        throw new ValidationError('Analysis ID, section, and current content are required');
     }
+
+    const analysis = await CvAnalysis.findById(analysisId);
+    if (!analysis) {
+        throw new NotFoundError('Analysis not found');
+    }
+
+    if (analysis.userId.toString() !== req.user?.id) {
+        throw new AuthorizationError('Unauthorized access to analysis');
+    }
+
+    const improvement = await generateSectionImprovement(analysis, section, currentContent);
+    res.json({ improvement });
 };
 
 export const deleteAnalysis = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const analysis = await CvAnalysis.findById(id);
+    const { id } = req.params;
+    const analysis = await CvAnalysis.findById(id);
 
-        if (!analysis) {
-            return res.status(404).json({ message: 'Analysis not found' });
-        }
-
-        if (analysis.userId.toString() !== req.user?.id) {
-            return res.status(403).json({ message: 'Unauthorized access to analysis' });
-        }
-
-        await analysis.deleteOne();
-        res.json({ message: 'Analysis deleted successfully' });
-    } catch (error: any) {
-        console.error('Error deleting analysis:', error);
-        res.status(500).json({ message: error.message || 'Error deleting analysis' });
+    if (!analysis) {
+        throw new NotFoundError('Analysis not found');
     }
+
+    if (analysis.userId.toString() !== req.user?.id) {
+        throw new AuthorizationError('Unauthorized access to analysis');
+    }
+
+    await analysis.deleteOne();
+    res.json({ message: 'Analysis deleted successfully' });
 };

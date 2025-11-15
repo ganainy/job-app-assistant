@@ -14,6 +14,7 @@ import generatorRoutes from './routes/generator';
 import analysisRoutes from './routes/analysis'; // Import is correct
 // Correct the import for the default export
 import protect from './middleware/authMiddleware'; // Import default export and alias it as 'protect'
+import { errorHandler } from './middleware/errorHandler';
 
 const app: Express = express();
 const port = process.env.PORT || 5001;
@@ -36,6 +37,8 @@ app.use('/api/job-applications', protect, jobApplicationRoutes); // Protect Job 
 app.use('/api/generator', protect, generatorRoutes); // Protect Generator routes
 app.use('/api/analysis', analysisRoutes); // Mounting looks correct
 
+// Error handling middleware (must be last)
+app.use(errorHandler);
 
 // --- MongoDB Connection ---
 const mongoUri = process.env.MONGODB_URI;
