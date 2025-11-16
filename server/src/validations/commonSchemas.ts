@@ -26,6 +26,13 @@ export const jobIdParamSchema = z.object({
 });
 
 /**
+ * Validates jobApplicationId parameter
+ */
+export const jobApplicationIdParamSchema = z.object({
+  jobApplicationId: objectIdSchema,
+});
+
+/**
  * Validates analysisId parameter
  */
 export const analysisIdParamSchema = z.object({

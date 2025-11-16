@@ -138,8 +138,7 @@ router.post(
             console.log(`JSON Resume CV data saved for user ${req.user.email}`);
             res.status(200).json({
                 message: 'CV uploaded and parsed successfully (JSON Resume format).',
-                // Send back confirmation, maybe just the basics or nothing to avoid large payload
-                // cvData: cvJsonResume // Decide if frontend needs the full parsed data immediately
+                cvData: cvJsonResume // Send back the parsed data so frontend can update immediately
             });
 
         } catch (error: any) {
@@ -176,6 +175,32 @@ router.get('/', authMiddleware as RequestHandler, async (req: Request, res: Resp
     } catch (error) {
         console.error("Error fetching CV data:", error);
         res.status(500).json({ message: 'Failed to retrieve CV data.' });
+    }
+});
+
+// DELETE route to delete the user's CV
+router.delete('/', authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    if (!req.user) {
+        res.status(401).json({ message: 'User not authenticated correctly.' });
+        return;
+    }
+    try {
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user._id,
+            { $unset: { cvJson: "" } }, // Remove the cvJson field
+            { new: true }
+        ).select('-passwordHash -cvJson');
+
+        if (!updatedUser) {
+            res.status(404).json({ message: "User not found." });
+            return;
+        }
+
+        console.log(`CV data deleted for user ${req.user.email}`);
+        res.status(200).json({ message: 'CV deleted successfully.' });
+    } catch (error) {
+        console.error("Error deleting CV data:", error);
+        res.status(500).json({ message: 'Failed to delete CV data.' });
     }
 });
 

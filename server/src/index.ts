@@ -13,6 +13,7 @@ import cvRoutes from './routes/cv';
 import generatorRoutes from './routes/generator';
 import analysisRoutes from './routes/analysis'; // Import is correct
 import coverLetterRoutes from './routes/coverLetter';
+import atsRoutes from './routes/atsRoutes';
 // Correct the import for the default export
 import protect from './middleware/authMiddleware'; // Import default export and alias it as 'protect'
 import { errorHandler } from './middleware/errorHandler';
@@ -38,6 +39,7 @@ app.use('/api/job-applications', protect, jobApplicationRoutes); // Protect Job 
 app.use('/api/generator', protect, generatorRoutes); // Protect Generator routes
 app.use('/api/analysis', analysisRoutes); // Mounting looks correct
 app.use('/api/cover-letter', protect, coverLetterRoutes); // Protect Cover Letter routes
+app.use('/api/ats', protect, atsRoutes); // Protect ATS routes
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

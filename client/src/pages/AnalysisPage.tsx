@@ -1,11 +1,15 @@
 // client/src/pages/AnalysisPage.tsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { uploadCvForAnalysis, getAnalysis, AnalysisResult } from '../services/analysisApi';
+import { uploadCvForAnalysis, getAnalysis, analyzeCv, AnalysisResult } from '../services/analysisApi';
+import { scanAtsForAnalysis, getAtsScores, AtsScores } from '../services/atsApi';
+import { getCurrentCv, deleteCurrentCv } from '../services/cvApi';
+import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import FileUploadZone from '../components/analysis/FileUploadZone';
 import AnalysisProgress from '../components/analysis/AnalysisProgress';
 import ScoreCard from '../components/analysis/ScoreCard';
 import ResultsAccordion from '../components/analysis/ResultsAccordion';
+import { AtsFeedbackPanel } from '../components/ats';
 import Spinner from '../components/common/Spinner';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import Toast from '../components/common/Toast';
@@ -31,8 +35,36 @@ const AnalysisPage: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+    const [atsScores, setAtsScores] = useState<AtsScores | null>(null);
+    const [isLoadingAts, setIsLoadingAts] = useState<boolean>(false);
+    const [isScanningAts, setIsScanningAts] = useState<boolean>(false);
+    const [atsPollingIntervalId, setAtsPollingIntervalId] = useState<NodeJS.Timeout | null>(null);
+    const [atsProgressMessage, setAtsProgressMessage] = useState<string>('');
+    const [currentCvData, setCurrentCvData] = useState<JsonResumeSchema | null>(null);
+    const [isLoadingCv, setIsLoadingCv] = useState<boolean>(true);
+    const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
     const POLLING_INTERVAL_MS = 5000;
+    const ATS_POLLING_INTERVAL_MS = 3000; // Poll more frequently for ATS
+    const ATS_POLLING_TIMEOUT_MS = 120000; // 2 minutes timeout
+
+    // Fetch current CV on mount
+    useEffect(() => {
+        const fetchCv = async () => {
+            setIsLoadingCv(true);
+            try {
+                const response = await getCurrentCv();
+                const cvData = response.cvData || null;
+                setCurrentCvData(cvData);
+            } catch (error: any) {
+                console.error("Error fetching current CV:", error);
+                // Don't show error toast on mount - CV might not exist yet
+            } finally {
+                setIsLoadingCv(false);
+            }
+        };
+        fetchCv();
+    }, []);
 
     const handleFileSelect = (file: File) => {
         setSelectedFile(file);
@@ -92,7 +124,28 @@ const AnalysisPage: React.FC = () => {
         }
     };
 
-    const handleUpload = async () => {
+    const handleAnalyze = async () => {
+        // If we have stored CV data, use it directly
+        if (currentCvData) {
+            setStatus('uploading');
+            setError(null);
+            setAnalysisResult(null);
+
+            try {
+                const result = await analyzeCv(currentCvData);
+                setAnalysisId(result.id);
+                setStatus('polling');
+                setToast({ message: 'Analysis started. Processing in progress...', type: 'info' });
+            } catch (err: any) {
+                console.error('Analysis failed:', err);
+                setToast({ message: err.message || 'Failed to start analysis.', type: 'error' });
+                setStatus('error');
+                setAnalysisId(null);
+            }
+            return;
+        }
+
+        // Otherwise, use file upload
         if (!selectedFile) {
             setToast({ message: 'Please select a CV file first.', type: 'error' });
             return;
@@ -115,12 +168,47 @@ const AnalysisPage: React.FC = () => {
         }
     };
 
+    const handleDeleteCv = async () => {
+        if (!currentCvData) {
+            return;
+        }
+
+        // Confirm deletion
+        if (!window.confirm('Are you sure you want to delete your CV? This action cannot be undone.')) {
+            return;
+        }
+
+        setIsDeleting(true);
+        try {
+            await deleteCurrentCv();
+            setCurrentCvData(null);
+            setSelectedFile(null);
+            const fileInput = document.getElementById('cvFileInput') as HTMLInputElement;
+            if (fileInput) fileInput.value = '';
+            setToast({ message: 'CV deleted successfully.', type: 'success' });
+        } catch (error: any) {
+            console.error("Error deleting CV:", error);
+            setToast({ message: error.message || 'Failed to delete CV.', type: 'error' });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const pollAnalysisStatus = useCallback(async () => {
         if (!analysisId) return;
 
         try {
             const result = await getAnalysis(analysisId);
             setAnalysisResult(result);
+
+            // If ATS scores are included in the result, use them
+            console.log(`[DEBUG Frontend] pollAnalysisStatus - Has atsScores in result:`, !!result.atsScores);
+            if (result.atsScores) {
+                console.log(`[DEBUG Frontend] Setting ATS scores from analysis result:`, result.atsScores);
+                setAtsScores(result.atsScores);
+            } else {
+                console.log(`[DEBUG Frontend] No ATS scores in analysis result, will fetch separately if completed`);
+            }
 
             if (result.status === 'completed') {
                 setStatus('completed');
@@ -162,9 +250,163 @@ const AnalysisPage: React.FC = () => {
 
     useEffect(() => {
         if (analysisIdParam) {
+            setAnalysisId(analysisIdParam);
+            setStatus('polling');
             pollAnalysisStatus();
         }
     }, [analysisIdParam, pollAnalysisStatus]);
+
+    // Fetch ATS scores when analysis is completed
+    useEffect(() => {
+        const fetchAtsScores = async () => {
+            if (analysisId && analysisResult?.status === 'completed') {
+                console.log(`[DEBUG Frontend] fetchAtsScores - Analysis completed, checking for ATS scores`);
+                // First, check if ATS scores are already in the analysis result
+                if (analysisResult.atsScores) {
+                    console.log(`[DEBUG Frontend] ATS scores found in analysis result, using them:`, analysisResult.atsScores);
+                    setAtsScores(analysisResult.atsScores);
+                    return;
+                }
+
+                // If not in the result, fetch separately
+                console.log(`[DEBUG Frontend] ATS scores not in analysis result, fetching separately...`);
+                setIsLoadingAts(true);
+                try {
+                    const response = await getAtsScores(analysisId);
+                    console.log(`[DEBUG Frontend] Fetched ATS scores separately:`, response.atsScores);
+                    setAtsScores(response.atsScores);
+                } catch (error: any) {
+                    console.error('Error fetching ATS scores:', error);
+                    // Don't show error toast, just log it - ATS scores are optional
+                } finally {
+                    setIsLoadingAts(false);
+                }
+            }
+        };
+
+        fetchAtsScores();
+    }, [analysisId, analysisResult?.status, analysisResult?.atsScores]);
+
+    // Cleanup ATS polling on unmount
+    useEffect(() => {
+        return () => {
+            if (atsPollingIntervalId) {
+                clearInterval(atsPollingIntervalId);
+            }
+        };
+    }, [atsPollingIntervalId]);
+
+    const pollAtsScores = useCallback(async (analysisIdToPoll: string, startTime: number, intervalIdRef: NodeJS.Timeout | null) => {
+        try {
+            const response = await getAtsScores(analysisIdToPoll);
+            
+            // Debug logging
+            console.log('[ATS Poll] Response:', response);
+            console.log('[ATS Poll] ATS Scores:', response.atsScores);
+            
+            // Check if we have valid scores - check for score OR any details
+            const hasScores = response.atsScores && (
+                (response.atsScores.score !== null && response.atsScores.score !== undefined) ||
+                (response.atsScores.skillMatchDetails && (
+                    response.atsScores.skillMatchDetails.skillMatchPercentage !== undefined ||
+                    (response.atsScores.skillMatchDetails.matchedSkills && response.atsScores.skillMatchDetails.matchedSkills.length > 0) ||
+                    (response.atsScores.skillMatchDetails.missingSkills && response.atsScores.skillMatchDetails.missingSkills.length > 0)
+                )) ||
+                (response.atsScores.complianceDetails && (
+                    (response.atsScores.complianceDetails.keywordsMatched && response.atsScores.complianceDetails.keywordsMatched.length > 0) ||
+                    (response.atsScores.complianceDetails.keywordsMissing && response.atsScores.complianceDetails.keywordsMissing.length > 0) ||
+                    (response.atsScores.complianceDetails.formattingIssues && response.atsScores.complianceDetails.formattingIssues.length > 0) ||
+                    (response.atsScores.complianceDetails.suggestions && response.atsScores.complianceDetails.suggestions.length > 0)
+                )) ||
+                response.atsScores.error
+            );
+
+            console.log('[ATS Poll] Has scores:', hasScores);
+
+            if (hasScores) {
+                // Results are ready!
+                console.log('[ATS Poll] Setting ATS scores:', response.atsScores);
+                setAtsScores(response.atsScores);
+                setIsScanningAts(false);
+                setAtsProgressMessage('');
+                if (intervalIdRef) {
+                    clearInterval(intervalIdRef);
+                    setAtsPollingIntervalId(null);
+                }
+                setToast({ message: 'ATS analysis completed successfully!', type: 'success' });
+                return true;
+            }
+
+            // Check for timeout
+            const elapsed = Date.now() - startTime;
+            if (elapsed > ATS_POLLING_TIMEOUT_MS) {
+                setIsScanningAts(false);
+                setAtsProgressMessage('');
+                if (intervalIdRef) {
+                    clearInterval(intervalIdRef);
+                    setAtsPollingIntervalId(null);
+                }
+                setToast({ message: 'ATS analysis is taking longer than expected. Please try again later.', type: 'info' });
+                return true;
+            }
+
+            // Update progress message
+            const elapsedSeconds = Math.floor(elapsed / 1000);
+            setAtsProgressMessage(`Analyzing your CV... (${elapsedSeconds}s)`);
+            return false;
+        } catch (error: any) {
+            console.error('Error polling ATS scores:', error);
+            // Continue polling on error (might be temporary)
+            return false;
+        }
+    }, []);
+
+    const handleScanAts = async () => {
+        if (!analysisId) {
+            setToast({ message: 'No analysis available. Please complete an analysis first.', type: 'error' });
+            return;
+        }
+
+        // Clear any existing polling
+        if (atsPollingIntervalId) {
+            clearInterval(atsPollingIntervalId);
+            setAtsPollingIntervalId(null);
+        }
+
+        setIsScanningAts(true);
+        setAtsProgressMessage('Starting ATS analysis...');
+        setAtsScores(null); // Clear previous scores
+
+        try {
+            await scanAtsForAnalysis(analysisId);
+            setToast({ message: 'ATS scan started. Analyzing your CV...', type: 'info' });
+            
+            const startTime = Date.now();
+            
+            // Set up interval polling
+            const intervalId = setInterval(async () => {
+                const result = await pollAtsScores(analysisId, startTime, intervalId);
+                if (result) {
+                    clearInterval(intervalId);
+                    setAtsPollingIntervalId(null);
+                }
+            }, ATS_POLLING_INTERVAL_MS);
+            
+            setAtsPollingIntervalId(intervalId);
+            
+            // Start polling immediately
+            const checkResult = await pollAtsScores(analysisId, startTime, intervalId);
+            if (checkResult) {
+                clearInterval(intervalId);
+                setAtsPollingIntervalId(null);
+            }
+        } catch (error: any) {
+            console.error('Error starting ATS scan:', error);
+            setToast({ message: error.message || 'Failed to start ATS scan.', type: 'error' });
+            setIsScanningAts(false);
+            setAtsProgressMessage('');
+        }
+    };
 
     const handleImprovement = async (checkType: string, currentContent: string) => {
         if (!analysisId) return;
@@ -241,79 +483,186 @@ const AnalysisPage: React.FC = () => {
             </div>
 
             {!analysisIdParam && (
-                <div className="mb-6 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-                            <svg
-                                className="w-6 h-6 text-blue-600 dark:text-blue-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                                />
-                            </svg>
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Upload CV</h2>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Select or drag and drop your CV file (PDF or DOCX)
-                            </p>
-                        </div>
-                    </div>
-
-                    <FileUploadZone
-                        selectedFile={selectedFile}
-                        onFileSelect={handleFileSelect}
-                        onFileRemove={handleFileRemove}
-                        isDragging={isDragging}
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        disabled={status === 'uploading' || status === 'polling'}
-                    />
-
-                    <button
-                        onClick={handleUpload}
-                        disabled={!selectedFile || status === 'uploading' || status === 'polling'}
-                        className="w-full md:w-auto px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium transition-colors"
-                    >
-                        {status === 'uploading' && (
-                            <>
-                                <Spinner size="sm" />
-                                Uploading...
-                            </>
-                        )}
-                        {status === 'polling' && (
-                            <>
-                                <Spinner size="sm" />
-                                Analyzing...
-                            </>
-                        )}
-                        {(status === 'idle' || status === 'completed' || status === 'error') && (
-                            <>
-                                <svg
-                                    className="w-5 h-5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
+                <>
+                    {/* CV Info Section - Show when CV exists */}
+                    {currentCvData && !isLoadingCv && (
+                        <div className="mb-6 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
+                                        <svg
+                                            className="w-6 h-6 text-green-600 dark:text-green-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                            />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Your CV</h2>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                            {currentCvData.basics?.name || 'CV uploaded'}
+                                            {currentCvData.basics?.label && (
+                                                <span className="text-gray-500 dark:text-gray-400"> • {currentCvData.basics.label}</span>
+                                            )}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleDeleteCv}
+                                    disabled={isDeleting}
+                                    className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors"
+                                    title="Delete CV"
                                 >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                                    />
-                                </svg>
-                                Analyze CV
-                            </>
-                        )}
-                    </button>
-                </div>
+                                    {isDeleting ? (
+                                        <>
+                                            <Spinner size="sm" />
+                                            Deleting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                />
+                                            </svg>
+                                            Delete CV
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                            <button
+                                onClick={handleAnalyze}
+                                disabled={status === 'uploading' || status === 'polling'}
+                                className="w-full md:w-auto px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium transition-colors"
+                            >
+                                {status === 'uploading' && (
+                                    <>
+                                        <Spinner size="sm" />
+                                        Starting Analysis...
+                                    </>
+                                )}
+                                {status === 'polling' && (
+                                    <>
+                                        <Spinner size="sm" />
+                                        Analyzing...
+                                    </>
+                                )}
+                                {(status === 'idle' || status === 'completed' || status === 'error') && (
+                                    <>
+                                        <svg
+                                            className="w-5 h-5"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                            />
+                                        </svg>
+                                        Analyze CV
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Upload Section - Only show when no CV exists */}
+                    {!currentCvData && !isLoadingCv && (
+                        <div className="mb-6 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+                                    <svg
+                                        className="w-6 h-6 text-blue-600 dark:text-blue-400"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                        />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Upload CV</h2>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Select or drag and drop your CV file (PDF or DOCX)
+                                    </p>
+                                </div>
+                            </div>
+
+                            <FileUploadZone
+                                selectedFile={selectedFile}
+                                onFileSelect={handleFileSelect}
+                                onFileRemove={handleFileRemove}
+                                isDragging={isDragging}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={handleDrop}
+                                disabled={status === 'uploading' || status === 'polling'}
+                            />
+
+                            <button
+                                onClick={handleAnalyze}
+                                disabled={!selectedFile || status === 'uploading' || status === 'polling'}
+                                className="w-full md:w-auto px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium transition-colors"
+                            >
+                                {status === 'uploading' && (
+                                    <>
+                                        <Spinner size="sm" />
+                                        Uploading...
+                                    </>
+                                )}
+                                {status === 'polling' && (
+                                    <>
+                                        <Spinner size="sm" />
+                                        Analyzing...
+                                    </>
+                                )}
+                                {(status === 'idle' || status === 'completed' || status === 'error') && (
+                                    <>
+                                        <svg
+                                            className="w-5 h-5"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                            />
+                                        </svg>
+                                        Analyze CV
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Loading state while fetching CV */}
+                    {isLoadingCv && (
+                        <div className="mb-6 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+                            <LoadingSkeleton lines={3} />
+                        </div>
+                    )}
+                </>
             )}
 
             {(status === 'uploading' || status === 'polling') && (
@@ -340,6 +689,59 @@ const AnalysisPage: React.FC = () => {
 
             {analysisResult && analysisResult.status === 'completed' && (
                 <div className="space-y-6">
+                    {/* ATS Scores Section */}
+                    <div className="p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ATS Analysis</h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Get ATS compliance scores and skill matching analysis
+                                </p>
+                            </div>
+                            <button
+                                onClick={handleScanAts}
+                                disabled={isScanningAts || isLoadingAts}
+                                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors"
+                            >
+                                {isScanningAts ? (
+                                    <>
+                                        <Spinner size="sm" />
+                                        Analyzing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                        </svg>
+                                        Scan ATS
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                        
+                        {/* ATS Progress Indicator */}
+                        {isScanningAts && (
+                            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                    <Spinner size="sm" />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                                            {atsProgressMessage || 'Processing ATS analysis...'}
+                                        </p>
+                                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                                            This may take 30-60 seconds. Please wait...
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <AtsFeedbackPanel 
+                            atsScores={atsScores} 
+                            isLoading={isLoadingAts || isScanningAts} 
+                        />
+                    </div>
+
                     {/* Score Overview Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <ScoreCard

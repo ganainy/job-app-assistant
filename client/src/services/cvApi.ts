@@ -66,3 +66,17 @@ export const updateCurrentCv = async (cvData: JsonResumeSchema): Promise<UpdateC
         throw { message: 'An unknown error occurred updating CV data.' };
     }
 };
+
+// Function to delete the current user's CV
+export const deleteCurrentCv = async (): Promise<{ message: string }> => {
+    try {
+        const response = await axios.delete<{ message: string }>(API_BASE_URL); // DELETE /api/cv
+        return response.data;
+    } catch (error: any) {
+        console.error("Delete CV API error:", error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data;
+        }
+        throw { message: 'An unknown error occurred deleting CV data.' };
+    }
+};

@@ -76,7 +76,18 @@ export const getAnalysisResults = async (req: ValidatedRequest, res: Response) =
         throw new AuthorizationError('Unauthorized access to analysis');
     }
 
-    res.json(analysis);
+    // Debug logging to check ATS scores
+    console.log(`[DEBUG] Fetching analysis ${id}:`);
+    console.log(`[DEBUG] - Status: ${analysis.status}`);
+    console.log(`[DEBUG] - Has ATS scores: ${!!analysis.atsScores}`);
+    if (analysis.atsScores) {
+        console.log(`[DEBUG] - ATS scores structure:`, JSON.stringify(analysis.atsScores, null, 2));
+        console.log(`[DEBUG] - ATS Score: ${analysis.atsScores.score}`);
+    }
+
+    // Convert Mongoose document to plain object to ensure proper serialization
+    const analysisObj = analysis.toObject ? analysis.toObject() : analysis;
+    res.json(analysisObj);
 };
 
 export const generateImprovement = async (req: ValidatedRequest, res: Response) => {

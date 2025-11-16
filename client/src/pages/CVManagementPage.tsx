@@ -1,6 +1,6 @@
 // client/src/pages/CVManagementPage.tsx
 import React, { useState, ChangeEvent, FormEvent, useEffect, useRef, useMemo } from 'react';
-import { uploadCV, getCurrentCv, updateCurrentCv } from '../services/cvApi';
+import { uploadCV, getCurrentCv, updateCurrentCv, deleteCurrentCv } from '../services/cvApi';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import Toast from '../components/common/Toast';
@@ -14,6 +14,8 @@ const CVManagementPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isReplacing, setIsReplacing] = useState<boolean>(false);
   
   // Track original CV data for unsaved changes detection
   const originalCvDataRef = useRef<JsonResumeSchema | null>(null);
@@ -119,6 +121,7 @@ const CVManagementPage: React.FC = () => {
       setCurrentCvData(cvData);
       originalCvDataRef.current = cvData ? JSON.parse(JSON.stringify(cvData)) : null;
       setSelectedFile(null);
+      setIsReplacing(false);
       const fileInput = document.getElementById('cvFileInput') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
       setToast({ message: response.message || 'CV uploaded and processed successfully!', type: 'success' });
@@ -153,6 +156,34 @@ const CVManagementPage: React.FC = () => {
   };
 
 
+  const handleDeleteCv = async () => {
+    if (!currentCvData) {
+      return;
+    }
+
+    // Confirm deletion
+    if (!window.confirm('Are you sure you want to delete your CV? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteCurrentCv();
+      setCurrentCvData(null);
+      originalCvDataRef.current = null;
+      setSelectedFile(null);
+      const fileInput = document.getElementById('cvFileInput') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      setToast({ message: 'CV deleted successfully.', type: 'success' });
+    } catch (error: any) {
+      console.error("Error deleting CV:", error);
+      setToast({ message: error.message || 'Failed to delete CV.', type: 'error' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -165,21 +196,35 @@ const CVManagementPage: React.FC = () => {
     <div className="container mx-auto p-4 pb-24">
       <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100">Manage Your CV</h1>
 
-      {/* Upload Section */}
-      <div className="mb-8 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-            <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
+      {/* Upload Section - Only show when no CV exists or when replacing */}
+      {(!currentCvData || isReplacing) && !isLoadingCv && (
+        <div className="mb-8 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+              <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                {isReplacing ? 'Replace CV' : 'Upload CV'}
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {isReplacing 
+                  ? 'Upload a new CV file to replace your existing CV. We will use AI to parse it into a structured format.'
+                  : 'Upload your CV in PDF or RTF format. We will use AI to parse it into a structured format.'}
+              </p>
+            </div>
+            {isReplacing && (
+              <button
+                onClick={() => setIsReplacing(false)}
+                className="ml-auto px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                title="Cancel replacement"
+              >
+                Cancel
+              </button>
+            )}
           </div>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Upload CV</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Upload your CV in PDF or RTF format. We will use AI to parse it into a structured format.
-            </p>
-          </div>
-        </div>
 
         <form onSubmit={handleSubmit}>
           <div
@@ -267,7 +312,70 @@ const CVManagementPage: React.FC = () => {
             )}
           </button>
         </form>
-      </div>
+        </div>
+      )}
+
+      {/* CV Info Section - Show when CV exists and not replacing */}
+      {currentCvData && !isLoadingCv && !isReplacing && (
+        <div className="mb-8 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
+                <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Your CV</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {currentCvData.basics?.name || 'CV uploaded'}
+                  {currentCvData.basics?.label && (
+                    <span className="text-gray-500 dark:text-gray-400"> • {currentCvData.basics.label}</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setIsReplacing(true);
+                  setSelectedFile(null);
+                }}
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
+                title="Replace CV"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Replace CV
+              </button>
+              <button
+                onClick={handleDeleteCv}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors"
+                title="Delete CV"
+              >
+                {isDeleting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete CV
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Editor Section */}
       <div className="p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
@@ -293,21 +401,8 @@ const CVManagementPage: React.FC = () => {
           </div>
         ) : currentCvData ? (
           <div className="space-y-6">
-            {/* JSON Preview */}
-            <details className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
-              <summary className="text-sm font-medium cursor-pointer text-gray-900 dark:text-gray-200 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
-                Preview Raw JSON Data
-              </summary>
-              <pre className="text-xs whitespace-pre-wrap break-words overflow-auto max-h-96 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-3 rounded mt-2">
-                {JSON.stringify(currentCvData, null, 2)}
-              </pre>
-            </details>
-
             {/* CV Editor */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <div>
               <CvFormEditor data={currentCvData} onChange={handleCvChange} />
             </div>
           </div>

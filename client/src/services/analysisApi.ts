@@ -66,6 +66,7 @@ export interface AnalysisResult {
     detailedResults: Record<string, DetailedResultItem>;
     sectionScores: Record<string, SectionScore>;
     errorInfo?: string;
+    atsScores?: any; // ATS scores from backend (optional)
 }
 
 export const analyzeCv = async (cvData: JsonResumeSchema, jobData?: any): Promise<AnalysisResult> => {
@@ -133,6 +134,13 @@ export const getAnalysis = async (analysisId: string): Promise<AnalysisResult> =
         );
         console.log(`Get Analysis (${analysisId}) Response:`, response.data);
         const result = response.data;
+        
+        // Debug logging for ATS scores
+        console.log(`[DEBUG Frontend] Analysis response has atsScores:`, !!result.atsScores);
+        if (result.atsScores) {
+            console.log(`[DEBUG Frontend] ATS scores structure:`, JSON.stringify(result.atsScores, null, 2));
+        }
+        
         // Add transformation logic similar to analyzeCv
         return {
             ...result,

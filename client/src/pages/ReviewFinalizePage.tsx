@@ -4,10 +4,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, updateJobDraft } from '../services/jobApi';
 import { renderFinalPdfs, getDownloadUrl, generateDocuments } from '../services/generatorApi';
 import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi';
+import { scanAts, getAtsScores, getAtsForJob, AtsScores } from '../services/atsApi';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
 import { generateCoverLetter } from '../services/coverLetterApi';
 import { getCurrentCv } from '../services/cvApi';
+import { AtsFeedbackPanel } from '../components/ats';
 import axios from 'axios';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import ErrorAlert from '../components/common/ErrorAlert';
@@ -48,6 +50,15 @@ const ReviewFinalizePage: React.FC = () => {
     const [hasMasterCv, setHasMasterCv] = useState<boolean>(false);
     const [toast, setToast] = useState<ToastState | null>(null);
     const [isJobDescriptionExpanded, setIsJobDescriptionExpanded] = useState<boolean>(false);
+    const [atsScores, setAtsScores] = useState<AtsScores | null>(null);
+    const [isLoadingAts, setIsLoadingAts] = useState<boolean>(false);
+    const [isScanningAts, setIsScanningAts] = useState<boolean>(false);
+    const [atsAnalysisId, setAtsAnalysisId] = useState<string | null>(null);
+    const [atsPollingIntervalId, setAtsPollingIntervalId] = useState<NodeJS.Timeout | null>(null);
+    const [atsProgressMessage, setAtsProgressMessage] = useState<string>('');
+    
+    const ATS_POLLING_INTERVAL_MS = 3000; // Poll more frequently for ATS
+    const ATS_POLLING_TIMEOUT_MS = 120000; // 2 minutes timeout
 
     const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
         setToast({ message, type });
@@ -90,6 +101,167 @@ const ReviewFinalizePage: React.FC = () => {
     useEffect(() => {
         fetchJobData();
     }, [fetchJobData]);
+
+    // Fetch existing ATS scores when job application is loaded
+    useEffect(() => {
+        const fetchExistingAtsScores = async () => {
+            if (jobId && jobApplication) {
+                setIsLoadingAts(true);
+                try {
+                    // Try to find existing ATS analysis for this job
+                    const response = await getAtsForJob(jobId);
+                    if (response.atsScores && response.analysisId) {
+                        setAtsScores(response.atsScores);
+                        setAtsAnalysisId(response.analysisId);
+                        console.log(`[DEBUG Frontend] Found existing ATS scores for job ${jobId}`);
+                    } else {
+                        console.log(`[DEBUG Frontend] No existing ATS scores found for job ${jobId}`);
+                    }
+                } catch (error: any) {
+                    console.error('Error fetching existing ATS scores:', error);
+                    // Don't show error toast, just log it - ATS scores are optional
+                } finally {
+                    setIsLoadingAts(false);
+                }
+            }
+        };
+
+        if (jobApplication) {
+            fetchExistingAtsScores();
+        }
+    }, [jobId, jobApplication]);
+
+    // Cleanup ATS polling on unmount
+    useEffect(() => {
+        return () => {
+            if (atsPollingIntervalId) {
+                clearInterval(atsPollingIntervalId);
+            }
+        };
+    }, [atsPollingIntervalId]);
+
+    const pollAtsScores = useCallback(async (analysisIdToPoll: string, startTime: number, intervalIdRef: NodeJS.Timeout | null) => {
+        try {
+            const response = await getAtsScores(analysisIdToPoll);
+            
+            // Debug logging
+            console.log('[ATS Poll] Response:', response);
+            console.log('[ATS Poll] ATS Scores:', response.atsScores);
+            
+            // Check if we have valid scores - check for score OR any details
+            const hasScores = response.atsScores && (
+                (response.atsScores.score !== null && response.atsScores.score !== undefined) ||
+                (response.atsScores.skillMatchDetails && (
+                    response.atsScores.skillMatchDetails.skillMatchPercentage !== undefined ||
+                    (response.atsScores.skillMatchDetails.matchedSkills && response.atsScores.skillMatchDetails.matchedSkills.length > 0) ||
+                    (response.atsScores.skillMatchDetails.missingSkills && response.atsScores.skillMatchDetails.missingSkills.length > 0)
+                )) ||
+                (response.atsScores.complianceDetails && (
+                    (response.atsScores.complianceDetails.keywordsMatched && response.atsScores.complianceDetails.keywordsMatched.length > 0) ||
+                    (response.atsScores.complianceDetails.keywordsMissing && response.atsScores.complianceDetails.keywordsMissing.length > 0) ||
+                    (response.atsScores.complianceDetails.formattingIssues && response.atsScores.complianceDetails.formattingIssues.length > 0) ||
+                    (response.atsScores.complianceDetails.suggestions && response.atsScores.complianceDetails.suggestions.length > 0)
+                )) ||
+                response.atsScores.error
+            );
+
+            console.log('[ATS Poll] Has scores:', hasScores);
+
+            if (hasScores) {
+                // Results are ready!
+                console.log('[ATS Poll] Setting ATS scores:', response.atsScores);
+                setAtsScores(response.atsScores);
+                setIsScanningAts(false);
+                setAtsProgressMessage('');
+                if (intervalIdRef) {
+                    clearInterval(intervalIdRef);
+                    setAtsPollingIntervalId(null);
+                }
+                showToast('ATS analysis completed successfully!', 'success');
+                return true;
+            }
+
+            // Check for timeout
+            const elapsed = Date.now() - startTime;
+            if (elapsed > ATS_POLLING_TIMEOUT_MS) {
+                setIsScanningAts(false);
+                setAtsProgressMessage('');
+                if (intervalIdRef) {
+                    clearInterval(intervalIdRef);
+                    setAtsPollingIntervalId(null);
+                }
+                showToast('ATS analysis is taking longer than expected. Please try again later.', 'info');
+                return true;
+            }
+
+            // Update progress message
+            const elapsedSeconds = Math.floor(elapsed / 1000);
+            setAtsProgressMessage(`Analyzing your CV... (${elapsedSeconds}s)`);
+            return false;
+        } catch (error: any) {
+            console.error('Error polling ATS scores:', error);
+            // Continue polling on error (might be temporary)
+            return false;
+        }
+    }, []);
+
+    const handleScanAts = async () => {
+        if (!jobApplication || !jobId) {
+            showToast('Job application not loaded', 'error');
+            return;
+        }
+
+        if (!hasMasterCv) {
+            showToast('Please upload your master CV first', 'error');
+            return;
+        }
+
+        if (!jobApplication.jobDescriptionText) {
+            showToast('Please scrape the job description first', 'error');
+            return;
+        }
+
+        // Clear any existing polling
+        if (atsPollingIntervalId) {
+            clearInterval(atsPollingIntervalId);
+            setAtsPollingIntervalId(null);
+        }
+
+        setIsScanningAts(true);
+        setAtsProgressMessage('Starting ATS analysis...');
+        setAtsScores(null); // Clear previous scores
+
+        try {
+            const response = await scanAts(jobId, atsAnalysisId || undefined);
+            setAtsAnalysisId(response.analysisId);
+            showToast('ATS scan started. Analyzing your CV...', 'info');
+            
+            const startTime = Date.now();
+            
+            // Set up interval polling
+            const intervalId = setInterval(async () => {
+                const result = await pollAtsScores(response.analysisId, startTime, intervalId);
+                if (result) {
+                    clearInterval(intervalId);
+                    setAtsPollingIntervalId(null);
+                }
+            }, ATS_POLLING_INTERVAL_MS);
+            
+            setAtsPollingIntervalId(intervalId);
+            
+            // Start polling immediately
+            const checkResult = await pollAtsScores(response.analysisId, startTime, intervalId);
+            if (checkResult) {
+                clearInterval(intervalId);
+                setAtsPollingIntervalId(null);
+            }
+        } catch (error: any) {
+            console.error('Error starting ATS scan:', error);
+            showToast(error.message || 'Failed to start ATS scan.', 'error');
+            setIsScanningAts(false);
+            setAtsProgressMessage('');
+        }
+    };
 
     const handleCvChange = (updatedCv: JsonResumeSchema) => {
         setCvData(updatedCv);
@@ -592,6 +764,146 @@ const ReviewFinalizePage: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* ATS Analysis Section */}
+                {jobApplication.jobDescriptionText && (
+                    <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">ATS Analysis</h2>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                            Analyze your CV compatibility with this job's requirements
+                                        </p>
+                                    </div>
+                                </div>
+                                {atsScores && !isScanningAts && (
+                                    <button
+                                        onClick={handleScanAts}
+                                        disabled={isScanningAts || isLoadingAts || !hasMasterCv}
+                                        className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors text-sm"
+                                        title={!hasMasterCv ? 'Please upload your master CV first' : 'Rescan your CV'}
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        Rescan
+                                    </button>
+                                )}
+                            </div>
+                            
+                            {/* ATS Progress Indicator */}
+                            {isScanningAts && (
+                                <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+                                    <div className="flex items-start gap-4">
+                                        <div className="flex-shrink-0">
+                                            <Spinner size="md" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
+                                                {atsProgressMessage || 'Processing ATS analysis...'}
+                                            </p>
+                                            <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
+                                                Analyzing your CV against the job requirements. This may take 30-60 seconds.
+                                            </p>
+                                            <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                                                <div className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Empty State - No Scores */}
+                            {!atsScores && !isScanningAts && !isLoadingAts && (
+                                <div className="mb-6 p-8 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900/50 dark:to-blue-900/10 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl text-center">
+                                    <div className="max-w-md mx-auto">
+                                        <div className="mb-4 flex justify-center">
+                                            <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                                                <svg className="w-12 h-12 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                                            Ready to Analyze Your CV?
+                                        </h3>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                                            Get instant insights into how well your CV matches this job's requirements. Our AI-powered ATS analysis will check:
+                                        </p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 text-left">
+                                            <div className="flex items-start gap-2">
+                                                <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span className="text-xs text-gray-700 dark:text-gray-300">Skill matching</span>
+                                            </div>
+                                            <div className="flex items-start gap-2">
+                                                <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span className="text-xs text-gray-700 dark:text-gray-300">Keyword optimization</span>
+                                            </div>
+                                            <div className="flex items-start gap-2">
+                                                <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span className="text-xs text-gray-700 dark:text-gray-300">ATS compliance</span>
+                                            </div>
+                                            <div className="flex items-start gap-2">
+                                                <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span className="text-xs text-gray-700 dark:text-gray-300">Improvement tips</span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={handleScanAts}
+                                            disabled={isScanningAts || isLoadingAts || !hasMasterCv}
+                                            className="px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center gap-2 font-semibold transition-all shadow-md hover:shadow-lg mx-auto"
+                                            title={!hasMasterCv ? 'Please upload your master CV first' : 'Start ATS analysis'}
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                            </svg>
+                                            Start ATS Analysis
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!hasMasterCv && !atsScores && (
+                                <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                                    <div className="flex items-start gap-3">
+                                        <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <div>
+                                            <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">
+                                                Master CV Required
+                                            </p>
+                                            <p className="text-xs text-amber-700 dark:text-amber-400">
+                                                You need to upload your master CV first. Go to <Link to="/manage-cv" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-300">CV Management</Link> to upload it.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Show ATS Analysis */}
+                            <AtsFeedbackPanel 
+                                atsScores={atsScores} 
+                                isLoading={isLoadingAts || isScanningAts} 
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {/* CV Generation or Editor Section */}
                 {jobApplication.draftCvJson ? (

@@ -1,10 +1,11 @@
 import { Types } from 'mongoose';
-import CvAnalysis, { ICvAnalysis } from '../models/CvAnalysis'; // Import model and interface
+import CvAnalysis, { ICvAnalysis, IAtsScores } from '../models/CvAnalysis'; // Import model and interface
 import { generateAnalysisFromFile, generateJsonAnalysis, generateStructuredResponse } from '../utils/geminiClient'; // Import the file and JSON analysis functions
 import { calculateScores } from '../utils/analysis/scoringUtil'; // Import scoring utility
 import fs from 'fs'; // Import fs for cleanup
 import path from 'path'; // Import path for determining MIME type
 import { JsonResumeSchema } from '../types/jsonresume'; // Import JSON resume schema
+import { analyzeWithGemini } from './atsGeminiService';
 
 // Define the expected structure for the detailed results from Gemini
 // This should align with the IDetailedResultItem interface in CvAnalysis.ts
@@ -386,5 +387,69 @@ Return the improved content in this format:
         console.error(`Error generating improvement for section ${section}:`, error);
         const errorMessage = error.message || 'Unknown error';
         throw new Error(`Failed to generate improvement: ${errorMessage}. This may be due to AI service issues or invalid input content.`);
+    }
+};
+
+/**
+ * Performs ATS analysis using Gemini AI
+ * @param cvJson - The CV in JSON Resume format
+ * @param analysisId - The analysis document ID to update
+ * @param jobDescription - Optional job description for skill matching
+ * @param jobApplicationId - Optional job application ID for reference
+ */
+export const performAtsAnalysis = async (
+    cvJson: JsonResumeSchema,
+    analysisId: Types.ObjectId,
+    jobDescription?: string,
+    jobApplicationId?: string
+): Promise<void> => {
+    console.log(`Starting Gemini ATS analysis for ID: ${analysisId}`);
+    
+    const atsScores: IAtsScores = {
+        lastAnalyzedAt: new Date(),
+        jobApplicationId: jobApplicationId
+    };
+
+    try {
+        // Call Gemini ATS service
+        const geminiResult = await analyzeWithGemini(cvJson, jobDescription);
+
+        // Map Gemini results to database fields
+        if (geminiResult.error) {
+            atsScores.error = geminiResult.error;
+            console.warn(`Gemini ATS analysis error: ${geminiResult.error}`);
+        } else {
+            atsScores.score = geminiResult.score;
+            atsScores.skillMatchDetails = geminiResult.details.skillMatchDetails;
+            atsScores.complianceDetails = geminiResult.details.complianceDetails;
+        }
+
+        // Update the analysis document with ATS scores
+        const updateResult = await CvAnalysis.findByIdAndUpdate(analysisId, {
+            $set: { atsScores: atsScores }
+        }, { new: true });
+        
+        // Verify the update
+        const verifyAnalysis = await CvAnalysis.findById(analysisId);
+        console.log(`Gemini ATS analysis completed and saved for analysis ID: ${analysisId}`);
+        console.log(`[DEBUG] ATS scores saved - Score: ${atsScores.score}`);
+        console.log(`[DEBUG] Verification - Has ATS scores in DB: ${!!verifyAnalysis?.atsScores}`);
+        if (verifyAnalysis?.atsScores) {
+            console.log(`[DEBUG] Verification - Score: ${verifyAnalysis.atsScores.score}`);
+        }
+    } catch (error: any) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        atsScores.error = errorMessage;
+        console.error(`Gemini ATS analysis failed for ID: ${analysisId}:`, error);
+        
+        // Still save the error state to the database
+        try {
+            await CvAnalysis.findByIdAndUpdate(analysisId, {
+                $set: { atsScores: atsScores }
+            });
+        } catch (dbError: any) {
+            console.error(`FATAL: Failed to update ATS scores for analysis ID: ${analysisId}:`, dbError);
+            throw new Error(`Failed to save ATS analysis results: ${dbError.message}`);
+        }
     }
 };
