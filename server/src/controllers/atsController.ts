@@ -85,6 +85,7 @@ export const scanAts = async (req: ValidatedRequest, res: Response) => {
         : new Types.ObjectId(String(analysis._id));
     
     performAtsAnalysis(
+        userId,
         cvJson,
         analysisObjectId,
         jobDescription,
@@ -160,6 +161,7 @@ export const scanAtsForAnalysis = async (req: ValidatedRequest, res: Response) =
         : new Types.ObjectId(String(analysis._id));
     
     performAtsAnalysis(
+        userId,
         cvJson,
         analysisObjectId,
         jobDescription,

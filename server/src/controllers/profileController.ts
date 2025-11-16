@@ -137,7 +137,8 @@ export const getAggregatedProfile = asyncHandler(
         const linkedinUsername = getUsernameFromUrl(linkedinUrl);
         
         if (linkedinUsername) {
-          const linkedinProfile = await fetchLinkedInProfile(linkedinUsername);
+          const userId = String(user._id);
+          const linkedinProfile = await fetchLinkedInProfile(userId, linkedinUsername);
           if (linkedinProfile) {
             linkedinData = extractLinkedInData(linkedinProfile);
           }

@@ -1,20 +1,22 @@
-import { GoogleGenerativeAI, GoogleGenerativeAIError, Part } from "@google/generative-ai";
+import { GoogleGenerativeAI, GoogleGenerativeAIError, GenerativeModel, Part } from "@google/generative-ai";
 import fs from 'fs'; // Import fs for file reading
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-if (!GEMINI_API_KEY) {
-    console.error("FATAL ERROR: GEMINI_API_KEY is not defined in .env file.");
-    process.exit(1); // Exit if the key is missing
-}
-
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-// Using a model that supports file input (gemini-2.5-flash)
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-// Get a model instance that can handle images (for PDF/DOCX analysis)
-const visionModel = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+/**
+ * Creates a Gemini client instance with the provided API key
+ * @param apiKey - Gemini API key
+ * @returns Object containing model instances
+ */
+export const createGeminiClient = (apiKey: string) => {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  
+  // Using a model that supports file input (gemini-2.5-flash)
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  
+  // Get a model instance that can handle images (for PDF/DOCX analysis)
+  const visionModel = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+  
+  return { model, visionModel };
+};
 
 /**
  * Converts a local file path to a GoogleGenerativeAI.Part object.
@@ -58,6 +60,7 @@ function parseJsonResponse<T>(responseText: string): T {
 
 /**
  * Generates content using the Gemini model with file input and expects a structured JSON response.
+ * @param apiKey - Gemini API key
  * @param prompt The text prompt accompanying the file.
  * @param filePath The path to the local file to be analyzed.
  * @param mimeType The MIME type of the file (e.g., 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document').
@@ -65,9 +68,15 @@ function parseJsonResponse<T>(responseText: string): T {
  * @returns A promise that resolves to the parsed JSON object.
  * @throws Error if the API call fails, content is blocked, or JSON parsing fails.
  */
-async function generateAnalysisFromFile<T>(prompt: string, filePath: string, mimeType: string): Promise<T> {
+export async function generateAnalysisFromFile<T>(
+    apiKey: string,
+    prompt: string,
+    filePath: string,
+    mimeType: string
+): Promise<T> {
     console.log(`Sending file (${mimeType}) and prompt to Gemini for structured analysis...`);
     try {
+        const { visionModel } = createGeminiClient(apiKey);
         const filePart = fileToGenerativePart(filePath, mimeType);
         // Wrap the text prompt in a Part object
         const textPart: Part = { text: prompt };
@@ -106,14 +115,20 @@ async function generateAnalysisFromFile<T>(prompt: string, filePath: string, mim
 
 /**
  * Generates analysis from JSON string.
+ * @param apiKey - Gemini API key
  * @param prompt The text prompt accompanying the JSON content.
  * @param jsonString The JSON string to be analyzed.
  * @param T The expected type of the parsed JSON object.
  * @returns A promise that resolves to the parsed JSON object.
  * @throws Error if the API call fails or JSON parsing fails.
  */
-async function generateJsonAnalysis<T>(prompt: string, jsonString: string): Promise<T> {
+export async function generateJsonAnalysis<T>(
+    apiKey: string,
+    prompt: string,
+    jsonString: string
+): Promise<T> {
     try {
+        const { model } = createGeminiClient(apiKey);
         // Combine the prompt with the JSON content
         const combinedPrompt = `${prompt}\n\nAnalyze the following CV in JSON Resume format:\n\n${jsonString}`;
 
@@ -128,10 +143,18 @@ async function generateJsonAnalysis<T>(prompt: string, jsonString: string): Prom
     }
 }
 
-// Keep the text-based one for potential other uses if needed, or remove if only file analysis is used.
-async function generateStructuredResponse<T>(prompt: string): Promise<T> {
+/**
+ * Generates a structured response from a text prompt.
+ * @param apiKey - Gemini API key
+ * @param prompt The text prompt.
+ * @param T The expected type of the parsed JSON object.
+ * @returns A promise that resolves to the parsed JSON object.
+ * @throws Error if the API call fails or JSON parsing fails.
+ */
+export async function generateStructuredResponse<T>(apiKey: string, prompt: string): Promise<T> {
     console.log("Sending prompt to Gemini for structured response...");
     try {
+        const { model } = createGeminiClient(apiKey);
         // Add explicit instruction for JSON format with escaped backticks
         const jsonPrompt = `${prompt}\n\nIMPORTANT: Your response MUST be a valid JSON object wrapped in triple backticks (\`\`\`json). Do not include any additional text outside the JSON block.`;
 
@@ -191,5 +214,12 @@ async function generateStructuredResponse<T>(prompt: string): Promise<T> {
     }
 }
 
-// Export the new function and potentially the old ones if still needed
-export { model as geminiModel, generateStructuredResponse, generateAnalysisFromFile, generateJsonAnalysis };
+/**
+ * Creates a model instance for direct use (for backward compatibility where needed)
+ * @param apiKey - Gemini API key
+ * @returns GenerativeModel instance
+ */
+export const getGeminiModel = (apiKey: string): GenerativeModel => {
+    const { model } = createGeminiClient(apiKey);
+    return model;
+};

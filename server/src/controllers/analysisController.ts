@@ -140,8 +140,12 @@ export const analyzeCvSection = async (req: ValidatedRequest, res: Response) => 
     }
 
     try {
+        if (!req.user) {
+            throw new ValidationError('User not authenticated');
+        }
+        const userId = String(req.user._id);
         const { getSectionAnalysis } = await import('../services/analysisService');
-        const analysis = await getSectionAnalysis(sectionName, sectionData);
+        const analysis = await getSectionAnalysis(userId, sectionName, sectionData);
         res.json(analysis);
     } catch (error: any) {
         console.error('Error in analyzeCvSection:', error);
@@ -157,8 +161,11 @@ export const analyzeAllCvSections = async (req: ValidatedRequest, res: Response)
     }
 
     try {
+        if (!req.user) {
+            throw new ValidationError('User not authenticated');
+        }
         const { getAllSectionsAnalysis } = await import('../services/analysisService');
-        const userId = req.user?.id;
+        const userId = String(req.user._id);
         const analyses = await getAllSectionsAnalysis(cvData, userId);
         res.json(analyses);
     } catch (error: any) {

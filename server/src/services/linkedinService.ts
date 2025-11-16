@@ -1,6 +1,7 @@
 // server/src/services/linkedinService.ts
 import Profile from '../models/Profile';
 import { InternalServerError } from '../utils/errors/AppError';
+import { getApifyToken } from '../utils/apiKeyHelpers';
 
 interface LinkedInProfileData {
   basic_info?: {
@@ -72,14 +73,11 @@ export const getUsernameFromUrl = (url: string | null | undefined): string | nul
 
 /**
  * Fetch LinkedIn profile using Apify API
+ * @param userId - User ID (required to get their Apify token)
+ * @param username - LinkedIn username
  */
-export const fetchLinkedInProfile = async (username: string): Promise<LinkedInProfileData | null> => {
-  const apiToken = process.env.APIFY_TOKEN;
-  if (!apiToken || apiToken === 'your_apify_token_here' || apiToken === 'your_apify_api_token_here') {
-    throw new InternalServerError(
-      `Apify API token is missing or invalid. Current value: ${apiToken ? 'set but may be placeholder' : 'not set'}. Please check server/.env file.`
-    );
-  }
+export const fetchLinkedInProfile = async (userId: string, username: string): Promise<LinkedInProfileData | null> => {
+  const apiToken = await getApifyToken(userId);
 
   const apiUrl = `https://api.apify.com/v2/acts/apimaestro~linkedin-profile-detail/run-sync-get-dataset-items?token=${apiToken}`;
   const requestBody = { username, includeEmail: true };

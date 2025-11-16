@@ -19,6 +19,7 @@ import githubRoutes from './routes/github';
 import linkedinRoutes from './routes/linkedin';
 import profileRoutes from './routes/profile';
 import projectRoutes from './routes/projects';
+import settingsRoutes from './routes/settings';
 // Correct the import for the default export
 import protect from './middleware/authMiddleware'; // Import default export and alias it as 'protect'
 import { errorHandler } from './middleware/errorHandler';
@@ -50,6 +51,7 @@ app.use('/api/github', githubRoutes); // GitHub routes (public for viewing, prot
 app.use('/api/linkedin', linkedinRoutes); // LinkedIn routes (protected)
 app.use('/api/profile', profileRoutes); // Profile routes (public aggregated, protected for updates)
 app.use('/api/projects', projectRoutes); // Project routes (public viewing, protected for CRUD)
+app.use('/api/settings', settingsRoutes); // Settings routes (protected)
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

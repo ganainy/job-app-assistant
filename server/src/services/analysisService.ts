@@ -8,6 +8,7 @@ import { JsonResumeSchema } from '../types/jsonresume'; // Import JSON resume sc
 import { analyzeWithGemini } from './atsGeminiService';
 import crypto from 'crypto';
 import User from '../models/User';
+import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 
 // Define the expected structure for the detailed results from Gemini
 // This should align with the IDetailedResultItem interface in CvAnalysis.ts
@@ -148,9 +149,14 @@ export const performAnalysis = async (filePath: string, userId: string | Types.O
 
     try {
         const mimeType = getMimeType(filePath);
+        const userIdStr = userId.toString();
+        
+        // Get user's Gemini API key
+        const apiKey = await getGeminiApiKey(userIdStr);
 
         // 1. Call Gemini with the file and master prompt
         analysisResults = await generateAnalysisFromFile<GeminiAnalysisResult>(
+            apiKey,
             MASTER_ANALYSIS_PROMPT,
             filePath,
             mimeType
@@ -241,8 +247,13 @@ export const performJsonAnalysis = async (
 
         console.log('Analyzing sections:', sectionsToAnalyze);
 
+        // Get user's Gemini API key
+        const userIdStr = userId.toString();
+        const apiKey = await getGeminiApiKey(userIdStr);
+
         // Generate initial analysis
         analysisResults = await generateJsonAnalysis<GeminiAnalysisResult>(
+            apiKey,
             prompt,
             cvString
         );
@@ -377,7 +388,9 @@ Return the improved content in this format:
 \`\`\``;
 
     try {
-        const response = await generateStructuredResponse<{ content: string }>(fullPrompt);
+        const userIdString = String(analysis.userId);
+        const apiKey = await getGeminiApiKey(userIdString);
+        const response = await generateStructuredResponse<{ content: string }>(apiKey, fullPrompt);
         const improvedContent = response?.content?.trim();
 
         if (!improvedContent) {
@@ -394,12 +407,14 @@ Return the improved content in this format:
 
 /**
  * Performs ATS analysis using Gemini AI
+ * @param userId - User ID (required to get their Gemini API key)
  * @param cvJson - The CV in JSON Resume format
  * @param analysisId - The analysis document ID to update
  * @param jobDescription - Optional job description for skill matching
  * @param jobApplicationId - Optional job application ID for reference
  */
 export const performAtsAnalysis = async (
+    userId: string | Types.ObjectId,
     cvJson: JsonResumeSchema,
     analysisId: Types.ObjectId,
     jobDescription?: string,
@@ -413,8 +428,9 @@ export const performAtsAnalysis = async (
     };
 
     try {
+        const userIdStr = userId.toString();
         // Call Gemini ATS service
-        const geminiResult = await analyzeWithGemini(cvJson, jobDescription);
+        const geminiResult = await analyzeWithGemini(userIdStr, cvJson, jobDescription);
 
         // Map Gemini results to database fields
         if (geminiResult.error) {
@@ -480,23 +496,23 @@ export const generateCvHash = (cvJson: JsonResumeSchema): string => {
  */
 export const getAllSectionsAnalysis = async (
     cvJson: JsonResumeSchema,
-    userId?: string | Types.ObjectId
+    userId: string | Types.ObjectId
 ): Promise<Record<string, Array<{ needsImprovement: boolean; feedback: string }>>> => {
-    // Check cache first if userId is provided
-    if (userId) {
-        try {
-            const user = await User.findById(userId).select('cvAnalysisCache');
-            if (user?.cvAnalysisCache) {
-                const currentHash = generateCvHash(cvJson);
-                if (user.cvAnalysisCache.cvHash === currentHash && user.cvAnalysisCache.analyses) {
-                    console.log('Using cached analysis results');
-                    return user.cvAnalysisCache.analyses as Record<string, Array<{ needsImprovement: boolean; feedback: string }>>;
-                }
+    const userIdString = String(userId);
+    
+    // Check cache first
+    try {
+        const user = await User.findById(userId).select('cvAnalysisCache');
+        if (user?.cvAnalysisCache) {
+            const currentHash = generateCvHash(cvJson);
+            if (user.cvAnalysisCache.cvHash === currentHash && user.cvAnalysisCache.analyses) {
+                console.log('Using cached analysis results');
+                return user.cvAnalysisCache.analyses as Record<string, Array<{ needsImprovement: boolean; feedback: string }>>;
             }
-        } catch (error) {
-            console.warn('Error checking analysis cache:', error);
-            // Continue with fresh analysis if cache check fails
         }
+    } catch (error) {
+        console.warn('Error checking analysis cache:', error);
+        // Continue with fresh analysis if cache check fails
     }
 
     console.log('Analyzing all CV sections in one request');
@@ -549,7 +565,9 @@ Guidelines:
 `;
 
     try {
+        const apiKey = await getGeminiApiKey(userIdString);
         const response = await generateStructuredResponse<Record<string, Array<{ needsImprovement: boolean; feedback: string }>>>(
+            apiKey,
             fullAnalysisPrompt
         );
 
@@ -625,15 +643,18 @@ Guidelines:
 
 /**
  * Analyzes a single CV section and returns feedback (kept for backward compatibility, but deprecated)
+ * @param userId - The user ID to get the API key for
  * @param sectionName - The name of the section (e.g., "work", "education", "skills")
  * @param sectionData - The JSON object for a single section item
  * @returns Analysis result with needsImprovement flag and feedback message
  * @deprecated Use getAllSectionsAnalysis instead for better efficiency
  */
 export const getSectionAnalysis = async (
+    userId: string | Types.ObjectId,
     sectionName: string,
     sectionData: any
 ): Promise<{ needsImprovement: boolean; feedback: string }> => {
+    const userIdString = String(userId);
     console.log(`Analyzing CV section: ${sectionName}`);
 
     const sectionAnalysisPrompt = `
@@ -662,7 +683,9 @@ Guidelines:
 `;
 
     try {
+        const apiKey = await getGeminiApiKey(userIdString);
         const response = await generateStructuredResponse<{ needsImprovement: boolean; feedback: string }>(
+            apiKey,
             sectionAnalysisPrompt
         );
 

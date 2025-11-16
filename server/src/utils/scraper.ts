@@ -1,8 +1,9 @@
 // server/src/utils/scraper.ts
 import axios from 'axios';
 // Correct the import to use a named import
-import { geminiModel } from './geminiClient'; // Need Gemini client here
+import { getGeminiModel } from './geminiClient'; // Need Gemini client here
 import { GoogleGenerativeAIError } from '@google/generative-ai'; // Import error type
+import { getGeminiApiKey } from './apiKeyHelpers';
 import { cleanHtmlForAi } from './htmlCleaner';
 
 // Keep fetchHtml function (modified slightly for clarity)
@@ -33,7 +34,7 @@ async function fetchHtml(url: string): Promise<string> {
 }
 
 // NEW: Function to extract description using Gemini
-async function extractDescriptionWithGemini(htmlContent: string, url: string): Promise<string | null> {
+async function extractDescriptionWithGemini(htmlContent: string, url: string, userId: string): Promise<string | null> {
     console.log(`Requesting Gemini to extract description from HTML (length: ${htmlContent.length}) for URL: ${url}`);
 
     // Clean HTML to remove noise and extract main content before truncation
@@ -54,7 +55,11 @@ async function extractDescriptionWithGemini(htmlContent: string, url: string): P
     `;
 
     try {
-        const result = await geminiModel.generateContent(prompt);
+        // Get user's Gemini API key
+        const apiKey = await getGeminiApiKey(userId);
+        const model = getGeminiModel(apiKey);
+        
+        const result = await model.generateContent(prompt);
         const response = result.response;
         const extractedText = response.text()?.trim(); // Get text and trim whitespace
 
@@ -81,7 +86,7 @@ async function extractDescriptionWithGemini(htmlContent: string, url: string): P
 
 
 // --- Modified Main Scraper Function ---
-export async function scrapeJobDescription(url: string): Promise<string> {
+export async function scrapeJobDescription(url: string, userId: string): Promise<string> {
     console.log(`Starting AI-powered scrape for URL: ${url}`);
     if (!url || !url.startsWith('http')) {
         throw new Error("Invalid or missing URL provided for scraping.");
@@ -91,7 +96,7 @@ export async function scrapeJobDescription(url: string): Promise<string> {
     const html = await fetchHtml(url);
 
     // Step 2: Extract Description using Gemini
-    const description = await extractDescriptionWithGemini(html, url);
+    const description = await extractDescriptionWithGemini(html, url, userId);
 
     // Step 3: Check result
     if (!description) {

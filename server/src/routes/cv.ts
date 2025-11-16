@@ -4,8 +4,10 @@ import multer from 'multer';
 import authMiddleware from '../middleware/authMiddleware';
 import User from '../models/User';
 // Correct the import to use a named import
-import { geminiModel } from '../utils/geminiClient'; // Import configured Gemini model
+import { getGeminiModel } from '../utils/geminiClient'; // Import configured Gemini model
 import { GoogleGenerativeAIError } from '@google/generative-ai';
+import { getGeminiApiKey } from '../utils/apiKeyHelpers';
+import { NotFoundError } from '../utils/errors/AppError';
 import { JsonResumeSchema } from '../types/jsonresume';
 import { generateCvPdfBuffer } from '../utils/pdfGenerator';
 
@@ -113,9 +115,14 @@ router.post(
                 Return ONLY a single, valid JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`) that strictly adheres to the JSON Resume Schema structure. Do not include any explanatory text before or after the JSON block.
             `;
 
-            // 3. Call Gemini API (as before)
+            // 3. Get user's Gemini API key and create model
+            const userId = String(req.user._id);
+            const apiKey = await getGeminiApiKey(userId);
+            const model = getGeminiModel(apiKey);
+            
+            // Call Gemini API (as before)
             console.log("Sending CV parsing request to Gemini...");
-            const result = await geminiModel.generateContent([prompt, fileDataPart]); // Send prompt and file data
+            const result = await model.generateContent([prompt, fileDataPart]); // Send prompt and file data
             const response = result.response;
             const responseText = response.text();
             console.log("Received CV parsing response from Gemini.");
@@ -147,6 +154,13 @@ router.post(
 
         } catch (error: any) {
             console.error("CV Upload/Parsing Error:", error);
+            
+            // Preserve NotFoundError (e.g., missing API key) with its detailed message and status code
+            if (error instanceof NotFoundError || (error?.statusCode === 404 && error?.isOperational)) {
+                res.status(404).json({ message: error.message });
+                return;
+            }
+            
             // Handle specific errors (file type, AI block, parsing fail)
             if (error instanceof Error && error.message.includes("Invalid file type")) {
                 res.status(400).json({ message: error.message });
@@ -161,7 +175,11 @@ router.post(
                 res.status(400).json({ message: `Content processing blocked by AI: ${blockReason || 'Unknown reason'}` });
                 return;
             }
-            res.status(500).json({ message: 'Failed to process CV.', error: error.message || 'Unknown server error' });
+            
+            // For other errors, preserve the original message if available
+            res.status(500).json({ 
+                message: error?.message || 'Failed to process CV. Unknown server error' 
+            });
         }
     }
 );

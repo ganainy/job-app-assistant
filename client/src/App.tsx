@@ -13,6 +13,7 @@ import ReviewFinalizePage from './pages/ReviewFinalizePage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import PortfolioPage from './pages/PortfolioPage';
 import PortfolioSetupPage from './pages/PortfolioSetupPage';
+import SettingsPage from './pages/SettingsPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
@@ -163,7 +164,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/" element={<LoginPage />} />
-            <Route path="*" element={<div className="text-center p-10 text-slate-600 dark:text-slate-400">404 - Page Not Found</div>} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </main>
       </div>
@@ -235,6 +236,17 @@ function App() {
                 </svg>
                 <span>Portfolio</span>
               </Link>
+              <Link
+                to="/settings"
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActiveRoute('/settings')
+                    ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
+                }`}
+              >
+                <SettingsIcon />
+                <span>Settings</span>
+              </Link>
             </div>
 
             {/* Right Side Actions */}
@@ -280,10 +292,13 @@ function App() {
       {/* Main Content */}
       <main className="bg-slate-50 dark:bg-slate-900">
         <Routes>
+          <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/register" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/manage-cv" element={<ProtectedRoute><CVManagementPage /></ProtectedRoute>} />
           <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
           <Route path="/portfolio-setup" element={<ProtectedRoute><PortfolioSetupPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route
             path="/jobs/:jobId/review"
             element={
@@ -292,6 +307,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<div className="text-center p-10 dark:text-gray-300">404 - Page Not Found</div>} />
         </Routes>
       </main>

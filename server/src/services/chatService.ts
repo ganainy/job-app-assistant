@@ -1,8 +1,9 @@
 // Chat service for AI-powered job description Q&A
-import { geminiModel } from '../utils/geminiClient';
+import { getGeminiModel } from '../utils/geminiClient';
 import JobApplication, { IJobApplication } from '../models/JobApplication';
 import { Types } from 'mongoose';
 import { NotFoundError, ValidationError } from '../utils/errors/AppError';
+import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 
 /**
  * Get AI chat response for a job application question and save to history
@@ -56,8 +57,12 @@ ${userQuestion}
 Please provide a clear and helpful answer based solely on the job description above. If the job description doesn't contain enough information to answer the question, please say so.`;
 
     try {
+        // Get user's Gemini API key
+        const apiKey = await getGeminiApiKey(userId);
+        const model = getGeminiModel(apiKey);
+        
         // Call Gemini API to generate response
-        const result = await geminiModel.generateContent(prompt);
+        const result = await model.generateContent(prompt);
         const response = result.response;
 
         // Check for blocking or lack of content

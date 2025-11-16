@@ -1,6 +1,7 @@
 // server/src/routes/auth.ts
 import express, { Router, Request, Response, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import User from '../models/User'; // Import User model
 import { validateRequest } from '../middleware/validateRequest';
 import { registerBodySchema, loginBodySchema } from '../validations/authSchemas';
@@ -11,12 +12,17 @@ const router: Router = express.Router();
 
 // --- Environment Variable for JWT Secret ---
 // IMPORTANT: Set this in your server/.env file!
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-    console.error("FATAL ERROR: JWT_SECRET is not defined in .env file.");
-    process.exit(1);
-}
-const JWT_EXPIRY = process.env.JWT_EXPIRY || '1d'; // Default to 1 day expiry
+const getJwtSecret = (): string => {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+        console.error("FATAL ERROR: JWT_SECRET is not defined in .env file.");
+        process.exit(1);
+    }
+    return secret;
+};
+
+const JWT_SECRET: string = getJwtSecret();
+const JWT_EXPIRY: string = process.env.JWT_EXPIRY || '1d'; // Default to 1 day expiry
 
 // --- Registration Route ---
 // POST /api/auth/register
@@ -42,7 +48,10 @@ router.post('/register', validateRequest({ body: registerBodySchema }), async (r
         await newUser.save();
 
         // Don't usually log user in immediately after register, make them log in separately
-        res.status(201).json({ message: 'User registered successfully. Please log in.' });
+        res.status(201).json({ 
+            message: 'User registered successfully. Please log in.',
+            requiresApiKeys: true 
+        });
 
     } catch (error) {
         console.error("Registration Error:", error);
@@ -77,8 +86,8 @@ router.post('/login', validateRequest({ body: loginBodySchema }), async (req: Va
         }
 
         // --- Generate JWT ---
-        const payload = {
-            userId: user._id,
+        const payload: { userId: string; email: string } = {
+            userId: String(user._id),
             email: user.email,
             // Add other relevant non-sensitive info if needed (e.g., roles)
         };
@@ -86,7 +95,7 @@ router.post('/login', validateRequest({ body: loginBodySchema }), async (req: Va
         const token = jwt.sign(
             payload,
             JWT_SECRET,
-            { expiresIn: JWT_EXPIRY }
+            { expiresIn: JWT_EXPIRY as any }
         );
 
         // Send token back to client

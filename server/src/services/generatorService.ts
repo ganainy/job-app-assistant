@@ -1,12 +1,15 @@
 import { generateStructuredResponse } from '../utils/geminiClient';
+import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 
 /**
  * Improves a CV section using AI
+ * @param userId - The user ID to get the API key for
  * @param sectionName - The name of the section (e.g., "work", "education", "skills")
  * @param sectionData - The original section data from the frontend
  * @returns The improved section data in the same JSON structure
  */
 export const improveSectionWithAi = async (
+    userId: string,
     sectionName: string,
     sectionData: any
 ): Promise<any> => {
@@ -57,7 +60,8 @@ Output should be:
 `;
 
     try {
-        const improvedData = await generateStructuredResponse<any>(improvementPrompt);
+        const apiKey = await getGeminiApiKey(userId);
+        const improvedData = await generateStructuredResponse<any>(apiKey, improvementPrompt);
 
         if (!improvedData || typeof improvedData !== 'object') {
             throw new Error('AI response did not return valid section data');

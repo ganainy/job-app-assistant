@@ -169,7 +169,8 @@ const scrapeJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
     return;
   }
   const { id: jobId } = req.validated!.params!; // Get jobId from validated params
-  const userId = req.user._id;
+  const userId = req.user._id as mongoose.Types.ObjectId; // Keep as ObjectId for DB operations
+  const userIdString = userId.toString(); // Convert to string for function calls
   let jobUrlToScrape = req.validated!.body?.url; // Optionally allow passing URL in body
 
   try {
@@ -193,7 +194,7 @@ const scrapeJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
 
     // 3. Call the scraper utility
     console.log(`Attempting to scrape description for job ${jobId} from URL: ${jobUrlToScrape}`);
-    const extractedText = await scrapeJobDescription(jobUrlToScrape); // This can throw errors
+    const extractedText = await scrapeJobDescription(jobUrlToScrape, userIdString); // This can throw errors
 
     // 4. Update the job application in the database
     const updatedJob = await JobApplication.findOneAndUpdate(
@@ -235,12 +236,13 @@ const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, re
   }
   const { url } = req.validated!.body!; // Expect URL in the validated request body
 
-  const userId = req.user._id;
+  const userId = req.user._id as mongoose.Types.ObjectId; // Keep as ObjectId for DB operations
+  const userIdString = userId.toString(); // Convert to string for function calls
 
   try {
-    console.log(`Attempting to create job from URL for user ${userId}: ${url}`);
+    console.log(`Attempting to create job from URL for user ${userIdString}: ${url}`);
     // 1. Call the AI extractor utility
-    const extractedData: ExtractedJobData = await extractJobDataFromUrl(url);
+    const extractedData: ExtractedJobData = await extractJobDataFromUrl(url, userIdString);
 
     // 2. Create a new JobApplication document
     // Note: We trust the extractor threw an error if essential fields were null
@@ -264,10 +266,18 @@ const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, re
 
   } catch (error: any) {
     console.error(`Failed to create job from URL ${url}:`, error);
-    // Provide more specific feedback based on the error thrown by the extractor
+    
+    // Preserve the original error message and status code if it's an AppError
+    if (error?.statusCode && error?.isOperational) {
+      res.status(error.statusCode).json({
+        message: error.message || 'Failed to create job from URL.'
+      });
+      return;
+    }
+    
+    // For other errors, provide more specific feedback
     res.status(500).json({
-      message: 'Failed to create job from URL.',
-      error: error.message || 'Unknown server error during URL processing.'
+      message: error?.message || 'Failed to create job from URL. Unknown server error during URL processing.'
     });
   }
 };

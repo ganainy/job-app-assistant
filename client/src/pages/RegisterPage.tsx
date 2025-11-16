@@ -197,12 +197,13 @@ const RegisterPage: React.FC = () => {
     }
   };
 
-  // Reset form on success
+  // Redirect to Settings after successful registration
   useEffect(() => {
     if (registrationSuccess) {
       const timer = setTimeout(() => {
-        navigate('/login');
-      }, 2000);
+        // Redirect to Settings page with onboarding flag
+        navigate('/settings', { state: { fromRegistration: true } });
+      }, 1500);
       return () => clearTimeout(timer);
     }
   }, [registrationSuccess, navigate]);
@@ -273,7 +274,7 @@ const RegisterPage: React.FC = () => {
           {registrationSuccess && (
             <div className="p-4 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm rounded-lg border border-green-200 dark:border-green-800 flex items-start gap-2 animate-slide-in">
               <SuccessIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <span>Registration successful! Redirecting to login...</span>
+              <span>Registration successful! Redirecting to settings to configure API keys...</span>
             </div>
           )}
 

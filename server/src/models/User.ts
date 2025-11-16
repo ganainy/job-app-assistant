@@ -32,7 +32,7 @@ const UserSchema: Schema = new Schema(
     username: {
       type: String,
       unique: true,
-      sparse: true, // Allows multiple null values
+      sparse: true, // Allows multiple null/undefined values - only enforces uniqueness for non-null values
       trim: true,
       lowercase: true,
     },
@@ -90,5 +90,7 @@ UserSchema.methods.comparePassword = function(candidatePassword: string): Promis
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
+// Note: Username index is automatically created by the field definition with unique: true and sparse: true
+// No need for a separate UserSchema.index() call
 
 export default mongoose.model<IUser>('User', UserSchema);

@@ -1,5 +1,6 @@
 // client/src/pages/PortfolioSetupPage.tsx
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   getCurrentUserProfile,
@@ -127,7 +128,15 @@ const PortfolioSetupPage: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [isTogglingPublish, setIsTogglingPublish] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linkedInError, setLinkedInError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Helper to check if error is about missing API key
+  const isApiKeyError = (errorMessage: string): boolean => {
+    return errorMessage.toLowerCase().includes('api key') || 
+           errorMessage.toLowerCase().includes('apify') ||
+           errorMessage.toLowerCase().includes('gemini');
+  };
   
   // Connection status
   const [isGitHubConnected, setIsGitHubConnected] = useState(false);
@@ -396,7 +405,20 @@ const PortfolioSetupPage: React.FC = () => {
     try {
       setIsSyncing(true);
       setError(null);
+      setLinkedInError(null);
 
+      // First, save the LinkedIn URL to the profile if it's provided
+      if (linkedinUrl) {
+        await updateProfile({
+          socialLinks: {
+            linkedin: linkedinUrl,
+            // Preserve existing social links
+            github: profile?.socialLinks?.github,
+          },
+        });
+      }
+
+      // Then sync the LinkedIn profile
       await syncLinkedIn();
       setToast({ message: 'LinkedIn profile synced successfully!', type: 'success' });
       
@@ -417,7 +439,8 @@ const PortfolioSetupPage: React.FC = () => {
       const hasLinkedInExtendedData = !!(data.profile?.linkedInExperience?.length || data.profile?.linkedInSkills?.length || data.profile?.linkedInLanguages?.length);
       setIsLinkedInConnected(isLinkedInSynced || hasLinkedInExtendedData);
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to sync LinkedIn profile';
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to sync LinkedIn profile';
+      setLinkedInError(errorMessage);
       setError(errorMessage);
       setToast({ message: errorMessage, type: 'error' });
     } finally {
@@ -735,6 +758,57 @@ const PortfolioSetupPage: React.FC = () => {
                         )}
                       </button>
                     </div>
+
+                    {/* LinkedIn Error Display */}
+                    {linkedInError && (
+                      <div className={`w-full mt-3 p-4 rounded-lg border ${
+                        isApiKeyError(linkedInError)
+                          ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                          : 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-800'
+                      }`}>
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-0.5">
+                            {isApiKeyError(linkedInError) ? (
+                              <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className={`text-sm font-semibold mb-1 ${
+                              isApiKeyError(linkedInError)
+                                ? 'text-amber-800 dark:text-amber-300'
+                                : 'text-red-800 dark:text-red-300'
+                            }`}>
+                              {isApiKeyError(linkedInError) ? 'API Key Required' : 'Sync Error'}
+                            </h3>
+                            <p className={`text-sm mb-3 ${
+                              isApiKeyError(linkedInError)
+                                ? 'text-amber-700 dark:text-amber-400'
+                                : 'text-red-700 dark:text-red-400'
+                            }`}>
+                              {linkedInError}
+                            </p>
+                            {isApiKeyError(linkedInError) && (
+                              <Link
+                                to="/settings"
+                                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-amber-600 hover:bg-amber-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Go to Settings
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-2 mt-4 text-sm">
                       {isLinkedInConnected ? (

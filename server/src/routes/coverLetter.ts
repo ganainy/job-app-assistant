@@ -59,6 +59,7 @@ const generateCoverLetterHandler: RequestHandler = async (req, res) => {
         // 3. Generate Cover Letter
         console.log(`Generating cover letter for job ${jobId}...`);
         const coverLetterText = await generateCoverLetter(
+            userId,
             baseCvJson,
             job.jobDescriptionText,
             job.jobTitle,

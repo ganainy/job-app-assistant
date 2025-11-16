@@ -1,10 +1,12 @@
 // server/src/services/coverLetterService.ts
-import { geminiModel } from '../utils/geminiClient';
+import { getGeminiModel } from '../utils/geminiClient';
+import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 import { JsonResumeSchema } from '../types/jsonresume';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 
 /**
  * Generates a cover letter using Gemini API based on CV data and job description
+ * @param userId The user ID to get the API key for
  * @param cvJson The user's CV in JSON Resume format
  * @param jobDescription The job description text
  * @param jobTitle The job title
@@ -13,6 +15,7 @@ import { GoogleGenerativeAIError } from '@google/generative-ai';
  * @returns The generated cover letter text
  */
 export async function generateCoverLetter(
+    userId: string,
     cvJson: JsonResumeSchema,
     jobDescription: string,
     jobTitle: string,
@@ -89,7 +92,9 @@ Write a professional cover letter in ${languageName} following these guidelines:
     try {
         console.log(`Generating ${languageName} cover letter for ${jobTitle} at ${companyName}...`);
         
-        const result = await geminiModel.generateContent(prompt);
+        const apiKey = await getGeminiApiKey(userId);
+        const model = getGeminiModel(apiKey);
+        const result = await model.generateContent(prompt);
         const response = result.response;
         
         if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content) {

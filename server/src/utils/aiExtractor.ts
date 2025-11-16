@@ -1,9 +1,11 @@
 // server/src/utils/aiExtractor.ts
 import axios from 'axios';
 // Correct the import to use a named import
-import { geminiModel } from './geminiClient';
+import { getGeminiModel } from './geminiClient';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
+import { getGeminiApiKey } from './apiKeyHelpers';
 import { cleanHtmlForAi } from './htmlCleaner';
+import { NotFoundError } from './errors/AppError';
 
 // Define the expected structure returned by Gemini
 export interface ExtractedJobData {
@@ -74,7 +76,7 @@ function parseExtractionResponse(responseText: string): ExtractedJobData {
 
 
 // Main function using Gemini to extract data from HTML
-async function extractFieldsWithGemini(htmlContent: string, url: string): Promise<ExtractedJobData> {
+async function extractFieldsWithGemini(htmlContent: string, url: string, userId: string): Promise<ExtractedJobData> {
     console.log(`Requesting Gemini to extract fields from HTML (length: ${htmlContent.length}) for URL: ${url}`);
     const maxHtmlLength = 100000; // Maximum length after cleaning
     // Clean HTML to remove noise and extract main content before truncation
@@ -116,7 +118,11 @@ async function extractFieldsWithGemini(htmlContent: string, url: string): Promis
     `;
 
     try {
-        const result = await geminiModel.generateContent(prompt);
+        // Get user's Gemini API key
+        const apiKey = await getGeminiApiKey(userId);
+        const model = getGeminiModel(apiKey);
+        
+        const result = await model.generateContent(prompt);
         const response = result.response;
         const responseText = response.text();
         console.log("Received field extraction response from Gemini.");
@@ -124,21 +130,34 @@ async function extractFieldsWithGemini(htmlContent: string, url: string): Promis
 
     } catch (error: any) {
         console.error("Error during Gemini field extraction:", error);
+        
+        // Preserve NotFoundError (e.g., missing API key) with its detailed message
+        if (error instanceof NotFoundError) {
+            throw error;
+        }
+        
+        // Handle Gemini API errors
         if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
             const blockReason = error.response?.promptFeedback?.blockReason;
             throw new Error(`AI content generation blocked during extraction: ${blockReason || 'Unknown reason'}`);
         }
+        
+        // For other errors, preserve the original message if available
+        if (error?.message) {
+            throw new Error(error.message);
+        }
+        
         throw new Error("Failed to get valid extraction response from AI service.");
     }
 }
 
 // Main exported function for this utility
-export async function extractJobDataFromUrl(url: string): Promise<ExtractedJobData> {
+export async function extractJobDataFromUrl(url: string, userId: string): Promise<ExtractedJobData> {
     if (!url || !url.startsWith('http')) {
         throw new Error("Invalid or missing URL provided.");
     }
     const html = await fetchHtml(url);
-    const extractedData = await extractFieldsWithGemini(html, url);
+    const extractedData = await extractFieldsWithGemini(html, url, userId);
 
     // Add final check for essential nulls after AI processing
     // Note: jobDescriptionText may have been set to a fallback value in parseExtractionResponse

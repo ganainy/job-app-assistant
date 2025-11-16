@@ -49,7 +49,7 @@ export const syncLinkedInProfile = asyncHandler(
     }
 
     // Fetch LinkedIn profile
-    const profileData = await fetchLinkedInProfile(username);
+    const profileData = await fetchLinkedInProfile(userId, username);
 
     if (!profileData) {
       throw new NotFoundError('No LinkedIn profile data returned from Apify');
@@ -97,7 +97,7 @@ export const getLinkedInProfile = asyncHandler(
 
     // For now, we'll fetch fresh data. In the future, we can add caching.
     try {
-      const profileData = await fetchLinkedInProfile(username);
+      const profileData = await fetchLinkedInProfile(userId, username);
       if (!profileData) {
         throw new NotFoundError('No LinkedIn profile data found');
       }
@@ -109,8 +109,13 @@ export const getLinkedInProfile = asyncHandler(
         data: extractedData,
       });
     } catch (error: any) {
+      // Preserve NotFoundError (e.g., missing Apify API key) with its detailed message
+      if (error instanceof NotFoundError || (error?.statusCode === 404 && error?.isOperational)) {
+        throw error;
+      }
+      // For other errors, preserve the original message if available
       throw new InternalServerError(
-        error.message || 'Failed to fetch LinkedIn profile data'
+        error?.message || 'Failed to fetch LinkedIn profile data'
       );
     }
   }

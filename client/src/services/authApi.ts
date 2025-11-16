@@ -16,6 +16,7 @@ interface AuthResponse {
 
 interface RegisterResponse {
     message: string;
+    requiresApiKeys?: boolean;
 }
 
 export interface UserProfile {

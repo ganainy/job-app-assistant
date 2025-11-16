@@ -2,6 +2,7 @@
 import { generateJsonAnalysis } from '../utils/geminiClient';
 import { JsonResumeSchema } from '../types/jsonresume';
 import { convertJsonResumeToText } from '../utils/cvTextExtractor';
+import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 import { 
     ISkillMatchDetails, 
     IAtsComplianceDetails,
@@ -76,11 +77,13 @@ function safeNumberWithDefault(value: any, defaultValue: number): number {
 
 /**
  * Analyzes CV against job description using Gemini AI for ATS compatibility
+ * @param userId - User ID (required to get their Gemini API key)
  * @param cvJson - The CV in JSON Resume format
  * @param jobDescription - Optional job description for matching analysis
  * @returns ATS analysis results compatible with existing interface
  */
 export async function analyzeWithGemini(
+    userId: string,
     cvJson: JsonResumeSchema,
     jobDescription?: string
 ): Promise<{ 
@@ -234,8 +237,12 @@ Provide detailed analysis for each metric to ensure the CV can pass through ATS 
   }
 }`;
 
+        // Get user's Gemini API key
+        const apiKey = await getGeminiApiKey(userId);
+        
         // Call Gemini API
         const geminiResult: GeminiAtsResponse = await generateJsonAnalysis<GeminiAtsResponse>(
+            apiKey,
             prompt,
             cvJsonString
         );

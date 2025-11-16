@@ -51,6 +51,14 @@ export interface IProfile extends Document {
       accessToken?: string;
       enabled?: boolean;
     };
+    apify?: {
+      accessToken?: string;
+      enabled?: boolean;
+    };
+    gemini?: {
+      accessToken?: string;
+      enabled?: boolean;
+    };
   };
   settings?: {
     theme?: string;
@@ -148,6 +156,20 @@ const ProfileSchema: Schema = new Schema(
       },
       linkedin: {
         profileId: String,
+        accessToken: String,
+        enabled: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      apify: {
+        accessToken: String,
+        enabled: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      gemini: {
         accessToken: String,
         enabled: {
           type: Boolean,

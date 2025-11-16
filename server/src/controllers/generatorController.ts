@@ -4,14 +4,19 @@ import { ValidationError, InternalServerError } from '../utils/errors/AppError';
 import { improveSectionWithAi } from '../services/generatorService';
 
 export const improveCvSection = async (req: ValidatedRequest, res: Response) => {
+    if (!req.user) {
+        throw new ValidationError('User not authenticated');
+    }
+
     const { sectionName, sectionData } = req.validated!.body!;
+    const userId = String(req.user._id);
 
     if (!sectionName || !sectionData) {
         throw new ValidationError('Section name and section data are required');
     }
 
     try {
-        const improvedData = await improveSectionWithAi(sectionName, sectionData);
+        const improvedData = await improveSectionWithAi(userId, sectionName, sectionData);
         res.json(improvedData);
     } catch (error: any) {
         console.error('Error in improveCvSection:', error);
