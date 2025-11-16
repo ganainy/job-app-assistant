@@ -12,7 +12,6 @@ interface LanguagesEditorProps extends EditorProps<JsonResumeLanguageItem[] | un
 }
 
 const LanguagesEditor: React.FC<LanguagesEditorProps> = ({ data = [], onChange, analysis }) => {
-    const [isExpanded, setIsExpanded] = useState(data.length > 0);
     const [showAnalysis, setShowAnalysis] = useState(false);
 
     const handleItemChange = (index: number, field: keyof JsonResumeLanguageItem, value: string) => {
@@ -35,82 +34,55 @@ const LanguagesEditor: React.FC<LanguagesEditorProps> = ({ data = [], onChange, 
     };
 
     return (
-        <div className="p-4 border dark:border-gray-700 rounded shadow-sm bg-white dark:bg-gray-800">
-            <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center gap-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Languages</h3>
-                    {/* Show analysis button only if there are issues or suggestions */}
-                    {analysis && (analysis.issues.length > 0 || analysis.suggestions.length > 0) && (
-                        <button
-                            type="button"
-                            onClick={() => setShowAnalysis(!showAnalysis)}
-                            className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 focus:outline-none"
-                            title={showAnalysis ? "Hide Analysis" : "Show Analysis"}
-                        >
-                            {`Analysis (${analysis.issues.length} issues)`} {showAnalysis ? '▲' : '▼'}
-                        </button>
-                    )}
-                </div>
-                <button
-                    type="button"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-                >
-                    {isExpanded ? 'Collapse' : 'Expand'}
-                </button>
-            </div>
-
-            {/* Conditionally render the analysis panel */}
+        <div>
             {showAnalysis && analysis && (
-                <SectionAnalysisPanel issues={analysis.issues} suggestions={analysis.suggestions} />
+                <div className="mb-2">
+                    <SectionAnalysisPanel issues={analysis.issues} suggestions={analysis.suggestions} />
+                </div>
             )}
 
-            {isExpanded && (
-                <>
-                    {data.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400 italic">No languages added yet.</p>
-                    ) : (
-                        <ul className="space-y-4">
-                            {data.map((item, index) => (
-                                <li key={index} className="p-3 border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 space-y-2">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                        <div>
-                                            <label htmlFor={`lang-language-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Language</label>
-                                            <input
-                                                type="text"
-                                                id={`lang-language-${index}`}
-                                                value={item.language || ''}
-                                                onChange={(e) => handleItemChange(index, 'language', e.target.value)}
-                                                placeholder="e.g., English, Spanish"
-                                                className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label htmlFor={`lang-fluency-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fluency</label>
-                                            <input
-                                                type="text"
-                                                id={`lang-fluency-${index}`}
-                                                value={item.fluency || ''}
-                                                onChange={(e) => handleItemChange(index, 'fluency', e.target.value)}
-                                                placeholder="e.g., Native, Fluent, Conversational"
-                                                className="w-full px-2 py-1 border dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
-                                            />
-                                        </div>
-                                    </div>
-                                    <ArrayItemControls index={index} onDelete={handleDelete} />
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                    <button
-                        type="button"
-                        onClick={handleAdd}
-                        className="mt-4 px-3 py-1 bg-blue-500 dark:bg-blue-700 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-800 text-sm"
-                    >
-                        Add Language
-                    </button>
-                </>
+            {data.length === 0 ? (
+                <p className="text-gray-500 dark:text-gray-400 italic text-xs">No languages added yet.</p>
+            ) : (
+                <ul className="space-y-2">
+                    {data.map((item, index) => (
+                        <li key={index} className="p-2 border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 space-y-1">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                                <div>
+                                    <label htmlFor={`lang-language-${index}`} className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">Language</label>
+                                    <input
+                                        type="text"
+                                        id={`lang-language-${index}`}
+                                        value={item.language || ''}
+                                        onChange={(e) => handleItemChange(index, 'language', e.target.value)}
+                                        placeholder="e.g., English, Spanish"
+                                        className="w-full px-1.5 py-0.5 border dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs"
+                                    />
+                                </div>
+                                <div>
+                                    <label htmlFor={`lang-fluency-${index}`} className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">Fluency</label>
+                                    <input
+                                        type="text"
+                                        id={`lang-fluency-${index}`}
+                                        value={item.fluency || ''}
+                                        onChange={(e) => handleItemChange(index, 'fluency', e.target.value)}
+                                        placeholder="e.g., Native, Fluent, Conversational"
+                                        className="w-full px-1.5 py-0.5 border dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs"
+                                    />
+                                </div>
+                            </div>
+                            <ArrayItemControls index={index} onDelete={handleDelete} />
+                        </li>
+                    ))}
+                </ul>
             )}
+            <button
+                type="button"
+                onClick={handleAdd}
+                className="mt-2 px-2 py-1 bg-blue-500 dark:bg-blue-700 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-800 text-xs"
+            >
+                Add Language
+            </button>
         </div>
     );
 };

@@ -378,45 +378,47 @@ const CVManagementPage: React.FC = () => {
       )}
 
       {/* Editor Section */}
-      <div className="p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
-            <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV Data</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Review and edit your parsed CV data. Changes are saved automatically when you click Save.
-            </p>
+      <div className="flex justify-center">
+        <div className="w-full max-w-[816px]">
+          <div className="p-4 border dark:border-gray-700 rounded-lg shadow-lg bg-gray-50 dark:bg-gray-900">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
+                <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Review and edit your parsed CV data. Changes are saved automatically when you click Save.
+                </p>
+              </div>
+            </div>
+
+            {isLoadingCv ? (
+              <div className="space-y-4">
+                <LoadingSkeleton lines={3} />
+                <LoadingSkeleton lines={3} />
+                <LoadingSkeleton lines={3} />
+              </div>
+            ) : currentCvData ? (
+              <div>
+                {/* CV Editor */}
+                <CvFormEditor data={currentCvData} onChange={handleCvChange} />
+              </div>
+            ) : (
+              <div className="text-center py-12 px-4">
+                <svg className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No CV data found</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Upload your CV above to get started. We'll parse it and make it editable.
+                </p>
+              </div>
+            )}
           </div>
         </div>
-
-        {isLoadingCv ? (
-          <div className="space-y-4">
-            <LoadingSkeleton lines={3} />
-            <LoadingSkeleton lines={3} />
-            <LoadingSkeleton lines={3} />
-          </div>
-        ) : currentCvData ? (
-          <div className="space-y-6">
-            {/* CV Editor */}
-            <div>
-              <CvFormEditor data={currentCvData} onChange={handleCvChange} />
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-12 px-4">
-            <svg className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No CV data found</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Upload your CV above to get started. We'll parse it and make it editable.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Sticky Save Button */}
