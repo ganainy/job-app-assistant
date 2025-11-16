@@ -56,7 +56,6 @@ const DashboardPage: React.FC = () => {
     jobTitle: ''
   });
 
-  const [isMarkingApplied, setIsMarkingApplied] = useState<string | null>(null);
 
   // --- Pagination State ---
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -228,26 +227,6 @@ const DashboardPage: React.FC = () => {
     setDeleteConfirmModal({ isOpen: false, jobId: null, jobTitle: '' });
   };
 
-  // --- Mark as Applied Handler ---
-  const handleMarkAsApplied = async (job: JobApplication, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent row click navigation
-    if (job.status === 'Applied') return; // Already applied
-    
-    setIsMarkingApplied(job._id);
-    try {
-      const updatedJob = await updateJob(job._id, { 
-        status: 'Applied',
-        dateApplied: new Date().toISOString()
-      });
-      setJobs(prevJobs => prevJobs.map(j => j._id === job._id ? updatedJob : j));
-      setToast({ message: 'Job marked as Applied successfully!', type: 'success' });
-    } catch (err: any) {
-      console.error('Failed to mark job as applied:', err);
-      setToast({ message: err.message || 'Failed to mark job as applied.', type: 'error' });
-    } finally {
-      setIsMarkingApplied(null);
-    }
-  };
 
   // --- Create from URL Handler ---
   const handleCreateFromUrlSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -323,11 +302,6 @@ const DashboardPage: React.FC = () => {
     </svg>
   );
 
-  const CheckCircleIcon = () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
 
   const EditIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -537,16 +511,6 @@ const DashboardPage: React.FC = () => {
                           <td className="p-4 text-slate-600 dark:text-slate-400">{job.language ? job.language.toUpperCase() : '-'}</td>
                           <td className="p-4">
                             <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                      {job.status !== 'Applied' && (
-                        <button
-                          onClick={(e) => handleMarkAsApplied(job, e)}
-                          disabled={isMarkingApplied === job._id}
-                                  className="flex items-center gap-1.5 py-1 px-2.5 rounded-md text-sm font-medium text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors disabled:opacity-50"
-                                >
-                                  <CheckCircleIcon />
-                          Applied
-                        </button>
-                      )}
                       <button
                         onClick={(e) => handleOpenEditModal(job, e)}
                                 className="flex items-center justify-center w-8 h-8 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"

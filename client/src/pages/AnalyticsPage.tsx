@@ -90,32 +90,33 @@ const AnalyticsPage: React.FC = () => {
     }
 
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100">Job Application Analytics</h1>
+        <div className="container mx-auto p-6 lg:p-8">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Analytics Dashboard</h2>
 
             <StatsSummary
                 totalApplications={stats.totalApplications}
                 applicationsByStatus={stats.applicationsByStatus}
+                applicationsOverTime={stats.applicationsOverTime}
             />
 
-            <div className="mt-8 mb-8">
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Application Pipeline</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+                <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-lg border border-gray-200 dark:border-zinc-800">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Applications by Status</h3>
+                    <ApplicationsByStatusChart data={stats.applicationsByStatus} />
+                </div>
+                <div className="lg:col-span-3 bg-white dark:bg-zinc-900 p-6 rounded-lg border border-gray-200 dark:border-zinc-800">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Applications Over Time</h3>
+                    <ApplicationsOverTimeChart data={stats.applicationsOverTime} />
+                </div>
+            </div>
+
+            <div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Application Pipeline</h3>
                 <ApplicationPipelineKanban
                     jobs={jobs}
                     isLoading={isLoadingJobs}
                     onStatusChange={handleStatusChange}
                 />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-                <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
-                    <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Applications by Status</h2>
-                    <ApplicationsByStatusChart data={stats.applicationsByStatus} />
-                </div>
-                <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
-                    <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Applications Over Time</h2>
-                    <ApplicationsOverTimeChart data={stats.applicationsOverTime} />
-                </div>
             </div>
         </div>
     );

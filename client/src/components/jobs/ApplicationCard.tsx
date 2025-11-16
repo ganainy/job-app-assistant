@@ -71,8 +71,8 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
     >
       <h5 className="font-semibold text-gray-900 dark:text-white mb-1">{job.jobTitle}</h5>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{job.companyName}</p>
-      <div className="flex justify-between items-center text-xs">
-        <span className="text-gray-500 dark:text-gray-400">{getDateText()}</span>
+      <div className="flex flex-col text-xs">
+        <span className="text-gray-500 dark:text-gray-400 mb-1">{getDateText()}</span>
         <JobStatusBadge type="application" status={job.status} />
       </div>
     </div>

@@ -65,7 +65,7 @@ const ApplicationPipelineKanban: React.FC<ApplicationPipelineKanbanProps> = ({
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragEnd = (e: React.DragEvent) => {
+  const handleDragEnd = () => {
     setDraggedJob(null);
     setDragOverColumn(null);
   };

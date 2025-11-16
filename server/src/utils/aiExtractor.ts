@@ -3,6 +3,7 @@ import axios from 'axios';
 // Correct the import to use a named import
 import { geminiModel } from './geminiClient';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
+import { cleanHtmlForAi } from './htmlCleaner';
 
 // Define the expected structure returned by Gemini
 export interface ExtractedJobData {
@@ -45,11 +46,18 @@ function parseExtractionResponse(responseText: string): ExtractedJobData {
         const extractedJsonString = jsonMatch[1].trim();
         try {
             const parsed = JSON.parse(extractedJsonString);
-            // Basic validation - check for essential fields
+            // Basic validation - check for essential fields (allow null for jobDescriptionText as fallback)
             if (typeof parsed.jobTitle === 'string' &&
                 typeof parsed.companyName === 'string' &&
-                typeof parsed.jobDescriptionText === 'string' &&
+                (typeof parsed.jobDescriptionText === 'string' || parsed.jobDescriptionText === null) &&
                 typeof parsed.language === 'string') {
+                // If jobDescriptionText is null, provide a fallback
+                if (parsed.jobDescriptionText === null) {
+                    console.warn("AI returned null for jobDescriptionText. Using fallback description.");
+                    parsed.jobDescriptionText = parsed.notes 
+                        ? `Job details: ${parsed.notes}` 
+                        : `Job posting at ${parsed.companyName || 'the company'}. Please refer to the original job posting for full details.`;
+                }
                 return parsed as ExtractedJobData; // Assume structure matches if key fields exist
             } else {
                 console.warn("Parsed JSON from AI missing essential fields (jobTitle, companyName, jobDescriptionText, language):", parsed);
@@ -68,11 +76,9 @@ function parseExtractionResponse(responseText: string): ExtractedJobData {
 // Main function using Gemini to extract data from HTML
 async function extractFieldsWithGemini(htmlContent: string, url: string): Promise<ExtractedJobData> {
     console.log(`Requesting Gemini to extract fields from HTML (length: ${htmlContent.length}) for URL: ${url}`);
-    const maxHtmlLength = 100000; // Truncate if needed
-    if (htmlContent.length > maxHtmlLength) {
-        console.warn(`HTML content truncated to ${maxHtmlLength} characters for Gemini prompt.`);
-        htmlContent = htmlContent.substring(0, maxHtmlLength);
-    }
+    const maxHtmlLength = 100000; // Maximum length after cleaning
+    // Clean HTML to remove noise and extract main content before truncation
+    htmlContent = cleanHtmlForAi(htmlContent, maxHtmlLength);
 
     // Detailed prompt asking for multiple fields and specific JSON output
     const prompt = `
@@ -82,13 +88,14 @@ async function extractFieldsWithGemini(htmlContent: string, url: string): Promis
         Instructions:
         1. Identify the main job title.
         2. Identify the hiring company's name.
-        3. Extract the full job description text, focusing on responsibilities, qualifications, etc. Ignore irrelevant page elements like headers, footers, navigation, ads, and unrelated content.
+        3. Extract the full job description text, focusing on responsibilities, qualifications, requirements, benefits, and any other relevant details. This is CRITICAL - make every effort to extract the complete job description text. Look for sections like "Job Description", "Responsibilities", "Requirements", "Qualifications", "What we offer", etc. Ignore irrelevant page elements like headers, footers, navigation, ads, and unrelated content, but DO extract all job-related content.
         4. Determine the primary language of the job posting (e.g., "en" for English, "de" for German, "es" for Spanish, etc.). Use standard ISO 639-1 language codes if possible.
         5. Optionally, extract any other key details or keywords relevant to the job application (e.g., location, salary if explicitly mentioned, required technologies) and provide them as a single string in the 'notes' field.
 
         Output Format:
         Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", and optionally "notes".
-        - If a required field (jobTitle, companyName, jobDescriptionText, language) cannot be reliably determined, return null for its value.
+        - jobTitle, companyName, and language should always be strings if found. If not found, return null.
+        - jobDescriptionText is REQUIRED and should be a string containing the full job description. Only return null if absolutely no job description content can be found anywhere on the page (this should be very rare).
         - For 'notes', return a string or null if no extra details are found.
 
         Example structure:
@@ -134,6 +141,7 @@ export async function extractJobDataFromUrl(url: string): Promise<ExtractedJobDa
     const extractedData = await extractFieldsWithGemini(html, url);
 
     // Add final check for essential nulls after AI processing
+    // Note: jobDescriptionText may have been set to a fallback value in parseExtractionResponse
     if (!extractedData.jobTitle || !extractedData.companyName || !extractedData.jobDescriptionText || !extractedData.language) {
         console.warn("AI failed to extract one or more essential fields (Title, Company, Description, Language). Extracted:", extractedData);
         throw new Error("AI could not extract all essential job details from the page.");

@@ -48,6 +48,12 @@ function App() {
   }, [location.pathname]);
 
   // Icon components matching Material Symbols style
+  const BagFilledIcon = () => (
+    <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M20 6h-3V4c0-1.1-.9-2-2-2H9c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9 4h6v2H9V4zm11 15H4V10h2v1h2v-1h6v1h2v-1h2v9z"/>
+    </svg>
+  );
+
   const DashboardIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -93,9 +99,10 @@ function App() {
             <div className="flex justify-between items-center h-16">
               <Link 
                 to="/" 
-                className="text-xl font-bold hover:text-gray-300 dark:hover:text-gray-400 transition-colors"
+                className="flex items-center gap-2 text-2xl font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
               >
-                VibeHired
+                <BagFilledIcon />
+                <span>VibeHired</span>
               </Link>
               <div className="flex items-center gap-3">
                 <button
@@ -154,9 +161,10 @@ function App() {
             {/* Brand */}
             <Link 
               to="/dashboard" 
-              className="text-xl font-bold text-slate-800 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+              className="flex items-center gap-2 text-2xl font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
             >
-              VibeHired
+              <BagFilledIcon />
+              <span>VibeHired</span>
             </Link>
 
             {/* Navigation Links */}
@@ -165,8 +173,8 @@ function App() {
                 to="/dashboard"
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   isActiveRoute('/dashboard')
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
                 }`}
               >
                 <DashboardIcon />
@@ -176,8 +184,8 @@ function App() {
                 to="/manage-cv"
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   isActiveRoute('/manage-cv')
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
                 }`}
               >
                 <WorkIcon />
@@ -187,8 +195,8 @@ function App() {
                 to="/analytics"
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   isActiveRoute('/analytics')
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
                 }`}
               >
                 <AnalyticsIcon />
@@ -201,7 +209,7 @@ function App() {
               {/* Dark Mode Toggle */}
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="p-2 rounded-md text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
                 aria-label="Toggle dark mode"
               >
                 {theme === 'dark' ? (
@@ -218,7 +226,7 @@ function App() {
               {/* User Avatar */}
               <Link
                 to="/profile"
-                className="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-600 flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 text-sm hover:bg-slate-400 dark:hover:bg-slate-500 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center font-bold text-purple-700 dark:text-purple-300 text-sm hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors cursor-pointer"
                 aria-label="View profile"
               >
                 {user?.email ? user.email.charAt(0).toUpperCase() : 'U'}
@@ -227,7 +235,7 @@ function App() {
               {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
               >
                 <LogoutIcon />
                 <span>Logout</span>

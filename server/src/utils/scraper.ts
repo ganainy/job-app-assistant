@@ -3,6 +3,7 @@ import axios from 'axios';
 // Correct the import to use a named import
 import { geminiModel } from './geminiClient'; // Need Gemini client here
 import { GoogleGenerativeAIError } from '@google/generative-ai'; // Import error type
+import { cleanHtmlForAi } from './htmlCleaner';
 
 // Keep fetchHtml function (modified slightly for clarity)
 async function fetchHtml(url: string): Promise<string> {
@@ -35,12 +36,9 @@ async function fetchHtml(url: string): Promise<string> {
 async function extractDescriptionWithGemini(htmlContent: string, url: string): Promise<string | null> {
     console.log(`Requesting Gemini to extract description from HTML (length: ${htmlContent.length}) for URL: ${url}`);
 
-    // Limit HTML size if needed to avoid exceeding token limits (adjust limit as needed)
-    const maxHtmlLength = 100000; // Example: Limit to ~100k characters
-    if (htmlContent.length > maxHtmlLength) {
-        console.warn(`HTML content truncated to ${maxHtmlLength} characters for Gemini prompt.`);
-        htmlContent = htmlContent.substring(0, maxHtmlLength);
-    }
+    // Clean HTML to remove noise and extract main content before truncation
+    const maxHtmlLength = 100000; // Maximum length after cleaning
+    htmlContent = cleanHtmlForAi(htmlContent, maxHtmlLength);
 
     // Construct prompt for Gemini
     const prompt = `
