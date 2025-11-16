@@ -1,5 +1,5 @@
 // client/src/pages/CVManagementPage.tsx
-import React, { useState, ChangeEvent, FormEvent, useEffect, useRef, useMemo } from 'react';
+import React, { useState, ChangeEvent, FormEvent, useEffect, useRef, useMemo, useCallback } from 'react';
 import { uploadCV, getCurrentCv, updateCurrentCv, deleteCurrentCv, previewCv } from '../services/cvApi';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
 import CvPreviewModal from '../components/cv-editor/CvPreviewModal';
@@ -8,6 +8,8 @@ import Toast from '../components/common/Toast';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import { fetchAllSectionsAnalysis, fetchSectionAnalysis, SectionAnalysisResult } from '../services/analysisApi';
 import { improveSection } from '../services/generatorApi';
+import { scanAts, getAtsScores, getLatestAts, AtsScores } from '../services/atsApi';
+import GeneralCvAtsPanel from '../components/ats/GeneralCvAtsPanel';
 
 const CVManagementPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -27,6 +29,12 @@ const CVManagementPage: React.FC = () => {
   const [analyses, setAnalyses] = useState<Record<string, SectionAnalysisResult[]>>({});
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [improvingSections, setImprovingSections] = useState<Record<string, boolean>>({});
+  
+  // ATS Analysis state
+  const [atsScores, setAtsScores] = useState<AtsScores | null>(null);
+  const [isScanningAts, setIsScanningAts] = useState<boolean>(false);
+  const [atsAnalysisId, setAtsAnalysisId] = useState<string | null>(null);
+  const atsPollingIntervalIdRef = useRef<NodeJS.Timeout | null>(null);
   
   // Track original CV data for unsaved changes detection
   const originalCvDataRef = useRef<JsonResumeSchema | null>(null);
@@ -87,6 +95,91 @@ const CVManagementPage: React.FC = () => {
     }
   };
 
+  // Poll ATS scores until analysis is complete
+  const pollAtsScores = async (analysisIdToPoll: string, startTime: number, maxWaitTime: number = 60000): Promise<boolean> => {
+    const elapsed = Date.now() - startTime;
+    if (elapsed > maxWaitTime) {
+      setIsScanningAts(false);
+      setToast({ message: 'ATS analysis is taking longer than expected. Please check back later.', type: 'info' });
+      return true; // Stop polling
+    }
+
+    try {
+      const response = await getAtsScores(analysisIdToPoll);
+      if (response.atsScores) {
+        if (response.atsScores.error) {
+          setIsScanningAts(false);
+          setToast({ message: `ATS analysis error: ${response.atsScores.error}`, type: 'error' });
+          return true; // Stop polling
+        }
+        if (response.atsScores.score !== null && response.atsScores.score !== undefined) {
+          setAtsScores(response.atsScores);
+          setIsScanningAts(false);
+          setToast({ message: 'ATS analysis completed!', type: 'success' });
+          return true; // Stop polling
+        }
+      }
+      return false; // Continue polling
+    } catch (error: any) {
+      console.error('Error polling ATS scores:', error);
+      // Don't stop polling on transient errors, but log them
+      return false;
+    }
+  };
+
+  // Trigger ATS analysis for general CV review (no job description)
+  const runAtsAnalysis = async () => {
+    if (!currentCvData) {
+      setToast({ message: 'No CV data available for ATS analysis.', type: 'error' });
+      return;
+    }
+
+    if (isScanningAts) {
+      return; // Already scanning
+    }
+
+    // Clear any existing polling
+    if (atsPollingIntervalIdRef.current) {
+      clearInterval(atsPollingIntervalIdRef.current);
+      atsPollingIntervalIdRef.current = null;
+    }
+
+    setIsScanningAts(true);
+    setAtsScores(null); // Clear previous scores
+
+    try {
+      // Trigger ATS scan without job description (general CV analysis)
+      const response = await scanAts(undefined, atsAnalysisId || undefined);
+      setAtsAnalysisId(response.analysisId);
+      setToast({ message: 'ATS analysis started. Analyzing your CV...', type: 'info' });
+      
+      const startTime = Date.now();
+      const POLLING_INTERVAL = 2000; // Poll every 2 seconds
+      
+      // Set up interval polling
+      const intervalId = setInterval(async () => {
+        const result = await pollAtsScores(response.analysisId, startTime);
+        if (result) {
+          clearInterval(intervalId);
+          atsPollingIntervalIdRef.current = null;
+        }
+      }, POLLING_INTERVAL);
+      
+      atsPollingIntervalIdRef.current = intervalId;
+      
+      // Start polling immediately
+      const checkResult = await pollAtsScores(response.analysisId, startTime);
+      if (checkResult) {
+        clearInterval(intervalId);
+        atsPollingIntervalIdRef.current = null;
+      }
+    } catch (error: any) {
+      console.error('Error starting ATS scan:', error);
+      setIsScanningAts(false);
+      setToast({ message: error.message || 'Failed to start ATS analysis.', type: 'error' });
+    }
+  };
+
   // Fetch current CV on mount
   useEffect(() => {
     const fetchCv = async () => {
@@ -106,22 +199,51 @@ const CVManagementPage: React.FC = () => {
           setAnalyses(response.analysisCache.analyses);
           // Store the hash for future comparisons (backend uses SHA256, we'll use it for reference)
           lastAnalyzedCvHashRef.current = response.analysisCache.cvHash;
-          setIsLoadingCv(false);
-          return; // Skip analysis if cache is valid
         }
         
-        // Run analysis after CV is loaded (only if no valid cache)
+        // Load existing ATS scores if available
+        let hasExistingAtsScores = false;
         if (cvData) {
+          try {
+            const atsResponse = await getLatestAts();
+            if (atsResponse.atsScores && atsResponse.analysisId) {
+              console.log('Loading existing ATS scores');
+              setAtsScores(atsResponse.atsScores);
+              setAtsAnalysisId(atsResponse.analysisId);
+              hasExistingAtsScores = true;
+            }
+          } catch (atsError: any) {
+            // If no ATS scores exist, that's fine - we'll trigger analysis below
+            console.log('No existing ATS scores found, will trigger new analysis');
+          }
+        }
+        
+        setIsLoadingCv(false);
+        
+        // Run analysis after CV is loaded (only if no valid cache)
+        if (cvData && (!response.analysisCache || !response.analysisCache.analyses)) {
           runFullCvAnalysis(cvData);
+        }
+        
+        // Trigger ATS analysis only if no existing scores were found
+        if (cvData && !hasExistingAtsScores) {
+          setTimeout(() => runAtsAnalysis(), 1000);
         }
       } catch (error: any) {
         console.error("Error fetching current CV:", error);
         setToast({ message: error.message || 'Failed to load CV data.', type: 'error' });
-      } finally {
         setIsLoadingCv(false);
       }
     };
     fetchCv();
+
+    // Cleanup polling on unmount
+    return () => {
+      if (atsPollingIntervalIdRef.current) {
+        clearInterval(atsPollingIntervalIdRef.current);
+        atsPollingIntervalIdRef.current = null;
+      }
+    };
   }, []);
 
 
@@ -204,6 +326,8 @@ const CVManagementPage: React.FC = () => {
       // Run analysis after CV is uploaded
       if (cvData) {
         runFullCvAnalysis(cvData);
+        // Also trigger ATS analysis
+        setTimeout(() => runAtsAnalysis(), 1000); // Small delay to let section analysis start first
       }
       
       setSelectedFile(null);
@@ -228,10 +352,12 @@ const CVManagementPage: React.FC = () => {
     if (lastAnalyzedCvHashRef.current !== currentHash) {
       // CV sections changed, re-analyze (backend will use cache if hash matches)
       runFullCvAnalysis(updatedCv);
+      // Also trigger ATS analysis when CV changes
+      setTimeout(() => runAtsAnalysis(), 1000);
     }
   };
 
-  const handleSaveCv = async () => {
+  const handleSaveCv = useCallback(async () => {
     if (!currentCvData) {
       setToast({ message: 'No CV data to save.', type: 'error' });
       return;
@@ -252,7 +378,7 @@ const CVManagementPage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [currentCvData]);
 
 
   const handleDeleteCv = async () => {
@@ -367,32 +493,57 @@ const CVManagementPage: React.FC = () => {
     }
   };
 
+  // Keyboard shortcut for save
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's' && currentCvData && hasUnsavedChanges) {
+        e.preventDefault();
+        handleSaveCv();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentCvData, hasUnsavedChanges, handleSaveCv]);
+
+  // State for collapsible ATS panel
+  const [isAtsPanelOpen, setIsAtsPanelOpen] = useState<boolean>(true);
+
   return (
-    <div className="container mx-auto p-4 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-32">
+        <div className="space-y-6">
 
       {/* Upload Section - Only show when no CV exists or when replacing */}
       {(!currentCvData || isReplacing) && !isLoadingCv && (
-        <div className="mb-8 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-              <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                {isReplacing ? 'Replace CV' : 'Upload CV'}
-              </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {isReplacing 
-                  ? 'Upload a new CV file to replace your existing CV. We will use AI to parse it into a structured format.'
-                  : 'Upload your CV in PDF or RTF format. We will use AI to parse it into a structured format.'}
-              </p>
+        <div className="mb-8 p-6 sm:p-8 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg bg-white dark:bg-gray-800 transition-all duration-300 hover:shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 p-3 rounded-xl shadow-sm">
+                {isUploading ? (
+                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  {isReplacing ? 'Replace CV' : 'Upload CV'}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  {isReplacing 
+                    ? 'Upload a new CV file to replace your existing CV. We will use AI to parse it into a structured format.'
+                    : 'Upload your CV in PDF or RTF format. We will use AI to parse it into a structured format.'}
+                </p>
+              </div>
             </div>
             {isReplacing && (
               <button
                 onClick={() => setIsReplacing(false)}
-                className="ml-auto px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 title="Cancel replacement"
               >
                 Cancel
@@ -405,23 +556,32 @@ const CVManagementPage: React.FC = () => {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`mb-4 p-6 border-2 border-dashed rounded-lg transition-colors ${
+            className={`mb-6 p-8 sm:p-12 border-2 border-dashed rounded-xl transition-all duration-300 ${
               isDragging
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/50'
+                ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 scale-[1.02] shadow-lg'
+                : 'border-gray-300 dark:border-gray-600 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900/50 dark:to-gray-800/50 hover:border-gray-400 dark:hover:border-gray-500'
             }`}
           >
             <div className="text-center">
-              <svg className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              <label htmlFor="cvFileInput" className="cursor-pointer">
-                <span className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+              {isUploading ? (
+                <div className="mx-auto h-16 w-16 mb-4 flex items-center justify-center">
+                  <svg className="animate-spin h-16 w-16 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+              ) : (
+                <svg className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500 mb-4 transition-transform hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              )}
+              <label htmlFor="cvFileInput" className="cursor-pointer block">
+                <span className="text-base sm:text-lg font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
                   Click to upload
                 </span>
-                <span className="text-sm text-gray-600 dark:text-gray-400"> or drag and drop</span>
+                <span className="text-base sm:text-lg text-gray-600 dark:text-gray-400"> or drag and drop</span>
               </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">PDF or RTF (MAX. 10MB)</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">PDF or RTF (MAX. 10MB)</p>
               <input
                 type="file"
                 id="cvFileInput"
@@ -434,15 +594,17 @@ const CVManagementPage: React.FC = () => {
           </div>
 
           {selectedFile && (
-            <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{selectedFile.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatFileSize(selectedFile.size)}</p>
+            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="flex-shrink-0 bg-blue-100 dark:bg-blue-900/40 p-3 rounded-lg">
+                    <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{selectedFile.name}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{formatFileSize(selectedFile.size)}</p>
                   </div>
                 </div>
                 <button
@@ -452,8 +614,9 @@ const CVManagementPage: React.FC = () => {
                     const fileInput = document.getElementById('cvFileInput') as HTMLInputElement;
                     if (fileInput) fileInput.value = '';
                   }}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="flex-shrink-0 p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                   disabled={isUploading}
+                  title="Remove file"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -466,7 +629,7 @@ const CVManagementPage: React.FC = () => {
           <button
             type="submit"
             disabled={!selectedFile || isUploading}
-            className="w-full md:w-auto px-5 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
+            className="w-full sm:w-auto px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
           >
             {isUploading ? (
               <>
@@ -474,14 +637,14 @@ const CVManagementPage: React.FC = () => {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Uploading and Processing...
+                <span>Uploading and Processing...</span>
               </>
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                Upload and Process CV
+                <span>Upload and Process CV</span>
               </>
             )}
           </button>
@@ -491,12 +654,12 @@ const CVManagementPage: React.FC = () => {
 
       {/* CV Info Section - Show when CV exists and not replacing */}
       {currentCvData && !isLoadingCv && !isReplacing && (
-        <div className="mb-8 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+        <div className="mb-8 p-6 sm:p-8 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg bg-white dark:bg-gray-800 transition-all duration-300 hover:shadow-xl">
           {/* Analysis Status Indicator */}
           {isAnalyzing && (
-            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-2">
+            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex items-center gap-3 shadow-sm">
               <svg
-                className="animate-spin h-4 w-4 text-blue-600 dark:text-blue-400"
+                className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -515,34 +678,67 @@ const CVManagementPage: React.FC = () => {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-              <span className="text-sm text-blue-800 dark:text-blue-300">
-                Analyzing CV sections for improvement suggestions...
-              </span>
+              <div>
+                <span className="text-sm font-semibold text-blue-800 dark:text-blue-300 block">
+                  Analyzing CV sections...
+                </span>
+                <span className="text-xs text-blue-600 dark:text-blue-400">
+                  AI is reviewing your CV for improvement suggestions
+                </span>
+              </div>
             </div>
           )}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
-                <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/40 dark:to-emerald-900/40 p-3 rounded-xl shadow-sm">
+                <svg className="w-7 h-7 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Your CV</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">Your CV</h2>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
                   {currentCvData.basics?.name || 'CV uploaded'}
                   {currentCvData.basics?.label && (
                     <span className="text-gray-500 dark:text-gray-400"> • {currentCvData.basics.label}</span>
                   )}
                 </p>
+                {/* Quick Stats */}
+                <div className="flex flex-wrap items-center gap-3 mt-3">
+                  {hasUnsavedChanges && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-full text-xs font-medium">
+                      <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse"></div>
+                      Unsaved changes
+                    </span>
+                  )}
+                  {atsScores && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs font-medium">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      ATS Compatibility Checked
+                    </span>
+                  )}
+                  {Object.keys(analyses).length > 0 && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Section Improvement Suggestions Ready
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2 lg:flex-shrink-0">
               <button
                 onClick={handlePreviewCv}
                 disabled={isGeneratingPreview}
-                className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors"
-                title="Preview ATS CV"
+                className="px-4 py-2.5 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
+                title="Preview your CV as a PDF"
               >
                 {isGeneratingPreview ? (
                   <>
@@ -550,7 +746,7 @@ const CVManagementPage: React.FC = () => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Generating...
+                    <span className="hidden sm:inline">Generating...</span>
                   </>
                 ) : (
                   <>
@@ -558,7 +754,8 @@ const CVManagementPage: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
-                    Preview ATS CV
+                    <span className="hidden sm:inline">Preview</span>
+                    <span className="sm:hidden">Preview</span>
                   </>
                 )}
               </button>
@@ -567,19 +764,20 @@ const CVManagementPage: React.FC = () => {
                   setIsReplacing(true);
                   setSelectedFile(null);
                 }}
-                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
-                title="Replace CV"
+                className="px-4 py-2.5 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+                title="Replace with a new CV file"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                Replace CV
+                <span className="hidden sm:inline">Replace</span>
+                <span className="sm:hidden">Replace</span>
               </button>
               <button
                 onClick={handleDeleteCv}
                 disabled={isDeleting}
-                className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors"
-                title="Delete CV"
+                className="px-4 py-2.5 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
+                title="Delete your CV (cannot be undone)"
               >
                 {isDeleting ? (
                   <>
@@ -587,14 +785,15 @@ const CVManagementPage: React.FC = () => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Deleting...
+                    <span className="hidden sm:inline">Deleting...</span>
                   </>
                 ) : (
                   <>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
-                    Delete CV
+                    <span className="hidden sm:inline">Delete</span>
+                    <span className="sm:hidden">Delete</span>
                   </>
                 )}
               </button>
@@ -603,119 +802,203 @@ const CVManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* Editor Section */}
-      <div className="flex justify-center">
-        <div className="w-full max-w-[816px]">
-          <div className="p-4 border dark:border-gray-700 rounded-lg shadow-lg bg-gray-50 dark:bg-gray-900">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
-                <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      {/* ATS Analysis Panel - Show when CV exists and not replacing */}
+      {currentCvData && !isLoadingCv && !isReplacing && (
+        <div className="mb-8 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg bg-white dark:bg-gray-800 overflow-hidden transition-all duration-300 hover:shadow-xl">
+          <button
+            onClick={() => setIsAtsPanelOpen(!isAtsPanelOpen)}
+            className="w-full p-6 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors"
+          >
+            <div className="flex items-center gap-4 flex-1">
+              <div className="bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 p-3 rounded-xl shadow-sm">
+                <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Review and edit your parsed CV data. Changes are saved automatically when you click Save.
+              <div className="flex-1 text-left">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">ATS Analysis</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  {atsScores ? 'Comprehensive ATS compatibility review' : 'Get insights on your CV\'s ATS compatibility'}
                 </p>
               </div>
+              {atsScores && (
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs font-semibold">
+                    Score: {atsScores.score !== null && atsScores.score !== undefined ? `${Math.round(atsScores.score)}%` : 'N/A'}
+                  </span>
+                </div>
+              )}
             </div>
+            <div className="flex items-center gap-3">
+              {!atsScores && !isScanningAts && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    runAtsAnalysis();
+                  }}
+                  className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+                  title="Run ATS Analysis"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="hidden sm:inline">Analyze</span>
+                </button>
+              )}
+              <svg
+                className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${isAtsPanelOpen ? 'transform rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </button>
+          {isAtsPanelOpen && (
+            <div className="border-t border-gray-200 dark:border-gray-700 p-6 bg-gray-50 dark:bg-gray-900/50">
+              <GeneralCvAtsPanel atsScores={atsScores} isLoading={isScanningAts} />
+            </div>
+          )}
+        </div>
+      )}
 
-            {isLoadingCv ? (
-              <div className="space-y-4">
-                <LoadingSkeleton lines={3} />
-                <LoadingSkeleton lines={3} />
-                <LoadingSkeleton lines={3} />
-              </div>
-            ) : currentCvData ? (
-              <div>
-                {/* Analysis Status Banner */}
-                {isAnalyzing && (
-                  <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-3">
-                    <svg
-                      className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                        Analyzing CV sections...
-                      </p>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                        AI is reviewing your work experience, education, and skills to provide improvement suggestions.
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {/* CV Editor */}
-                <CvFormEditor
-                  data={currentCvData}
-                  onChange={handleCvChange}
-                  analyses={analyses}
-                  onImproveSection={handleImproveSection}
-                  improvingSections={improvingSections}
-                />
-              </div>
-            ) : (
-              <div className="text-center py-12 px-4">
-                <svg className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No CV data found</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Upload your CV above to get started. We'll parse it and make it editable.
-                </p>
-              </div>
-            )}
+      {/* Editor Section */}
+      <div className="mb-8 p-6 sm:p-8 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg bg-white dark:bg-gray-800 transition-all duration-300 hover:shadow-xl">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/40 dark:to-emerald-900/40 p-3 rounded-xl shadow-sm">
+            <svg className="w-7 h-7 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">Edit CV</h2>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
+              Review and edit your parsed CV data. Changes are saved when you click Save.
+            </p>
           </div>
         </div>
+
+        {isLoadingCv ? (
+          <div className="space-y-6 py-8">
+            <LoadingSkeleton lines={4} />
+            <LoadingSkeleton lines={4} />
+            <LoadingSkeleton lines={4} />
+          </div>
+        ) : currentCvData ? (
+          <div className="flex justify-center">
+            <div className="w-full max-w-[816px]">
+              {/* Analysis Status Banner */}
+              {isAnalyzing && (
+                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex items-start gap-3 shadow-sm">
+                  <svg
+                    className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                      Analyzing CV sections...
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      AI is reviewing your work experience, education, and skills to provide improvement suggestions.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {/* CV Editor */}
+              <CvFormEditor
+                data={currentCvData}
+                onChange={handleCvChange}
+                analyses={analyses}
+                onImproveSection={handleImproveSection}
+                improvingSections={improvingSections}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-16 px-4">
+            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-10 h-10 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">No CV data found</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+              Upload your CV above to get started. We'll use AI to parse it and make it editable.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>AI-powered parsing</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>Easy editing</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>ATS optimization</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sticky Save Button */}
       {currentCvData && hasUnsavedChanges && (
-        <div className="fixed bottom-4 right-4 z-40">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-              <span>Unsaved changes</span>
+        <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row items-center gap-4 min-w-[280px] sm:min-w-0">
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 flex-1">
+              <div className="w-2.5 h-2.5 bg-yellow-500 rounded-full animate-pulse"></div>
+              <span className="font-medium">Unsaved changes</span>
             </div>
-            <button
-              onClick={handleSaveCv}
-              disabled={isSaving || isUploading}
-              className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors"
-            >
-              {isSaving ? (
-                <>
-                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Save Changes
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={handleSaveCv}
+                disabled={isSaving || isUploading}
+                className="flex-1 sm:flex-none px-5 py-2.5 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
+              >
+                {isSaving ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </button>
+              <span className="hidden sm:inline text-xs text-gray-500 dark:text-gray-400 px-2">Ctrl+S</span>
+            </div>
           </div>
         </div>
       )}
@@ -739,6 +1022,8 @@ const CVManagementPage: React.FC = () => {
           onClose={() => setToast(null)}
         />
       )}
+        </div>
+      </div>
     </div>
   );
 };

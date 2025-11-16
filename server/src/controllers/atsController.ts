@@ -260,3 +260,49 @@ export const getAtsForJob = async (req: ValidatedRequest, res: Response) => {
     });
 };
 
+/**
+ * Get the latest general ATS analysis (without job application)
+ * GET /api/ats/latest
+ */
+export const getLatestAts = async (req: ValidatedRequest, res: Response) => {
+    const userId = req.user?.id;
+    if (!userId) {
+        throw new AuthorizationError('User not authenticated');
+    }
+
+    // Find the latest analysis that has ATS scores and no jobApplicationId (general CV analysis)
+    const analyses = await CvAnalysis.find({
+        userId: new Types.ObjectId(userId),
+        'atsScores': { $exists: true, $ne: null },
+        $or: [
+            { 'atsScores.jobApplicationId': null },
+            { 'atsScores.jobApplicationId': { $exists: false } }
+        ]
+    }).sort({ 'atsScores.lastAnalyzedAt': -1 }).limit(1);
+
+    if (analyses.length === 0) {
+        res.json({
+            analysisId: null,
+            atsScores: null
+        });
+        return;
+    }
+
+    const analysis = analyses[0];
+    
+    // Convert to plain object to ensure proper serialization
+    const atsScoresResponse = analysis.atsScores ? {
+        score: analysis.atsScores.score ?? null,
+        skillMatchDetails: analysis.atsScores.skillMatchDetails ?? null,
+        complianceDetails: analysis.atsScores.complianceDetails ?? null,
+        lastAnalyzedAt: analysis.atsScores.lastAnalyzedAt ?? null,
+        jobApplicationId: analysis.atsScores.jobApplicationId ?? null,
+        error: analysis.atsScores.error ?? null
+    } : null;
+
+    res.json({
+        analysisId: String(analysis._id),
+        atsScores: atsScoresResponse
+    });
+};
+

@@ -23,6 +23,34 @@ export interface AtsScores {
         formattingIssues?: string[];
         suggestions?: string[];
         sectionScores?: Record<string, number>;
+        sectionCompleteness?: {
+            present: string[];
+            missing: string[];
+            score: number;
+        };
+        quantifiableMetrics?: {
+            hasMetrics: boolean;
+            examples: string[];
+            score: number;
+        };
+        skillsAnalysis?: {
+            hardSkills: string[];
+            softSkills: string[];
+            score: number;
+        };
+        lengthAnalysis?: {
+            pageCount: number;
+            wordCount: number;
+            isOptimal: boolean;
+            score: number;
+        };
+        readabilityScore?: number;
+        atsBlockingElements?: string[];
+        standardHeaders?: {
+            isStandard: boolean;
+            nonStandardHeaders: string[];
+            score: number;
+        };
     } | null;
     lastAnalyzedAt?: string;
     jobApplicationId?: string;
@@ -165,6 +193,32 @@ export const getAtsForJob = async (jobApplicationId: string): Promise<AtsScoresR
     } catch (error: any) {
         console.error(`Error fetching ATS scores for job ${jobApplicationId}:`, error.response?.data || error.message);
         throw new Error(error.response?.data?.message || 'Failed to fetch ATS scores for job');
+    }
+};
+
+/**
+ * Get the latest general ATS analysis (without job application)
+ * GET /api/ats/latest
+ */
+export const getLatestAts = async (): Promise<AtsScoresResponse> => {
+    const token = getAuthToken();
+    if (!token) {
+        throw new Error('No authentication token found.');
+    }
+
+    try {
+        const response = await axios.get<AtsScoresResponse>(
+            `${API_BASE_URL}/ats/latest`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            }
+        );
+        return response.data;
+    } catch (error: any) {
+        console.error('Error fetching latest ATS scores:', error.response?.data || error.message);
+        throw new Error(error.response?.data?.message || 'Failed to fetch latest ATS scores');
     }
 };
 

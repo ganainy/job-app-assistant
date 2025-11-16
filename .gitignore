@@ -23,6 +23,9 @@ yarn-error.log*
 # Temporary files
 server/temp_pdfs
 
+# Ignore influence directory
+influence/
+
 # Ignore GitHub specific files
 .github
 
