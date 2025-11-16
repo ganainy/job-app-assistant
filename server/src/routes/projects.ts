@@ -6,6 +6,7 @@ import {
   getCurrentUserProjects,
   createProject,
   updateProject,
+  updateProjectOrders,
   deleteProject,
 } from '../controllers/projectController';
 import authMiddleware from '../middleware/authMiddleware';
@@ -19,6 +20,7 @@ router.get('/:username', getProjectsByUsername);
 router.get('/', authMiddleware, getCurrentUserProjects);
 router.post('/', authMiddleware, createProject);
 router.post('/import-github', authMiddleware, importGitHubProjects);
+router.put('/reorder', authMiddleware, updateProjectOrders);
 router.put('/:id', authMiddleware, updateProject);
 router.delete('/:id', authMiddleware, deleteProject);
 

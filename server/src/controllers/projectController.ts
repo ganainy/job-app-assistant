@@ -53,12 +53,7 @@ export const importGitHubProjects = asyncHandler(
 
     try {
       const token = await getApiToken(userId.toString());
-      if (!token) {
-        throw new InternalServerError(
-          'GitHub API token is required. Please configure GITHUB_TOKEN in environment variables or add your token in profile settings.'
-        );
-      }
-
+      // Token is optional - public repos work without token (60 requests/hour limit)
       const repos = await fetchUserRepositories(githubUsername, token);
 
       // Transform repos to projects
@@ -69,9 +64,16 @@ export const importGitHubProjects = asyncHandler(
         (p) => p !== null
       );
 
+      // Get current max order for this user
+      const maxOrderProject = await Project.findOne({ userId })
+        .sort({ order: -1 })
+        .limit(1);
+      const startOrder = maxOrderProject?.order !== undefined ? (maxOrderProject.order + 1) : 0;
+
       // Save projects to database
       const savedProjects = [];
-      for (const projectData of transformedProjects) {
+      for (let i = 0; i < transformedProjects.length; i++) {
+        const projectData = transformedProjects[i];
         // Check if project already exists
         const existingProject = await Project.findOne({
           userId,
@@ -90,6 +92,7 @@ export const importGitHubProjects = asyncHandler(
             sourceType: 'github',
             isImported: true,
             isVisibleInPortfolio: true,
+            order: startOrder + i,
           });
           savedProjects.push(project);
         }
@@ -177,6 +180,41 @@ export const updateProject = asyncHandler(
     res.status(200).json({
       status: 'success',
       data: project,
+    });
+  }
+);
+
+/**
+ * Update project orders in bulk
+ * PUT /api/projects/reorder
+ */
+export const updateProjectOrders = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.user || !req.user._id) {
+      throw new InternalServerError('User not authenticated');
+    }
+    const userId = req.user._id;
+
+    const { projectOrders } = req.body; // Array of { id: string, order: number }
+
+    if (!Array.isArray(projectOrders)) {
+      throw new InternalServerError('projectOrders must be an array');
+    }
+
+    // Update all projects in parallel
+    const updatePromises = projectOrders.map(({ id, order }: { id: string; order: number }) =>
+      Project.findOneAndUpdate(
+        { _id: id, userId },
+        { order },
+        { new: true }
+      )
+    );
+
+    await Promise.all(updatePromises);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Project orders updated successfully',
     });
   }
 );

@@ -11,6 +11,35 @@ import { getApiToken, fetchUserRepositories, extractSkillsFromRepos } from '../s
 import { getUsernameFromUrl, fetchLinkedInProfile, extractLinkedInData } from '../services/linkedinService';
 
 /**
+ * Validate GitHub token format
+ */
+const validateGitHubToken = (token: string | undefined): boolean => {
+  if (!token) return true; // Empty token is valid (optional)
+  // GitHub personal access tokens start with ghp_ (new) or gho_ (OAuth) or ghu_ (user-to-server)
+  // Classic tokens can also start with ghp_
+  return /^gh[po]_/.test(token) || token.length > 20; // Allow classic tokens too
+};
+
+/**
+ * Sanitize profile to remove sensitive data
+ * @param profile - The profile object to sanitize
+ * @param includeTokens - If true, tokens are included (for own profile). If false, tokens are removed (for public endpoints)
+ */
+const sanitizeProfile = (profile: any, includeTokens: boolean = false): any => {
+  const profileObj = profile.toObject ? profile.toObject() : profile;
+  // Remove access tokens from response unless it's the user's own profile
+  if (!includeTokens && profileObj.integrations) {
+    if (profileObj.integrations.github && profileObj.integrations.github.accessToken) {
+      profileObj.integrations.github.accessToken = undefined;
+    }
+    if (profileObj.integrations.linkedin && profileObj.integrations.linkedin.accessToken) {
+      profileObj.integrations.linkedin.accessToken = undefined;
+    }
+  }
+  return profileObj;
+};
+
+/**
  * Get aggregated profile with integrated data from GitHub and LinkedIn
  * GET /api/profile/aggregated/:username
  */
@@ -33,6 +62,11 @@ export const getAggregatedProfile = asyncHandler(
 
     if (!profile) {
       throw new NotFoundError('Profile not found');
+    }
+
+    // Check if portfolio is published
+    if (!profile.isPublished) {
+      throw new NotFoundError('Portfolio is not published');
     }
 
     // Extract skills from saved Projects instead of fetching from GitHub
@@ -85,7 +119,15 @@ export const getAggregatedProfile = asyncHandler(
     // Use saved profile data instead of fetching from LinkedIn
     // The profile already has name, title, bio, location from LinkedIn sync
     // Only fetch additional LinkedIn data if explicitly requested via query param
-    let linkedinData = null;
+    let linkedinData: {
+      name?: string;
+      title?: string;
+      bio?: string;
+      location?: string;
+      experience?: any[];
+      skills?: string[];
+      languages?: any[];
+    } | null = null;
     const forceLinkedInRefresh = req.query.refreshLinkedIn === 'true';
     
     if (forceLinkedInRefresh && profile.socialLinks?.linkedin) {
@@ -110,9 +152,29 @@ export const getAggregatedProfile = asyncHandler(
         title: profile.title,
         bio: profile.bio,
         location: profile.location,
-        // Note: experience and skills from LinkedIn are not currently saved
-        // They would need to be added to the Profile model to be cached
+        experience: profile.linkedInExperience || [],
+        skills: profile.linkedInSkills || [],
+        languages: profile.linkedInLanguages || [],
       };
+    }
+
+    // Filter LinkedIn data based on visibility settings
+    const settings = profile.settings || {};
+    if (linkedinData) {
+      if (!settings.showLinkedInName) {
+        linkedinData.name = undefined;
+        linkedinData.title = undefined;
+        linkedinData.bio = undefined;
+      }
+      if (!settings.showLinkedInExperience) {
+        linkedinData.experience = undefined;
+      }
+      if (!settings.showLinkedInSkills) {
+        linkedinData.skills = undefined;
+      }
+      if (!settings.showLinkedInLanguages) {
+        linkedinData.languages = undefined;
+      }
     }
 
     // Combine skills from saved projects
@@ -128,8 +190,11 @@ export const getAggregatedProfile = asyncHandler(
       return `${req.protocol}://${req.get('host')}${url}`;
     };
 
+    // Sanitize profile to remove sensitive data
+    const profileObj = sanitizeProfile(profile);
+    
     const aggregatedProfile = {
-      ...profile.toObject(),
+      ...profileObj,
       skills: combinedSkills,
       linkedinData,
       profileImageUrl: ensureFullUrl(profile.profileImageUrl),
@@ -170,10 +235,13 @@ export const getProfileByUsername = asyncHandler(
       throw new NotFoundError('Profile not found');
     }
 
+    // Sanitize profile to remove sensitive data
+    const sanitizedProfile = sanitizeProfile(profile);
+
     res.status(200).json({
       status: 'success',
       data: {
-        profile,
+        profile: sanitizedProfile,
         user: {
           email: user.email,
           id: user._id,
@@ -201,10 +269,13 @@ export const getCurrentUserProfile = asyncHandler(
       profile = await Profile.create({ userId });
     }
 
+    // Include tokens for own profile (user needs to see/edit their token)
+    const sanitizedProfile = sanitizeProfile(profile, true);
+
     res.status(200).json({
       status: 'success',
       data: {
-        profile,
+        profile: sanitizedProfile,
         user: {
           email: req.user.email,
           id: req.user._id,
@@ -236,6 +307,16 @@ export const updateProfile = asyncHandler(
       return obj;
     }, {});
 
+    // Validate GitHub token if provided
+    if (filteredBody.integrations?.github?.accessToken) {
+      const token = filteredBody.integrations.github.accessToken;
+      if (token && !validateGitHubToken(token)) {
+        throw new InternalServerError(
+          'Invalid GitHub token format. GitHub personal access tokens should start with "ghp_" or be a valid token.'
+        );
+      }
+    }
+
     // Update profile
     const updatedProfile = await Profile.findOneAndUpdate(
       { userId },
@@ -247,10 +328,13 @@ export const updateProfile = asyncHandler(
       }
     );
 
+    // Sanitize profile before sending response
+    const sanitizedProfile = sanitizeProfile(updatedProfile);
+
     res.status(200).json({
       status: 'success',
       data: {
-        profile: updatedProfile,
+        profile: sanitizedProfile,
       },
     });
   }

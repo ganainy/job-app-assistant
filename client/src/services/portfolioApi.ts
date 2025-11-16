@@ -62,6 +62,7 @@ export interface Project {
   featured?: boolean;
   order?: number;
   sourceType?: 'manual' | 'github' | 'external';
+  isVisibleInPortfolio?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -163,6 +164,66 @@ export const getGitHubRepos = async (username: string) => {
  */
 export const getGitHubSkills = async (username: string) => {
   const response = await axios.get(`${API_BASE_URL}/github/skills/${username}`);
+  return response.data.data;
+};
+
+/**
+ * Get current user's projects
+ */
+export const getCurrentUserProjects = async (): Promise<Project[]> => {
+  const token = localStorage.getItem('authToken');
+  const response = await axios.get(`${API_BASE_URL}/projects`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data;
+};
+
+/**
+ * Update a project
+ */
+export const updateProject = async (projectId: string, data: Partial<Project>): Promise<Project> => {
+  const token = localStorage.getItem('authToken');
+  const response = await axios.put(`${API_BASE_URL}/projects/${projectId}`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data;
+};
+
+/**
+ * Update project orders in bulk
+ */
+export const updateProjectOrders = async (projectOrders: Array<{ id: string; order: number }>) => {
+  const token = localStorage.getItem('authToken');
+  const response = await axios.put(
+    `${API_BASE_URL}/projects/reorder`,
+    { projectOrders },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data;
+};
+
+/**
+ * Toggle portfolio publish status
+ */
+export const togglePortfolioPublish = async (isPublished: boolean) => {
+  const token = localStorage.getItem('authToken');
+  const response = await axios.put(
+    `${API_BASE_URL}/profile`,
+    { isPublished },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
   return response.data.data;
 };
 

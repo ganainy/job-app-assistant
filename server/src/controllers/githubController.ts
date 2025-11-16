@@ -20,12 +20,7 @@ export const getGithubRepos = asyncHandler(
 
     try {
       const token = await getApiToken(userId);
-      if (!token) {
-        throw new InternalServerError(
-          'GitHub API token is required. Please configure GITHUB_TOKEN in environment variables or add your token in profile settings.'
-        );
-      }
-
+      // Token is optional - public repos work without token (60 requests/hour limit)
       const repos = await fetchUserRepositories(username, token);
 
       res.status(200).json({
@@ -50,12 +45,7 @@ export const getSkills = asyncHandler(async (req: Request, res: Response) => {
 
   try {
     const token = await getApiToken(userId);
-    if (!token) {
-      throw new InternalServerError(
-        'GitHub API token is required. Please configure GITHUB_TOKEN in environment variables or add your token in profile settings.'
-      );
-    }
-
+    // Token is optional - public repos work without token (60 requests/hour limit)
     const repos = await fetchUserRepositories(username, token);
     const skills = extractSkillsFromRepos(repos);
 
@@ -85,12 +75,7 @@ export const transformRepo = asyncHandler(
 
     try {
       const token = await getApiToken(userId);
-      if (!token) {
-        throw new InternalServerError(
-          'GitHub API token is required. Please configure GITHUB_TOKEN in environment variables or add your token in profile settings.'
-        );
-      }
-
+      // Token is optional - public repos work without token (60 requests/hour limit)
       const transformedProject = await transformGitHubRepoToProject(repo, token);
 
       if (!transformedProject) {

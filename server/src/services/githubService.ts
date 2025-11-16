@@ -106,17 +106,13 @@ const getGitHubHeaders = (token: string | null): Record<string, string> => {
 
 /**
  * Fetch data from GitHub API
+ * Token is optional - public repos work without token (60 requests/hour limit)
  */
 export const fetchFromGitHub = async (
   url: string,
   token: string | null
 ): Promise<any> => {
-  if (!token || typeof token !== 'string' || !token.trim()) {
-    throw new InternalServerError(
-      'A GitHub API token is required but was not provided. Ensure a fallback token is configured or the user is authenticated with GitHub.'
-    );
-  }
-
+  // Allow requests without token for public repos
   const response = await fetch(url, {
     headers: getGitHubHeaders(token),
   });
@@ -133,6 +129,7 @@ export const fetchFromGitHub = async (
     }
 
     const githubMessage = errorBody.message || 'An unknown error occurred with the GitHub API.';
+    const hasToken = token && typeof token === 'string' && token.trim().length > 0;
 
     switch (status) {
       case 401:
@@ -142,9 +139,20 @@ export const fetchFromGitHub = async (
       case 403: {
         const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
         const rateLimitReset = response.headers.get('x-ratelimit-reset');
+        const rateLimitTotal = response.headers.get('x-ratelimit-limit');
         const resetTime = rateLimitReset
           ? new Date(parseInt(rateLimitReset) * 1000).toLocaleTimeString()
           : 'N/A';
+        
+        // Check if this is a rate limit issue (remaining is 0 or low)
+        const isRateLimit = rateLimitRemaining === '0' || (rateLimitRemaining && parseInt(rateLimitRemaining) < 10);
+        
+        if (isRateLimit && !hasToken) {
+          throw new InternalServerError(
+            `GitHub API rate limit exceeded (${rateLimitRemaining || 0}/${rateLimitTotal || 60} requests remaining). A GitHub token is recommended for higher rate limits (5,000 vs 60 requests/hour). Resets at: ${resetTime}.`
+          );
+        }
+        
         const details = `Rate limit exceeded or access forbidden. Remaining: ${rateLimitRemaining}. Resets at: ${resetTime}. GitHub's message: ${githubMessage}`;
         throw new InternalServerError(
           `GitHub API rate limit exceeded or access is forbidden. ${details}`

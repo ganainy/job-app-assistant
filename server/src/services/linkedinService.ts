@@ -12,7 +12,19 @@ interface LinkedInProfileData {
       city?: string;
       country?: string;
     };
+    profile_picture_url?: string;
+    profileImageUrl?: string;
+    profilePicture?: string;
+    image?: string;
+    photo?: string;
+    profile_image?: string;
   };
+  profile_picture_url?: string;
+  profileImageUrl?: string;
+  profilePicture?: string;
+  image?: string;
+  photo?: string;
+  profile_image?: string;
   summary?: string;
   bio?: string;
   description?: string;
@@ -144,6 +156,51 @@ export const updateProfileFromLinkedInData = async (
       updates.location = location;
     }
 
+    // Extract profile image from various possible field names
+    const profileImageUrl =
+      linkedinData.basic_info?.profile_picture_url ||
+      linkedinData.basic_info?.profileImageUrl ||
+      linkedinData.basic_info?.profilePicture ||
+      linkedinData.basic_info?.image ||
+      linkedinData.basic_info?.photo ||
+      linkedinData.basic_info?.profile_image ||
+      linkedinData.profile_picture_url ||
+      linkedinData.profileImageUrl ||
+      linkedinData.profilePicture ||
+      linkedinData.image ||
+      linkedinData.photo ||
+      linkedinData.profile_image;
+
+    if (profileImageUrl && (!profile.profileImageUrl || forceUpdate)) {
+      updates.profileImageUrl = profileImageUrl;
+    }
+
+    // Update LinkedIn experience, skills, and languages
+    if (linkedinData.experience && (forceUpdate || !profile.linkedInExperience || profile.linkedInExperience.length === 0)) {
+      updates.linkedInExperience = linkedinData.experience.map((exp) => ({
+        title: exp.title,
+        company: exp.company,
+        description: exp.description,
+        location: exp.location,
+        startDate: exp.start_date ? { year: exp.start_date.year, month: exp.start_date.month } : undefined,
+        endDate: exp.end_date ? { year: exp.end_date.year, month: exp.end_date.month } : undefined,
+        isCurrent: exp.is_current,
+      }));
+    }
+
+    if (linkedinData.skills && (forceUpdate || !profile.linkedInSkills || profile.linkedInSkills.length === 0)) {
+      updates.linkedInSkills = linkedinData.skills.map((skill) =>
+        typeof skill === 'string' ? skill : skill.name || skill.title || ''
+      ).filter(Boolean);
+    }
+
+    if (linkedinData.languages && (forceUpdate || !profile.linkedInLanguages || profile.linkedInLanguages.length === 0)) {
+      updates.linkedInLanguages = linkedinData.languages.map((lang) => ({
+        language: lang.language,
+        proficiency: lang.proficiency,
+      }));
+    }
+
     // Update profile if we have changes
     if (Object.keys(updates).length > 0) {
       await Profile.findOneAndUpdate({ userId }, { $set: updates }, { new: true });
@@ -165,10 +222,26 @@ export const extractLinkedInData = (profileData: LinkedInProfileData): {
   title?: string;
   bio?: string;
   location?: string;
+  profileImageUrl?: string;
   experience?: any[];
   skills?: string[];
   languages?: any[];
 } => {
+  // Extract profile image from various possible field names
+  const profileImageUrl =
+    profileData.basic_info?.profile_picture_url ||
+    profileData.basic_info?.profileImageUrl ||
+    profileData.basic_info?.profilePicture ||
+    profileData.basic_info?.image ||
+    profileData.basic_info?.photo ||
+    profileData.basic_info?.profile_image ||
+    profileData.profile_picture_url ||
+    profileData.profileImageUrl ||
+    profileData.profilePicture ||
+    profileData.image ||
+    profileData.photo ||
+    profileData.profile_image;
+
   return {
     name: profileData.basic_info?.fullname,
     title: profileData.basic_info?.headline,
@@ -178,6 +251,7 @@ export const extractLinkedInData = (profileData: LinkedInProfileData): {
       profileData.bio ||
       profileData.description,
     location: profileData.basic_info?.location?.full || profileData.basic_info?.location?.city,
+    profileImageUrl,
     experience: profileData.experience || [],
     skills: profileData.skills?.map((skill) =>
       typeof skill === 'string' ? skill : skill.name || skill.title || ''

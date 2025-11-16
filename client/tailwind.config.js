@@ -17,11 +17,16 @@ export default {
         "text-light-secondary": "#A0AEC0", // Medium Gray
         "text-dark-secondary": "#A0AEC0", // Medium Gray
         "card-light": "#FFFFFF",
-        "card-dark": "#1A202C", // Dark Charcoal
+        "card-dark": "#1A192F", // Dark Charcoal
         "border-light": "#E2E8F0",
         "border-dark": "#2D3748",
         "positive": "#38A169", // Muted Green
-        "negative": "#E53E3E" // Muted Red
+        "negative": "#E53E3E", // Muted Red
+        "accent": {
+          "purple": "#764ba2",
+          "purple-light": "#a8a8e6",
+          "purple-dark": "#5a3d7a"
+        }
       },
       fontFamily: {
         sans: ['Roboto', 'sans-serif'],

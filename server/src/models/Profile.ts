@@ -8,6 +8,20 @@ export interface IProfile extends Document {
   bio?: string;
   location?: string;
   phone?: string;
+  linkedInExperience?: Array<{
+    title?: string;
+    company?: string;
+    description?: string;
+    location?: string;
+    startDate?: { year?: number; month?: string };
+    endDate?: { year?: number; month?: string };
+    isCurrent?: boolean;
+  }>;
+  linkedInSkills?: string[];
+  linkedInLanguages?: Array<{
+    language?: string;
+    proficiency?: string;
+  }>;
   socialLinks?: {
     github?: string;
     linkedin?: string;
@@ -44,7 +58,12 @@ export interface IProfile extends Document {
     showContact?: boolean;
     showGitHub?: boolean;
     showLinkedIn?: boolean;
+    showLinkedInName?: boolean;
+    showLinkedInExperience?: boolean;
+    showLinkedInSkills?: boolean;
+    showLinkedInLanguages?: boolean;
   };
+  isPublished?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -76,6 +95,30 @@ const ProfileSchema: Schema = new Schema(
       type: String,
       trim: true,
     },
+    linkedInExperience: [
+      {
+        title: String,
+        company: String,
+        description: String,
+        location: String,
+        startDate: {
+          year: Number,
+          month: String,
+        },
+        endDate: {
+          year: Number,
+          month: String,
+        },
+        isCurrent: Boolean,
+      },
+    ],
+    linkedInSkills: [String],
+    linkedInLanguages: [
+      {
+        language: String,
+        proficiency: String,
+      },
+    ],
     socialLinks: {
       github: String,
       linkedin: String,
@@ -133,6 +176,26 @@ const ProfileSchema: Schema = new Schema(
         type: Boolean,
         default: true,
       },
+      showLinkedInName: {
+        type: Boolean,
+        default: true,
+      },
+      showLinkedInExperience: {
+        type: Boolean,
+        default: true,
+      },
+      showLinkedInSkills: {
+        type: Boolean,
+        default: true,
+      },
+      showLinkedInLanguages: {
+        type: Boolean,
+        default: true,
+      },
+    },
+    isPublished: {
+      type: Boolean,
+      default: false,
     },
   },
   {
