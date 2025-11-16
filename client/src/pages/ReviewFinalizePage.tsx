@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, updateJobDraft } from '../services/jobApi';
-import { renderFinalPdfs, getDownloadUrl, generateDocuments } from '../services/generatorApi';
+import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments } from '../services/generatorApi';
 import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi';
 import { scanAts, getAtsScores, getAtsForJob, AtsScores } from '../services/atsApi';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
@@ -36,6 +36,8 @@ const ReviewFinalizePage: React.FC = () => {
     const [saveError, setSaveError] = useState<string | null>(null);
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [isRenderingPdf, setIsRenderingPdf] = useState<boolean>(false);
+    const [isRenderingCvPdf, setIsRenderingCvPdf] = useState<boolean>(false);
+    const [isRenderingCoverLetterPdf, setIsRenderingCoverLetterPdf] = useState<boolean>(false);
     const [renderError, setRenderError] = useState<string | null>(null);
     const [refreshError, setRefreshError] = useState<string | null>(null);
     const [analyzeError, setAnalyzeError] = useState<string | null>(null);
@@ -58,9 +60,14 @@ const ReviewFinalizePage: React.FC = () => {
     const [atsPollingIntervalId, setAtsPollingIntervalId] = useState<NodeJS.Timeout | null>(null);
     const [atsProgressMessage, setAtsProgressMessage] = useState<string>('');
     const [activeTab, setActiveTab] = useState<'ai-review' | 'job-description' | 'cover-letter' | 'cv'>('ai-review');
+    const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isInitialLoadRef = useRef<boolean>(true);
+    const lastSavedCvDataRef = useRef<string | null>(null);
+    const lastSavedCoverLetterRef = useRef<string | null>(null);
     
     const ATS_POLLING_INTERVAL_MS = 3000; // Poll more frequently for ATS
     const ATS_POLLING_TIMEOUT_MS = 120000; // 2 minutes timeout
+    const AUTO_SAVE_DELAY_MS = 2000; // Auto-save after 2 seconds of inactivity
 
     const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
         setToast({ message, type });
@@ -85,6 +92,10 @@ const ReviewFinalizePage: React.FC = () => {
                 });
             }
 
+            // Initialize saved data refs to prevent unnecessary auto-saves
+            lastSavedCvDataRef.current = JSON.stringify(data.draftCvJson || { basics: {} });
+            lastSavedCoverLetterRef.current = data.draftCoverLetterText || '';
+
             try {
                 const cvResponse = await getCurrentCv();
                 setHasMasterCv(!!cvResponse.cvData);
@@ -103,6 +114,17 @@ const ReviewFinalizePage: React.FC = () => {
     useEffect(() => {
         fetchJobData();
     }, [fetchJobData]);
+
+    // Reset initial load flag after data is loaded
+    useEffect(() => {
+        if (jobApplication && !isLoading) {
+            // Small delay to ensure all data is set
+            const timer = setTimeout(() => {
+                isInitialLoadRef.current = false;
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [jobApplication, isLoading]);
 
     // Fetch existing ATS scores when job application is loaded
     useEffect(() => {
@@ -273,6 +295,85 @@ const ReviewFinalizePage: React.FC = () => {
         setCoverLetterText(value);
     };
 
+    // Auto-save effect - debounced
+    useEffect(() => {
+        // Skip auto-save on initial load
+        if (isInitialLoadRef.current || !jobId || !jobApplication) {
+            return;
+        }
+
+        // Serialize current data for comparison
+        const currentCvDataStr = JSON.stringify(cvData);
+        const currentCoverLetterStr = coverLetterText;
+
+        // Check if data has actually changed
+        if (
+            currentCvDataStr === lastSavedCvDataRef.current &&
+            currentCoverLetterStr === lastSavedCoverLetterRef.current
+        ) {
+            // No changes, skip auto-save
+            return;
+        }
+
+        // Clear existing timeout
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
+        }
+
+        // Set new timeout for auto-save
+        autoSaveTimeoutRef.current = setTimeout(async () => {
+            if (!jobId || !jobApplication) return;
+
+            // Double-check data hasn't changed during the delay
+            const cvDataStr = JSON.stringify(cvData);
+            const coverLetterStr = coverLetterText;
+            
+            if (
+                cvDataStr === lastSavedCvDataRef.current &&
+                coverLetterStr === lastSavedCoverLetterRef.current
+            ) {
+                // Data hasn't changed, skip save
+                return;
+            }
+
+            setIsSaving(true);
+            setSaveError(null);
+            try {
+                const updatePayload: any = {
+                    draftCvJson: cvData,
+                    draftCoverLetterText: coverLetterText,
+                };
+
+                if (cvData && typeof cvData === 'object' && Object.keys(cvData).length > 0 && coverLetterText && coverLetterText.trim().length > 0) {
+                    const currentStatus = jobApplication.generationStatus;
+                    if (currentStatus !== 'finalized') {
+                        updatePayload.generationStatus = 'draft_ready';
+                    }
+                }
+
+                await updateJob(jobId, updatePayload);
+                
+                // Update refs with saved values
+                lastSavedCvDataRef.current = JSON.stringify(cvData);
+                lastSavedCoverLetterRef.current = coverLetterText;
+                
+                setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
+            } catch (error: any) {
+                console.error("Error auto-saving changes:", error);
+                setSaveError(error.message || 'Failed to save changes.');
+            } finally {
+                setIsSaving(false);
+            }
+        }, AUTO_SAVE_DELAY_MS);
+
+        // Cleanup timeout on unmount or when dependencies change
+        return () => {
+            if (autoSaveTimeoutRef.current) {
+                clearTimeout(autoSaveTimeoutRef.current);
+            }
+        };
+    }, [cvData, coverLetterText, jobId, jobApplication]);
+
     const handleRefreshJobDetails = async () => {
         if (!jobId || !jobApplication?.jobUrl) return;
 
@@ -379,6 +480,11 @@ const ReviewFinalizePage: React.FC = () => {
             }
 
             await updateJob(jobId, updatePayload);
+            
+            // Update refs with saved values
+            lastSavedCvDataRef.current = JSON.stringify(cvData);
+            lastSavedCoverLetterRef.current = coverLetterText;
+            
             setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
             showToast('Changes saved successfully', 'success');
             return true;
@@ -399,10 +505,21 @@ const ReviewFinalizePage: React.FC = () => {
         setFinalPdfFiles({ cv: null, cl: null });
 
         try {
-            const saveSuccess = await handleSaveChanges();
-            if (!saveSuccess) {
-                throw new Error(`Cannot generate PDFs: Failed to save changes first.`);
+            // Ensure latest changes are saved before generating PDFs
+            const updatePayload: any = {
+                draftCvJson: cvData,
+                draftCoverLetterText: coverLetterText,
+            };
+
+            if (cvData && typeof cvData === 'object' && Object.keys(cvData).length > 0 && coverLetterText && coverLetterText.trim().length > 0) {
+                const currentStatus = jobApplication?.generationStatus;
+                if (currentStatus !== 'finalized') {
+                    updatePayload.generationStatus = 'draft_ready';
+                }
             }
+
+            await updateJob(jobId, updatePayload);
+            setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
 
             const result = await renderFinalPdfs(jobId);
             setFinalPdfFiles({ cv: result.cvFilename, cl: result.coverLetterFilename });
@@ -410,11 +527,77 @@ const ReviewFinalizePage: React.FC = () => {
             showToast('PDFs generated successfully', 'success');
         } catch (error: any) {
             console.error("Error generating final PDFs:", error);
-            if (!saveError) {
-                setRenderError(error.message || 'Failed to generate final PDFs.');
-            }
+            setRenderError(error.message || 'Failed to generate final PDFs.');
         } finally {
             setIsRenderingPdf(false);
+        }
+    };
+
+    const handleGenerateCvPdf = async () => {
+        if (!jobId) return;
+
+        setIsRenderingCvPdf(true);
+        setRenderError(null);
+
+        try {
+            // Ensure latest CV changes are saved before generating PDF
+            const updatePayload: any = {
+                draftCvJson: cvData,
+            };
+
+            if (cvData && typeof cvData === 'object' && Object.keys(cvData).length > 0) {
+                const currentStatus = jobApplication?.generationStatus;
+                if (currentStatus !== 'finalized') {
+                    updatePayload.generationStatus = 'draft_ready';
+                }
+            }
+
+            await updateJob(jobId, updatePayload);
+            setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
+
+            const result = await renderCvPdf(jobId);
+            setFinalPdfFiles(prev => ({ ...prev, cv: result.cvFilename }));
+            setJobApplication(prev => prev ? { ...prev, generationStatus: 'finalized', generatedCvFilename: result.cvFilename } : null);
+            showToast('CV PDF generated successfully', 'success');
+        } catch (error: any) {
+            console.error("Error generating CV PDF:", error);
+            setRenderError(error.message || 'Failed to generate CV PDF.');
+        } finally {
+            setIsRenderingCvPdf(false);
+        }
+    };
+
+    const handleGenerateCoverLetterPdf = async () => {
+        if (!jobId) return;
+
+        setIsRenderingCoverLetterPdf(true);
+        setRenderError(null);
+
+        try {
+            // Ensure latest cover letter changes are saved before generating PDF
+            const updatePayload: any = {
+                draftCoverLetterText: coverLetterText,
+            };
+
+            if (coverLetterText && coverLetterText.trim().length > 0) {
+                const currentStatus = jobApplication?.generationStatus;
+                if (currentStatus !== 'finalized') {
+                    updatePayload.generationStatus = 'draft_ready';
+                }
+            }
+
+            await updateJob(jobId, updatePayload);
+            setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
+
+            const result = await renderCoverLetterPdf(jobId);
+            setFinalPdfFiles(prev => ({ ...prev, cl: result.coverLetterFilename }));
+            setJobApplication(prev => prev ? { ...prev, generationStatus: 'finalized', generatedCoverLetterFilename: result.coverLetterFilename } : null);
+            showToast('Cover Letter PDF generated successfully', 'success');
+        } catch (error: any) {
+            console.error("Error generating Cover Letter PDF:", error);
+            setRenderError(error.message || 'Failed to generate Cover Letter PDF.');
+        } finally {
+            setIsRenderingCoverLetterPdf(false);
         }
     };
 
@@ -980,19 +1163,31 @@ const ReviewFinalizePage: React.FC = () => {
                             <div>
                                 {jobApplication.draftCoverLetterText ? (
                                     <>
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit Cover Letter</h2>
-                                            <div className="flex gap-2">
+                                        <div className="mb-4">
+                                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Cover Letter</h2>
+                                            
+                                            {coverLetterError && (
+                                                <div className="mb-4">
+                                                    <ErrorAlert
+                                                        message={coverLetterError}
+                                                        onDismiss={() => setCoverLetterError(null)}
+                                                    />
+                                                </div>
+                                            )}
+                                            
+                                            {/* Action buttons - grouped logically */}
+                                            <div className="flex flex-wrap items-center gap-2 mb-4">
+                                                {/* Regenerate Cover Letter Text */}
                                                 <button
                                                     onClick={handleGenerateCoverLetter}
                                                     disabled={isGeneratingCoverLetter || !jobApplication?.jobDescriptionText || !hasMasterCv}
-                                                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors"
+                                                    className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm hover:shadow-md"
                                                     title={
                                                         !hasMasterCv
                                                             ? 'Please upload your master CV first'
                                                             : !jobApplication?.jobDescriptionText
                                                             ? 'Please scrape the job description first'
-                                                            : 'Regenerate cover letter'
+                                                            : 'Regenerate cover letter text with AI'
                                                     }
                                                 >
                                                     {isGeneratingCoverLetter ? (
@@ -1001,34 +1196,32 @@ const ReviewFinalizePage: React.FC = () => {
                                                             <span>Regenerating...</span>
                                                         </>
                                                     ) : (
-                                                        'Regenerate Cover Letter'
+                                                        <>
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                            </svg>
+                                                            Regenerate Cover Letter Text
+                                                        </>
                                                     )}
                                                 </button>
+                                                
+                                                {/* Download button - only shown when PDF exists */}
+                                                {finalPdfFiles.cl && (
+                                                    <>
+                                                        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+                                                        <button
+                                                            onClick={() => handleDownload(finalPdfFiles.cl)}
+                                                            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-all font-medium shadow-sm hover:shadow-md"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                            Download PDF
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
-                                        {coverLetterError && (
-                                            <div className="mb-4">
-                                                <ErrorAlert
-                                                    message={coverLetterError}
-                                                    onDismiss={() => setCoverLetterError(null)}
-                                                />
-                                            </div>
-                                        )}
-                                        
-                                        {/* Download Cover Letter button */}
-                                        {finalPdfFiles.cl && (
-                                            <div className="mb-4">
-                                                <button
-                                                    onClick={() => handleDownload(finalPdfFiles.cl)}
-                                                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 transition-colors"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                    </svg>
-                                                    Download Cover Letter
-                                                </button>
-                                            </div>
-                                        )}
 
                                         <div className="h-[calc(100vh-500px)] min-h-[600px] flex flex-col">
                                             <CoverLetterEditor
@@ -1094,32 +1287,58 @@ const ReviewFinalizePage: React.FC = () => {
                             <div>
                                 {jobApplication.draftCvJson ? (
                                     <>
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV</h2>
-                                        </div>
-                                        {analyzeError && (
-                                            <div className="mb-4">
-                                                <ErrorAlert
-                                                    message={`Analysis Error: ${analyzeError}`}
-                                                    onDismiss={() => setAnalyzeError(null)}
-                                                />
-                                            </div>
-                                        )}
-                                        
-                                        {/* Download CV button */}
-                                        {finalPdfFiles.cv && (
-                                            <div className="mb-4">
+                                        <div className="mb-4">
+                                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit CV</h2>
+                                            
+                                            {analyzeError && (
+                                                <div className="mb-4">
+                                                    <ErrorAlert
+                                                        message={`Analysis Error: ${analyzeError}`}
+                                                        onDismiss={() => setAnalyzeError(null)}
+                                                    />
+                                                </div>
+                                            )}
+                                            
+                                            {/* Action buttons - grouped logically */}
+                                            <div className="flex flex-wrap items-center gap-2 mb-4">
+                                                {/* Primary action: Generate/Regenerate PDF */}
                                                 <button
-                                                    onClick={() => handleDownload(finalPdfFiles.cv)}
-                                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 transition-colors"
+                                                    onClick={handleGenerateCvPdf}
+                                                    disabled={isRenderingCvPdf || isSaving || !jobApplication.draftCvJson}
+                                                    className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm hover:shadow-md"
                                                 >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                    </svg>
-                                                    Download CV
+                                                    {isRenderingCvPdf ? (
+                                                        <>
+                                                            <Spinner size="sm" />
+                                                            <span>{finalPdfFiles.cv ? 'Regenerating...' : 'Generating...'}</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                            {finalPdfFiles.cv ? 'Regenerate PDF' : 'Generate PDF'}
+                                                        </>
+                                                    )}
                                                 </button>
+                                                
+                                                {/* Download button - only shown when PDF exists */}
+                                                {finalPdfFiles.cv && (
+                                                    <>
+                                                        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+                                                        <button
+                                                            onClick={() => handleDownload(finalPdfFiles.cv)}
+                                                            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-all font-medium shadow-sm hover:shadow-md"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                            Download PDF
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
-                                        )}
+                                        </div>
 
                                         {cvData && (
                                             <CvFormEditor
@@ -1190,12 +1409,17 @@ const ReviewFinalizePage: React.FC = () => {
                 <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg z-30">
                     <div className="container mx-auto px-4 py-4">
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                            <div className="flex-1">
+                            <div className="flex-1 flex items-center gap-3">
+                                {isSaving && (
+                                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                        <Spinner size="sm" />
+                                        <span>Saving...</span>
+                                    </div>
+                                )}
                                 {saveError && (
                                     <ErrorAlert
                                         message={`Save Error: ${saveError}`}
                                         onDismiss={() => setSaveError(null)}
-                                        className="mb-2"
                                     />
                                 )}
                                 {renderError && (
@@ -1204,37 +1428,6 @@ const ReviewFinalizePage: React.FC = () => {
                                         onDismiss={() => setRenderError(null)}
                                     />
                                 )}
-                            </div>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <button
-                                    onClick={handleSaveChanges}
-                                    disabled={isSaving || isRenderingPdf}
-                                    className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
-                                >
-                                    {isSaving ? (
-                                        <>
-                                            <Spinner size="sm" />
-                                            <span>Saving...</span>
-                                        </>
-                                    ) : (
-                                        'Save Changes'
-                                    )}
-                                </button>
-
-                                <button
-                                    onClick={handleGenerateFinalPdfs}
-                                    disabled={isRenderingPdf || isSaving}
-                                    className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
-                                >
-                                    {isRenderingPdf ? (
-                                        <>
-                                            <Spinner size="sm" />
-                                            <span>{(jobApplication.generatedCvFilename || jobApplication.generatedCoverLetterFilename) ? 'Regenerating PDFs...' : 'Generating PDFs...'}</span>
-                                        </>
-                                    ) : (
-                                        (jobApplication.generatedCvFilename || jobApplication.generatedCoverLetterFilename) ? 'Regenerate PDFs' : 'Generate PDFs'
-                                    )}
-                                </button>
                             </div>
                         </div>
                     </div>

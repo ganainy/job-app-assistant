@@ -618,10 +618,149 @@ const downloadFileHandler: RequestHandler = async (req: ValidatedRequest, res) =
     }
 };
 
+// --- Render CV PDF Only Endpoint ---
+const renderCvPdfHandler: RequestHandler = async (req: ValidatedRequest, res): Promise<void> => {
+    const user = req.user as IUser;
+    if (!user || !user._id) {
+        res.status(401).json({ message: 'Authentication required.' });
+        return;
+    }
+    const userId = user._id;
+    const { jobId } = req.validated!.params!;
+    const TEMP_PDF_DIR = path.join(__dirname, '..', '..', 'temp_pdfs');
+
+    try {
+        const job = await JobApplication.findOne({ _id: jobId, userId: userId });
+        if (!job) {
+            res.status(404).json({ message: 'Job application not found or access denied.' });
+            return;
+        }
+        if (!job.draftCvJson || typeof job.draftCvJson !== 'object' || Object.keys(job.draftCvJson).length === 0) {
+            res.status(400).json({ message: 'Missing or invalid draft CV data.' });
+            return;
+        }
+        const language = (job.language === 'en' || job.language === 'de') ? job.language : 'en';
+
+        // Delete old CV PDF if exists
+        if (job.generatedCvFilename) {
+            const oldCvPath = path.join(TEMP_PDF_DIR, path.basename(job.generatedCvFilename));
+            try {
+                await fs.promises.unlink(oldCvPath);
+                console.log(`Deleted old CV PDF: ${oldCvPath}`);
+            } catch (err: any) {
+                if (err.code !== 'ENOENT') {
+                    console.warn(`Could not delete old CV PDF ${oldCvPath}: ${err.message}`);
+                }
+            }
+        }
+
+        // Generate new CV PDF
+        const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
+        const cvJsonData = job.draftCvJson as JsonResumeSchema;
+        const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
+        const companySanitized = sanitize(job.companyName);
+        const titleSanitized = sanitize(job.jobTitle);
+        const cvFilenamePrefix = `CV_${applicantName}_${companySanitized}_${titleSanitized}_${language}`;
+
+        const generatedCvFilename = await generateCvPdfFromJsonResume(cvJsonData, cvFilenamePrefix);
+
+        // Update job with new CV filename
+        await JobApplication.updateOne({ _id: jobId, userId: userId }, {
+            $set: {
+                generatedCvFilename: generatedCvFilename,
+                generationStatus: 'finalized'
+            }
+        });
+
+        res.status(200).json({
+            status: "success",
+            message: "CV PDF generated successfully.",
+            cvFilename: generatedCvFilename
+        });
+    } catch (error: any) {
+        console.error(`Error rendering CV PDF for job ${jobId}:`, error);
+        JobApplication.updateOne({ _id: jobId, userId: userId }, { $set: { generationStatus: 'error' } })
+            .catch(err => console.error("Failed to update job status to error:", err));
+        res.status(500).json({ message: `Failed to render CV PDF: ${error.message || 'Internal server error'}` });
+    }
+};
+
+// --- Render Cover Letter PDF Only Endpoint ---
+const renderCoverLetterPdfHandler: RequestHandler = async (req: ValidatedRequest, res): Promise<void> => {
+    const user = req.user as IUser;
+    if (!user || !user._id) {
+        res.status(401).json({ message: 'Authentication required.' });
+        return;
+    }
+    const userId = user._id;
+    const { jobId } = req.validated!.params!;
+    const TEMP_PDF_DIR = path.join(__dirname, '..', '..', 'temp_pdfs');
+
+    try {
+        const job = await JobApplication.findOne({ _id: jobId, userId: userId });
+        if (!job) {
+            res.status(404).json({ message: 'Job application not found or access denied.' });
+            return;
+        }
+        if (!job.draftCoverLetterText || typeof job.draftCoverLetterText !== 'string') {
+            res.status(400).json({ message: 'Missing or invalid draft cover letter text.' });
+            return;
+        }
+        const language = (job.language === 'en' || job.language === 'de') ? job.language : 'en';
+
+        // Delete old Cover Letter PDF if exists
+        if (job.generatedCoverLetterFilename) {
+            const oldClPath = path.join(TEMP_PDF_DIR, path.basename(job.generatedCoverLetterFilename));
+            try {
+                await fs.promises.unlink(oldClPath);
+                console.log(`Deleted old Cover Letter PDF: ${oldClPath}`);
+            } catch (err: any) {
+                if (err.code !== 'ENOENT') {
+                    console.warn(`Could not delete old Cover Letter PDF ${oldClPath}: ${err.message}`);
+                }
+            }
+        }
+
+        // Generate new Cover Letter PDF
+        const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
+        const cvJsonData = job.draftCvJson as JsonResumeSchema;
+        const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
+        const companySanitized = sanitize(job.companyName);
+        const titleSanitized = sanitize(job.jobTitle);
+        const clFilenamePrefix = `CoverLetter_${applicantName}_${companySanitized}_${titleSanitized}_${language}`;
+
+        const generatedClFilename = await generateCoverLetterPdf(
+            job.draftCoverLetterText,
+            cvJsonData || {},
+            clFilenamePrefix
+        );
+
+        // Update job with new Cover Letter filename
+        await JobApplication.updateOne({ _id: jobId, userId: userId }, {
+            $set: {
+                generatedCoverLetterFilename: generatedClFilename,
+                generationStatus: 'finalized'
+            }
+        });
+
+        res.status(200).json({
+            status: "success",
+            message: "Cover Letter PDF generated successfully.",
+            coverLetterFilename: generatedClFilename
+        });
+    } catch (error: any) {
+        console.error(`Error rendering Cover Letter PDF for job ${jobId}:`, error);
+        JobApplication.updateOne({ _id: jobId, userId: userId }, { $set: { generationStatus: 'error' } })
+            .catch(err => console.error("Failed to update job status to error:", err));
+        res.status(500).json({ message: `Failed to render Cover Letter PDF: ${error.message || 'Internal server error'}` });
+    }
+};
 
 // === ROUTE DEFINITIONS (Order Matters!) ===
 router.post('/finalize', validateRequest({ body: finalizeGenerationBodySchema }), finalizeGenerationHandler); // Finalize draft content
-router.post('/:jobId/render-pdf', validateRequest({ params: jobIdParamSchema }), renderFinalPdfsHandler); // NEW: Render final PDFs from draft
+router.post('/:jobId/render-pdf', validateRequest({ params: jobIdParamSchema }), renderFinalPdfsHandler); // Render both PDFs
+router.post('/:jobId/render-cv-pdf', validateRequest({ params: jobIdParamSchema }), renderCvPdfHandler); // Render CV PDF only
+router.post('/:jobId/render-cover-letter-pdf', validateRequest({ params: jobIdParamSchema }), renderCoverLetterPdfHandler); // Render Cover Letter PDF only
 router.post('/:jobId', validateRequest({ params: jobIdParamSchema, body: generateDocumentsBodySchema }), generateDocumentsHandler); // Generate initial draft or ask for input
 router.get('/download/:filename', validateRequest({ params: filenameParamSchema }), downloadFileHandler); // Download generated files
 

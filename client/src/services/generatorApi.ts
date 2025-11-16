@@ -11,6 +11,19 @@ interface GenerateSuccessResponse {
     coverLetterFilename: string;
 }
 
+// Individual PDF response types
+interface RenderCvPdfResponse {
+    status: "success";
+    message: string;
+    cvFilename: string;
+}
+
+interface RenderCoverLetterPdfResponse {
+    status: "success";
+    message: string;
+    coverLetterFilename: string;
+}
+
 // Input requirement type
 export interface RequiredInputInfo {
     name: string;
@@ -96,6 +109,40 @@ export const finalizeDocuments = async (
             throw new Error(error.response.data.message || `HTTP error! status: ${error.response.status}`);
         }
         throw new Error(error.message || 'Failed to finalize documents');
+    }
+};
+
+// Function to render CV PDF only
+export const renderCvPdf = async (jobId: string): Promise<RenderCvPdfResponse> => {
+    try {
+        const response = await axios.post<RenderCvPdfResponse>(
+            `${API_BASE_URL}/generator/${jobId}/render-cv-pdf`,
+            {}
+        );
+        return response.data;
+    } catch (error: any) {
+        console.error('Error rendering CV PDF:', error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw new Error(error.response.data.message || `HTTP error! status: ${error.response.status}`);
+        }
+        throw new Error(error.message || 'Failed to render CV PDF');
+    }
+};
+
+// Function to render Cover Letter PDF only
+export const renderCoverLetterPdf = async (jobId: string): Promise<RenderCoverLetterPdfResponse> => {
+    try {
+        const response = await axios.post<RenderCoverLetterPdfResponse>(
+            `${API_BASE_URL}/generator/${jobId}/render-cover-letter-pdf`,
+            {}
+        );
+        return response.data;
+    } catch (error: any) {
+        console.error('Error rendering Cover Letter PDF:', error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw new Error(error.response.data.message || `HTTP error! status: ${error.response.status}`);
+        }
+        throw new Error(error.message || 'Failed to render Cover Letter PDF');
     }
 };
 
