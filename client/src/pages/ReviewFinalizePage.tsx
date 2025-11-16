@@ -57,6 +57,7 @@ const ReviewFinalizePage: React.FC = () => {
     const [atsAnalysisId, setAtsAnalysisId] = useState<string | null>(null);
     const [atsPollingIntervalId, setAtsPollingIntervalId] = useState<NodeJS.Timeout | null>(null);
     const [atsProgressMessage, setAtsProgressMessage] = useState<string>('');
+    const [activeTab, setActiveTab] = useState<'ai-review' | 'job-description' | 'cover-letter' | 'cv'>('ai-review');
     
     const ATS_POLLING_INTERVAL_MS = 3000; // Poll more frequently for ATS
     const ATS_POLLING_TIMEOUT_MS = 120000; // 2 minutes timeout
@@ -668,7 +669,7 @@ const ReviewFinalizePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Job Details Section */}
+                {/* Job Details Section - Keep visible above tabs */}
                 <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                     <div className="p-6">
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
@@ -710,373 +711,478 @@ const ReviewFinalizePage: React.FC = () => {
                                     )}
                                 </div>
                             </div>
-                            <button
-                                onClick={handleRefreshJobDetails}
-                                disabled={isRefreshing || !jobApplication.jobUrl}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                {isRefreshing ? (
-                                    <>
-                                        <Spinner size="sm" />
-                                        <span>Refreshing...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                        </svg>
-                                        <span>Refresh Job Details</span>
-                                    </>
-                                )}
-                            </button>
-                        </div>
-
-                        {refreshError && (
-                            <div className="mb-4">
-                                <ErrorAlert
-                                    message={refreshError}
-                                    onDismiss={() => setRefreshError(null)}
-                                    onRetry={handleRefreshJobDetails}
-                                />
-                            </div>
-                        )}
-
-                        <div className="mt-4">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-semibold text-gray-800 dark:text-gray-200">Job Description</h3>
-                                {jobApplication.jobDescriptionText && (
-                                    <button
-                                        onClick={() => setIsJobDescriptionExpanded(!isJobDescriptionExpanded)}
-                                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
-                                        {isJobDescriptionExpanded ? 'Show Less' : 'Show More'}
-                                    </button>
-                                )}
-                            </div>
-                            <div
-                                className={`p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-gray-900 dark:text-gray-300 whitespace-pre-wrap ${
-                                    isJobDescriptionExpanded ? '' : 'max-h-60 overflow-y-auto'
-                                }`}
-                            >
-                                {jobApplication.jobDescriptionText || (
-                                    <p className="text-gray-500 dark:text-gray-400 italic">No job description available. Click "Refresh Job Details" to scrape it.</p>
-                                )}
-                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* ATS Analysis Section */}
-                {jobApplication.jobDescriptionText && (
-                    <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div className="p-6">
-                            <div className="flex items-center justify-between mb-6">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                                        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">ATS Analysis</h2>
-                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                            Analyze your CV compatibility with this job's requirements
-                                        </p>
-                                    </div>
-                                </div>
-                                {atsScores && !isScanningAts && (
-                                    <button
-                                        onClick={handleScanAts}
-                                        disabled={isScanningAts || isLoadingAts || !hasMasterCv}
-                                        className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors text-sm"
-                                        title={!hasMasterCv ? 'Please upload your master CV first' : 'Rescan your CV'}
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                        </svg>
-                                        Rescan
-                                    </button>
-                                )}
-                            </div>
-                            
-                            {/* ATS Progress Indicator */}
-                            {isScanningAts && (
-                                <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
-                                    <div className="flex items-start gap-4">
-                                        <div className="flex-shrink-0">
-                                            <Spinner size="md" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
-                                                {atsProgressMessage || 'Processing ATS analysis...'}
-                                            </p>
-                                            <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
-                                                Analyzing your CV against the job requirements. This may take 30-60 seconds.
-                                            </p>
-                                            <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-                                                <div className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                {/* Tabs Navigation */}
+                <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div className="border-b border-gray-200 dark:border-gray-700">
+                        <nav className="flex -mb-px" aria-label="Tabs">
+                            <button
+                                onClick={() => setActiveTab('ai-review')}
+                                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                                    activeTab === 'ai-review'
+                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                            >
+                                AI Review
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('job-description')}
+                                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                                    activeTab === 'job-description'
+                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                            >
+                                Job Description
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('cover-letter')}
+                                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                                    activeTab === 'cover-letter'
+                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                            >
+                                Cover Letter
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('cv')}
+                                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                                    activeTab === 'cv'
+                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                            >
+                                CV
+                            </button>
+                        </nav>
+                    </div>
 
-                            {/* Empty State - No Scores */}
-                            {!atsScores && !isScanningAts && !isLoadingAts && (
-                                <div className="mb-6 p-8 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900/50 dark:to-blue-900/10 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl text-center">
-                                    <div className="max-w-md mx-auto">
-                                        <div className="mb-4 flex justify-center">
-                                            <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                                                <svg className="w-12 h-12 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                </svg>
+                    {/* Tab Content */}
+                    <div className="p-6">
+                        {/* Tab 1: AI Review */}
+                        {activeTab === 'ai-review' && (
+                            <div>
+                                {jobApplication.jobDescriptionText ? (
+                                    <div>
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                                    <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">ATS Analysis</h2>
+                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                        Analyze your CV compatibility with this job's requirements
+                                                    </p>
+                                                </div>
                                             </div>
+                                            {atsScores && !isScanningAts && (
+                                                <button
+                                                    onClick={handleScanAts}
+                                                    disabled={isScanningAts || isLoadingAts || !hasMasterCv}
+                                                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors text-sm"
+                                                    title={!hasMasterCv ? 'Please upload your master CV first' : 'Rescan your CV'}
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
+                                                    Rescan
+                                                </button>
+                                            )}
                                         </div>
-                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                                            Ready to Analyze Your CV?
-                                        </h3>
-                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                                            Get instant insights into how well your CV matches this job's requirements. Our AI-powered ATS analysis will check:
+                                        
+                                        {/* ATS Progress Indicator */}
+                                        {isScanningAts && (
+                                            <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="flex-shrink-0">
+                                                        <Spinner size="md" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
+                                                            {atsProgressMessage || 'Processing ATS analysis...'}
+                                                        </p>
+                                                        <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
+                                                            Analyzing your CV against the job requirements. This may take 30-60 seconds.
+                                                        </p>
+                                                        <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                                                            <div className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Empty State - No Scores */}
+                                        {!atsScores && !isScanningAts && !isLoadingAts && (
+                                            <div className="mb-6 p-8 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900/50 dark:to-blue-900/10 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl text-center">
+                                                <div className="max-w-md mx-auto">
+                                                    <div className="mb-4 flex justify-center">
+                                                        <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                                                            <svg className="w-12 h-12 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                                                        Ready to Analyze Your CV?
+                                                    </h3>
+                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                                                        Get instant insights into how well your CV matches this job's requirements. Our AI-powered ATS analysis will check:
+                                                    </p>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 text-left">
+                                                        <div className="flex items-start gap-2">
+                                                            <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            <span className="text-xs text-gray-700 dark:text-gray-300">Skill matching</span>
+                                                        </div>
+                                                        <div className="flex items-start gap-2">
+                                                            <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            <span className="text-xs text-gray-700 dark:text-gray-300">Keyword optimization</span>
+                                                        </div>
+                                                        <div className="flex items-start gap-2">
+                                                            <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            <span className="text-xs text-gray-700 dark:text-gray-300">ATS compliance</span>
+                                                        </div>
+                                                        <div className="flex items-start gap-2">
+                                                            <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            <span className="text-xs text-gray-700 dark:text-gray-300">Improvement tips</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={handleScanAts}
+                                                        disabled={isScanningAts || isLoadingAts || !hasMasterCv}
+                                                        className="px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center gap-2 font-semibold transition-all shadow-md hover:shadow-lg mx-auto"
+                                                        title={!hasMasterCv ? 'Please upload your master CV first' : 'Start ATS analysis'}
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                                        </svg>
+                                                        Start ATS Analysis
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {!hasMasterCv && !atsScores && (
+                                            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                                                <div className="flex items-start gap-3">
+                                                    <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                    </svg>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">
+                                                            Master CV Required
+                                                        </p>
+                                                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                                                            You need to upload your master CV first. Go to <Link to="/manage-cv" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-300">CV Management</Link> to upload it.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Show ATS Analysis */}
+                                        <AtsFeedbackPanel 
+                                            atsScores={atsScores} 
+                                            isLoading={isLoadingAts || isScanningAts} 
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12">
+                                        <p className="text-gray-500 dark:text-gray-400 mb-4">
+                                            Please scrape the job description first to enable ATS analysis.
                                         </p>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 text-left">
-                                            <div className="flex items-start gap-2">
-                                                <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                <span className="text-xs text-gray-700 dark:text-gray-300">Skill matching</span>
-                                            </div>
-                                            <div className="flex items-start gap-2">
-                                                <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                <span className="text-xs text-gray-700 dark:text-gray-300">Keyword optimization</span>
-                                            </div>
-                                            <div className="flex items-start gap-2">
-                                                <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                <span className="text-xs text-gray-700 dark:text-gray-300">ATS compliance</span>
-                                            </div>
-                                            <div className="flex items-start gap-2">
-                                                <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                <span className="text-xs text-gray-700 dark:text-gray-300">Improvement tips</span>
-                                            </div>
-                                        </div>
                                         <button
-                                            onClick={handleScanAts}
-                                            disabled={isScanningAts || isLoadingAts || !hasMasterCv}
-                                            className="px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center gap-2 font-semibold transition-all shadow-md hover:shadow-lg mx-auto"
-                                            title={!hasMasterCv ? 'Please upload your master CV first' : 'Start ATS analysis'}
+                                            onClick={handleRefreshJobDetails}
+                                            disabled={isRefreshing || !jobApplication.jobUrl}
+                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mx-auto"
                                         >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                                            </svg>
-                                            Start ATS Analysis
+                                            {isRefreshing ? (
+                                                <>
+                                                    <Spinner size="sm" />
+                                                    <span>Refreshing...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
+                                                    <span>Refresh Job Details</span>
+                                                </>
+                                            )}
                                         </button>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
+                        )}
 
-                            {!hasMasterCv && !atsScores && (
-                                <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                                    <div className="flex items-start gap-3">
-                                        <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
-                                        <div>
-                                            <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">
-                                                Master CV Required
-                                            </p>
-                                            <p className="text-xs text-amber-700 dark:text-amber-400">
-                                                You need to upload your master CV first. Go to <Link to="/manage-cv" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-300">CV Management</Link> to upload it.
-                                            </p>
-                                        </div>
+                        {/* Tab 2: Job Description */}
+                        {activeTab === 'job-description' && (
+                            <div>
+                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Job Description</h2>
+                                    <button
+                                        onClick={handleRefreshJobDetails}
+                                        disabled={isRefreshing || !jobApplication.jobUrl}
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        {isRefreshing ? (
+                                            <>
+                                                <Spinner size="sm" />
+                                                <span>Refreshing...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                </svg>
+                                                <span>Refresh Job Details</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {refreshError && (
+                                    <div className="mb-4">
+                                        <ErrorAlert
+                                            message={refreshError}
+                                            onDismiss={() => setRefreshError(null)}
+                                            onRetry={handleRefreshJobDetails}
+                                        />
                                     </div>
-                                </div>
-                            )}
-
-                            {/* Show ATS Analysis */}
-                            <AtsFeedbackPanel 
-                                atsScores={atsScores} 
-                                isLoading={isLoadingAts || isScanningAts} 
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {/* CV Generation or Editor Section */}
-                {jobApplication.draftCvJson ? (
-                    <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                        <div className="p-6">
-                            <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV</h2>
-                            </div>
-                            {analyzeError && (
-                                <div className="mb-4">
-                                    <ErrorAlert
-                                        message={`Analysis Error: ${analyzeError}`}
-                                        onDismiss={() => setAnalyzeError(null)}
-                                    />
-                                </div>
-                            )}
-                            {cvData && (
-                                <CvFormEditor
-                                    data={cvData}
-                                    onChange={handleCvChange}
-                                    analysisResult={analysisResult}
-                                    onAnalyzeSection={handleAnalyzeSection}
-                                    analyzingSections={analyzingSections}
-                                />
-                            )}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                        <div className="p-6">
-                            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Generate Job-Specific CV</h2>
-                            <p className="text-gray-600 dark:text-gray-400 mb-4">
-                                Generate a tailored CV for this specific job application based on your master CV and the job requirements.
-                            </p>
-                            {generateCvError && (
-                                <div className="mb-4">
-                                    <ErrorAlert
-                                        message={generateCvError}
-                                        onDismiss={() => setGenerateCvError(null)}
-                                    />
-                                </div>
-                            )}
-                            <button
-                                onClick={handleGenerateSpecificCv}
-                                disabled={isGeneratingCv || !hasMasterCv || !jobApplication.jobDescriptionText}
-                                className="flex items-center gap-2 px-6 py-3 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
-                                title={
-                                    !hasMasterCv
-                                        ? 'Please upload your master CV first at the CV Management page'
-                                        : !jobApplication.jobDescriptionText
-                                        ? 'Please scrape the job description first'
-                                        : 'Generate a tailored CV for this job'
-                                }
-                            >
-                                {isGeneratingCv ? (
-                                    <>
-                                        <Spinner size="sm" />
-                                        <span>Generating CV...</span>
-                                    </>
-                                ) : (
-                                    'Generate Specific CV for the Job'
                                 )}
-                            </button>
-                            {!hasMasterCv && (
-                                <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-                                    ⚠️ You need to upload your master CV first. Go to <Link to="/manage-cv" className="underline">CV Management</Link> to upload it.
-                                </p>
-                            )}
-                            {!jobApplication.jobDescriptionText && (
-                                <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-                                    ⚠️ Please scrape the job description first using the "Refresh Job Details" button above.
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                )}
 
-                {/* Cover Letter Generation or Editor Section */}
-                {jobApplication.draftCoverLetterText ? (
-                    <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div className="p-6">
-                            <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit Cover Letter</h2>
-                                <button
-                                    onClick={handleGenerateCoverLetter}
-                                    disabled={isGeneratingCoverLetter || !jobApplication?.jobDescriptionText || !hasMasterCv}
-                                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors"
-                                    title={
-                                        !hasMasterCv
-                                            ? 'Please upload your master CV first'
-                                            : !jobApplication?.jobDescriptionText
-                                            ? 'Please scrape the job description first'
-                                            : 'Regenerate cover letter'
-                                    }
-                                >
-                                    {isGeneratingCoverLetter ? (
-                                        <>
-                                            <Spinner size="sm" />
-                                            <span>Regenerating...</span>
-                                        </>
-                                    ) : (
-                                        'Regenerate Cover Letter'
+                                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-gray-900 dark:text-gray-300 whitespace-pre-wrap max-h-[calc(100vh-400px)] overflow-y-auto">
+                                    {jobApplication.jobDescriptionText || (
+                                        <p className="text-gray-500 dark:text-gray-400 italic">No job description available. Click "Refresh Job Details" to scrape it.</p>
                                     )}
-                                </button>
-                            </div>
-                            {coverLetterError && (
-                                <div className="mb-4">
-                                    <ErrorAlert
-                                        message={coverLetterError}
-                                        onDismiss={() => setCoverLetterError(null)}
-                                    />
                                 </div>
-                            )}
-                            <div className="h-[calc(100vh-400px)] min-h-[800px] flex flex-col">
-                                <CoverLetterEditor
-                                    value={coverLetterText}
-                                    onChange={handleCoverLetterChange}
-                                    placeholder="Edit your cover letter here..."
-                                    className="h-full"
-                                />
                             </div>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                        <div className="p-6">
-                            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Generate Cover Letter</h2>
-                            <p className="text-gray-600 dark:text-gray-400 mb-4">
-                                Generate a tailored cover letter for this specific job application based on your master CV and the job requirements.
-                            </p>
-                            {coverLetterError && (
-                                <div className="mb-4">
-                                    <ErrorAlert
-                                        message={coverLetterError}
-                                        onDismiss={() => setCoverLetterError(null)}
-                                    />
-                                </div>
-                            )}
-                            <button
-                                onClick={handleGenerateCoverLetter}
-                                disabled={isGeneratingCoverLetter || !hasMasterCv || !jobApplication.jobDescriptionText}
-                                className="flex items-center gap-2 px-6 py-3 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
-                                title={
-                                    !hasMasterCv
-                                        ? 'Please upload your master CV first at the CV Management page'
-                                        : !jobApplication.jobDescriptionText
-                                        ? 'Please scrape the job description first'
-                                        : 'Generate a tailored cover letter for this job'
-                                }
-                            >
-                                {isGeneratingCoverLetter ? (
+                        )}
+
+                        {/* Tab 3: Cover Letter */}
+                        {activeTab === 'cover-letter' && (
+                            <div>
+                                {jobApplication.draftCoverLetterText ? (
                                     <>
-                                        <Spinner size="sm" />
-                                        <span>Generating Cover Letter...</span>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit Cover Letter</h2>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={handleGenerateCoverLetter}
+                                                    disabled={isGeneratingCoverLetter || !jobApplication?.jobDescriptionText || !hasMasterCv}
+                                                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors"
+                                                    title={
+                                                        !hasMasterCv
+                                                            ? 'Please upload your master CV first'
+                                                            : !jobApplication?.jobDescriptionText
+                                                            ? 'Please scrape the job description first'
+                                                            : 'Regenerate cover letter'
+                                                    }
+                                                >
+                                                    {isGeneratingCoverLetter ? (
+                                                        <>
+                                                            <Spinner size="sm" />
+                                                            <span>Regenerating...</span>
+                                                        </>
+                                                    ) : (
+                                                        'Regenerate Cover Letter'
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {coverLetterError && (
+                                            <div className="mb-4">
+                                                <ErrorAlert
+                                                    message={coverLetterError}
+                                                    onDismiss={() => setCoverLetterError(null)}
+                                                />
+                                            </div>
+                                        )}
+                                        
+                                        {/* Download Cover Letter button */}
+                                        {finalPdfFiles.cl && (
+                                            <div className="mb-4">
+                                                <button
+                                                    onClick={() => handleDownload(finalPdfFiles.cl)}
+                                                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 transition-colors"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    </svg>
+                                                    Download Cover Letter
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <div className="h-[calc(100vh-500px)] min-h-[600px] flex flex-col">
+                                            <CoverLetterEditor
+                                                value={coverLetterText}
+                                                onChange={handleCoverLetterChange}
+                                                placeholder="Edit your cover letter here..."
+                                                className="h-full"
+                                            />
+                                        </div>
                                     </>
                                 ) : (
-                                    'Generate Cover Letter'
+                                    <div>
+                                        <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Generate Cover Letter</h2>
+                                        <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                            Generate a tailored cover letter for this specific job application based on your master CV and the job requirements.
+                                        </p>
+                                        {coverLetterError && (
+                                            <div className="mb-4">
+                                                <ErrorAlert
+                                                    message={coverLetterError}
+                                                    onDismiss={() => setCoverLetterError(null)}
+                                                />
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={handleGenerateCoverLetter}
+                                            disabled={isGeneratingCoverLetter || !hasMasterCv || !jobApplication.jobDescriptionText}
+                                            className="flex items-center gap-2 px-6 py-3 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
+                                            title={
+                                                !hasMasterCv
+                                                    ? 'Please upload your master CV first at the CV Management page'
+                                                    : !jobApplication.jobDescriptionText
+                                                    ? 'Please scrape the job description first'
+                                                    : 'Generate a tailored cover letter for this job'
+                                            }
+                                        >
+                                            {isGeneratingCoverLetter ? (
+                                                <>
+                                                    <Spinner size="sm" />
+                                                    <span>Generating Cover Letter...</span>
+                                                </>
+                                            ) : (
+                                                'Generate Cover Letter'
+                                            )}
+                                        </button>
+                                        {!hasMasterCv && (
+                                            <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+                                                ⚠️ You need to upload your master CV first. Go to <Link to="/manage-cv" className="underline">CV Management</Link> to upload it.
+                                            </p>
+                                        )}
+                                        {!jobApplication.jobDescriptionText && (
+                                            <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+                                                ⚠️ Please scrape the job description first using the "Refresh Job Details" button above.
+                                            </p>
+                                        )}
+                                    </div>
                                 )}
-                            </button>
-                            {!hasMasterCv && (
-                                <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-                                    ⚠️ You need to upload your master CV first. Go to <Link to="/manage-cv" className="underline">CV Management</Link> to upload it.
-                                </p>
-                            )}
-                            {!jobApplication.jobDescriptionText && (
-                                <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-                                    ⚠️ Please scrape the job description first using the "Refresh Job Details" button above.
-                                </p>
-                            )}
-                        </div>
+                            </div>
+                        )}
+
+                        {/* Tab 4: CV */}
+                        {activeTab === 'cv' && (
+                            <div>
+                                {jobApplication.draftCvJson ? (
+                                    <>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV</h2>
+                                        </div>
+                                        {analyzeError && (
+                                            <div className="mb-4">
+                                                <ErrorAlert
+                                                    message={`Analysis Error: ${analyzeError}`}
+                                                    onDismiss={() => setAnalyzeError(null)}
+                                                />
+                                            </div>
+                                        )}
+                                        
+                                        {/* Download CV button */}
+                                        {finalPdfFiles.cv && (
+                                            <div className="mb-4">
+                                                <button
+                                                    onClick={() => handleDownload(finalPdfFiles.cv)}
+                                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 transition-colors"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    </svg>
+                                                    Download CV
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {cvData && (
+                                            <CvFormEditor
+                                                data={cvData}
+                                                onChange={handleCvChange}
+                                                analysisResult={analysisResult}
+                                                onAnalyzeSection={handleAnalyzeSection}
+                                                analyzingSections={analyzingSections}
+                                            />
+                                        )}
+                                    </>
+                                ) : (
+                                    <div>
+                                        <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Generate Job-Specific CV</h2>
+                                        <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                            Generate a tailored CV for this specific job application based on your master CV and the job requirements.
+                                        </p>
+                                        {generateCvError && (
+                                            <div className="mb-4">
+                                                <ErrorAlert
+                                                    message={generateCvError}
+                                                    onDismiss={() => setGenerateCvError(null)}
+                                                />
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={handleGenerateSpecificCv}
+                                            disabled={isGeneratingCv || !hasMasterCv || !jobApplication.jobDescriptionText}
+                                            className="flex items-center gap-2 px-6 py-3 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
+                                            title={
+                                                !hasMasterCv
+                                                    ? 'Please upload your master CV first at the CV Management page'
+                                                    : !jobApplication.jobDescriptionText
+                                                    ? 'Please scrape the job description first'
+                                                    : 'Generate a tailored CV for this job'
+                                            }
+                                        >
+                                            {isGeneratingCv ? (
+                                                <>
+                                                    <Spinner size="sm" />
+                                                    <span>Generating CV...</span>
+                                                </>
+                                            ) : (
+                                                'Generate Specific CV for the Job'
+                                            )}
+                                        </button>
+                                        {!hasMasterCv && (
+                                            <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+                                                ⚠️ You need to upload your master CV first. Go to <Link to="/manage-cv" className="underline">CV Management</Link> to upload it.
+                                            </p>
+                                        )}
+                                        {!jobApplication.jobDescriptionText && (
+                                            <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+                                                ⚠️ Please scrape the job description first using the "Refresh Job Details" button above.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
+
             </div>
 
             {/* Sticky Action Bar */}
@@ -1129,33 +1235,6 @@ const ReviewFinalizePage: React.FC = () => {
                                         (jobApplication.generatedCvFilename || jobApplication.generatedCoverLetterFilename) ? 'Regenerate PDFs' : 'Generate PDFs'
                                     )}
                                 </button>
-
-                                {(finalPdfFiles.cv || finalPdfFiles.cl) && (
-                                    <div className="flex gap-2">
-                                        {finalPdfFiles.cv && (
-                                            <button
-                                                onClick={() => handleDownload(finalPdfFiles.cv)}
-                                                className="flex items-center gap-2 px-4 py-3 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 transition-colors"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                </svg>
-                                                <span className="hidden sm:inline">Download CV</span>
-                                            </button>
-                                        )}
-                                        {finalPdfFiles.cl && (
-                                            <button
-                                                onClick={() => handleDownload(finalPdfFiles.cl)}
-                                                className="flex items-center gap-2 px-4 py-3 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 transition-colors"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                </svg>
-                                                <span className="hidden sm:inline">Download CL</span>
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>

@@ -122,7 +122,7 @@ const DashboardPage: React.FC = () => {
 
   // --- Modal Event Handlers ---
   const handleOpenAddModal = () => {
-    setFormData({ jobTitle: '', companyName: '', status: 'Not Applied', jobUrl: '', notes: '' });
+    setFormData({ jobTitle: '', companyName: '', status: 'Not Applied', jobUrl: '', notes: '', language: 'en' });
     setCurrentJobId(null);
     setModalError(null);
     setModalMode('add');
@@ -367,8 +367,8 @@ const DashboardPage: React.FC = () => {
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Applied</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">{statistics.applied}</p>
             </div>
-            <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full">
-              <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-full">
+              <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -385,8 +385,8 @@ const DashboardPage: React.FC = () => {
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Interviews</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">{statistics.interview}</p>
             </div>
-            <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-full">
-              <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full">
+              <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
@@ -410,52 +410,52 @@ const DashboardPage: React.FC = () => {
       </div>
 
       {/* Add Job Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div>
-          <button
-            onClick={handleOpenAddModal}
-            className="w-full md:w-auto px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 transition-colors flex items-center gap-2 font-medium"
-            disabled={isSubmitting || isCreatingFromUrl}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add New Job Manually
-          </button>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
+        <button
+          onClick={handleOpenAddModal}
+          className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 transition-colors flex items-center gap-2 font-medium"
+          disabled={isSubmitting || isCreatingFromUrl}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add New Job Manually
+        </button>
+        <div className="flex-1 flex flex-col sm:flex-row gap-2">
+          <form onSubmit={handleCreateFromUrlSubmit} className="flex-1 flex gap-2">
+            <input
+              type="url"
+              value={urlInput}
+              onChange={(e) => { setUrlInput(e.target.value); setCreateFromUrlError(null); }}
+              placeholder="Paste Job URL to auto-create..."
+              required
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              disabled={isCreatingFromUrl}
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 font-medium"
+              disabled={isCreatingFromUrl || !urlInput}
+            >
+              {isCreatingFromUrl ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Create from URL
+                </>
+              )}
+            </button>
+          </form>
         </div>
-        <form onSubmit={handleCreateFromUrlSubmit} className="space-y-2 md:space-y-0 md:flex md:gap-2">
-          <input
-            type="url"
-            value={urlInput}
-            onChange={(e) => { setUrlInput(e.target.value); setCreateFromUrlError(null); }}
-            placeholder="Paste Job URL to auto-create..."
-            required
-            className="flex-grow w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            disabled={isCreatingFromUrl}
-          />
-          <button
-            type="submit"
-            className="w-full md:w-auto px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded-lg hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 font-medium"
-            disabled={isCreatingFromUrl || !urlInput}
-          >
-            {isCreatingFromUrl ? (
-              <>
-                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Processing URL...
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-                Create from URL
-              </>
-            )}
-          </button>
-        </form>
       </div>
       {createFromUrlError && <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded border border-red-300 dark:border-red-800">{createFromUrlError}</div>}
 
@@ -672,6 +672,23 @@ const DashboardPage: React.FC = () => {
                   {statusOptions.map(status => (
                     <option key={status} value={status}>{status}</option>
                   ))}
+                </select>
+              </div>
+
+              {/* Language */}
+              <div className="mb-4">
+                <label htmlFor="language" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Language
+                </label>
+                <select
+                  id="language"
+                  name="language"
+                  value={formData.language || 'en'}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="en">English</option>
+                  <option value="de">German</option>
                 </select>
               </div>
 

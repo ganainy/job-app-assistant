@@ -272,9 +272,25 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                     marginTop: '20px',
                     marginBottom: '10px',
                     borderBottom: '1px solid #eee',
-                    paddingBottom: '4px'
-                }}>
+                    paddingBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s'
+                }}
+                className="group"
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#2563eb';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#111';
+                }}
+                >
                     Summary
+                    <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '14px', height: '14px' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
                 </h2>
                 <p style={{ fontSize: '11pt', color: '#333', marginBottom: '0.8em' }}>
                     <EditableTextarea
@@ -294,9 +310,25 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                     marginTop: '20px',
                     marginBottom: '10px',
                     borderBottom: '1px solid #eee',
-                    paddingBottom: '4px'
-                }}>
+                    paddingBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s'
+                }}
+                className="group"
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#2563eb';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#111';
+                }}
+                >
                     Work Experience
+                    <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '14px', height: '14px' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
                 </h2>
                 {(data.work || []).length === 0 && (
                     <p style={{ fontSize: '11pt', color: '#999', fontStyle: 'italic' }}>No work experience added yet. Click "Add Work Experience" to add one.</p>
@@ -372,9 +404,25 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                     marginTop: '20px',
                     marginBottom: '10px',
                     borderBottom: '1px solid #eee',
-                    paddingBottom: '4px'
-                }}>
+                    paddingBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s'
+                }}
+                className="group"
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#2563eb';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#111';
+                }}
+                >
                     Projects
+                    <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '14px', height: '14px' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
                 </h2>
                     {(data.projects || []).length === 0 && (
                     <p style={{ fontSize: '11pt', color: '#999', fontStyle: 'italic' }}>No projects added yet. Click "Add Project" to add one.</p>
@@ -448,9 +496,25 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                     marginTop: '20px',
                     marginBottom: '10px',
                     borderBottom: '1px solid #eee',
-                    paddingBottom: '4px'
-                }}>
+                    paddingBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s'
+                }}
+                className="group"
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#2563eb';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#111';
+                }}
+                >
                     Education
+                    <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '14px', height: '14px' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
                 </h2>
                 {(data.education || []).length === 0 && (
                     <p style={{ fontSize: '11pt', color: '#999', fontStyle: 'italic' }}>No education added yet. Click "Add Education" to add one.</p>
@@ -546,9 +610,25 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                     marginTop: '20px',
                     marginBottom: '10px',
                     borderBottom: '1px solid #eee',
-                    paddingBottom: '4px'
-                }}>
+                    paddingBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s'
+                }}
+                className="group"
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#2563eb';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#111';
+                }}
+                >
                     Skills
+                    <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '14px', height: '14px' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
                 </h2>
                 {(data.skills || []).length === 0 && (
                     <p style={{ fontSize: '11pt', color: '#999', fontStyle: 'italic' }}>No skills added yet. Click "Add Skill Category" to add one.</p>
@@ -627,9 +707,25 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                     marginTop: '20px',
                     marginBottom: '10px',
                     borderBottom: '1px solid #eee',
-                    paddingBottom: '4px'
-                }}>
+                    paddingBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s'
+                }}
+                className="group"
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#2563eb';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#111';
+                }}
+                >
                     Languages
+                    <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '14px', height: '14px' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
                 </h2>
                     <ul style={{ listStyle: 'none', padding: '0' }}>
                         {(data.languages || []).map((lang, index) => (
@@ -677,9 +773,25 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                     marginTop: '20px',
                     marginBottom: '10px',
                     borderBottom: '1px solid #eee',
-                    paddingBottom: '4px'
-                }}>
+                    paddingBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s'
+                }}
+                className="group"
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#2563eb';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#111';
+                }}
+                >
                     Certificates
+                    <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '14px', height: '14px' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
                 </h2>
                     {(data.certificates || []).length === 0 && (
                     <p style={{ fontSize: '11pt', color: '#999', fontStyle: 'italic' }}>No certificates added yet. Click "Add Certificate" to add one.</p>
