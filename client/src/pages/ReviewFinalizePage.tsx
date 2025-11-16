@@ -51,6 +51,8 @@ const ReviewFinalizePage: React.FC = () => {
     const [isGeneratingCv, setIsGeneratingCv] = useState<boolean>(false);
     const [generateCvError, setGenerateCvError] = useState<string | null>(null);
     const [hasMasterCv, setHasMasterCv] = useState<boolean>(false);
+    const [notes, setNotes] = useState<string>('');
+    const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
     const [toast, setToast] = useState<ToastState | null>(null);
     const [isJobDescriptionExpanded, setIsJobDescriptionExpanded] = useState<boolean>(false);
     const [atsScores, setAtsScores] = useState<AtsScores | null>(null);
@@ -84,6 +86,7 @@ const ReviewFinalizePage: React.FC = () => {
                 setCvData(data.draftCvJson);
             }
             setCoverLetterText(data.draftCoverLetterText || '');
+            setNotes(data.notes || '');
 
             if (data.generatedCvFilename || data.generatedCoverLetterFilename) {
                 setFinalPdfFiles({
@@ -697,6 +700,21 @@ const ReviewFinalizePage: React.FC = () => {
         }
     };
 
+    const handleSaveNotes = async () => {
+        if (!jobId) return;
+        setIsSavingNotes(true);
+        try {
+            const updatedJob = await updateJob(jobId, { notes });
+            setJobApplication(prev => prev ? { ...prev, notes } : null);
+            showToast('Notes saved successfully!', 'success');
+        } catch (error: any) {
+            console.error('Failed to save notes:', error);
+            showToast(error.message || 'Failed to save notes.', 'error');
+        } finally {
+            setIsSavingNotes(false);
+        }
+    };
+
     // Calculate progress steps
     const getProgressSteps = () => {
         if (!jobApplication) return [];
@@ -894,6 +912,42 @@ const ReviewFinalizePage: React.FC = () => {
                                     )}
                                 </div>
                             </div>
+                        </div>
+                        
+                        {/* Notes Section */}
+                        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Notes</h3>
+                                <button
+                                    onClick={handleSaveNotes}
+                                    disabled={isSavingNotes}
+                                    className="px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors flex items-center gap-2 text-sm"
+                                >
+                                    {isSavingNotes ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Save Notes
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                            <textarea
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                rows={6}
+                                placeholder="Add your notes about this job application..."
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-colors"
+                            />
                         </div>
                     </div>
                 </div>
