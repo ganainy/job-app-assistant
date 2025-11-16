@@ -15,6 +15,10 @@ import analysisRoutes from './routes/analysis'; // Import is correct
 import coverLetterRoutes from './routes/coverLetter';
 import atsRoutes from './routes/atsRoutes';
 import analyticsRoutes from './routes/analytics';
+import githubRoutes from './routes/github';
+import linkedinRoutes from './routes/linkedin';
+import profileRoutes from './routes/profile';
+import projectRoutes from './routes/projects';
 // Correct the import for the default export
 import protect from './middleware/authMiddleware'; // Import default export and alias it as 'protect'
 import { errorHandler } from './middleware/errorHandler';
@@ -42,6 +46,10 @@ app.use('/api/analysis', analysisRoutes); // Mounting looks correct
 app.use('/api/cover-letter', protect, coverLetterRoutes); // Protect Cover Letter routes
 app.use('/api/ats', protect, atsRoutes); // Protect ATS routes
 app.use('/api/analytics', protect, analyticsRoutes); // Protect Analytics routes
+app.use('/api/github', githubRoutes); // GitHub routes (public for viewing, protected for actions)
+app.use('/api/linkedin', linkedinRoutes); // LinkedIn routes (protected)
+app.use('/api/profile', profileRoutes); // Profile routes (public aggregated, protected for updates)
+app.use('/api/projects', projectRoutes); // Project routes (public viewing, protected for CRUD)
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

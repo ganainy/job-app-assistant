@@ -6,6 +6,7 @@ import { JsonResumeSchema } from '../types/jsonresume';
 export interface IUser extends Document {
   email: string;
   passwordHash: string; // Store hash, not the plain password
+  username?: string; // Optional username for portfolio URLs
   cvJson?: JsonResumeSchema | mongoose.Schema.Types.Mixed;
   cvAnalysisCache?: {
     cvHash: string; // Hash of the CV data that was analyzed
@@ -27,6 +28,13 @@ const UserSchema: Schema = new Schema(
       lowercase: true, // Store emails in lowercase
       trim: true,
       match: [/.+\@.+\..+/, 'Please fill a valid email address'], // Basic email format validation
+    },
+    username: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows multiple null values
+      trim: true,
+      lowercase: true,
     },
     passwordHash: {
       type: String,

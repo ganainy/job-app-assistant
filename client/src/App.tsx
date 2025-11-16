@@ -12,6 +12,8 @@ import CVManagementPage from './pages/CVManagementPage';
 import ReviewFinalizePage from './pages/ReviewFinalizePage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import ProfilePage from './pages/ProfilePage';
+import PortfolioPage from './pages/PortfolioPage';
+import PortfolioSetupPage from './pages/PortfolioSetupPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
@@ -20,6 +22,19 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Check if current route is a public portfolio route
+  const isPortfolioRoute = location.pathname.startsWith('/portfolio/');
+
+  // Early return for public portfolio pages - no navigation, no auth required
+  // Wrap in Routes/Route so React Router can extract the username parameter
+  if (isPortfolioRoute) {
+    return (
+      <Routes>
+        <Route path="/portfolio/:username" element={<PortfolioPage />} />
+      </Routes>
+    );
+  }
 
   const handleLogout = () => {
     logout();
@@ -202,6 +217,19 @@ function App() {
                 <AnalyticsIcon />
                 <span>Analytics</span>
               </Link>
+              <Link
+                to="/portfolio-setup"
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActiveRoute('/portfolio-setup')
+                    ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span>Portfolio</span>
+              </Link>
             </div>
 
             {/* Right Side Actions */}
@@ -252,6 +280,7 @@ function App() {
           <Route path="/manage-cv" element={<ProtectedRoute><CVManagementPage /></ProtectedRoute>} />
           <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/portfolio-setup" element={<ProtectedRoute><PortfolioSetupPage /></ProtectedRoute>} />
           <Route
             path="/jobs/:jobId/review"
             element={

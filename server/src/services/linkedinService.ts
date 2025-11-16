@@ -1,0 +1,188 @@
+// server/src/services/linkedinService.ts
+import Profile from '../models/Profile';
+import { InternalServerError } from '../utils/errors/AppError';
+
+interface LinkedInProfileData {
+  basic_info?: {
+    fullname?: string;
+    headline?: string;
+    about?: string;
+    location?: {
+      full?: string;
+      city?: string;
+      country?: string;
+    };
+  };
+  summary?: string;
+  bio?: string;
+  description?: string;
+  experience?: Array<{
+    title?: string;
+    company?: string;
+    description?: string;
+    location?: string;
+    start_date?: {
+      year?: number;
+      month?: string;
+    };
+    end_date?: {
+      year?: number;
+      month?: string;
+    };
+    is_current?: boolean;
+    skills?: string[];
+  }>;
+  skills?: Array<string | { name?: string; title?: string }>;
+  languages?: Array<{
+    language?: string;
+    proficiency?: string;
+  }>;
+}
+
+/**
+ * Extract username from LinkedIn URL
+ */
+export const getUsernameFromUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  try {
+    const urlObj = new URL(url);
+    const path = urlObj.pathname;
+    const parts = path.split('/').filter((part) => part.length > 0);
+    if (parts[0] === 'in' && parts[1]) {
+      return parts[1];
+    }
+  } catch (e) {
+    console.error('[LinkedIn API] Invalid LinkedIn URL:', url);
+    return null;
+  }
+  return null;
+};
+
+/**
+ * Fetch LinkedIn profile using Apify API
+ */
+export const fetchLinkedInProfile = async (username: string): Promise<LinkedInProfileData | null> => {
+  const apiToken = process.env.APIFY_TOKEN;
+  if (!apiToken || apiToken === 'your_apify_token_here' || apiToken === 'your_apify_api_token_here') {
+    throw new InternalServerError(
+      `Apify API token is missing or invalid. Current value: ${apiToken ? 'set but may be placeholder' : 'not set'}. Please check server/.env file.`
+    );
+  }
+
+  const apiUrl = `https://api.apify.com/v2/acts/apimaestro~linkedin-profile-detail/run-sync-get-dataset-items?token=${apiToken}`;
+  const requestBody = { username, includeEmail: true };
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new InternalServerError(
+      `Apify actor start failed: ${response.status} ${response.statusText} - Response Body: ${errorText}`
+    );
+  }
+
+  const runData = await response.json();
+
+  if (!Array.isArray(runData) || runData.length === 0) {
+    return null;
+  }
+
+  return runData[0] as LinkedInProfileData;
+};
+
+/**
+ * Update user profile with LinkedIn data
+ */
+export const updateProfileFromLinkedInData = async (
+  userId: string,
+  linkedinData: LinkedInProfileData,
+  forceUpdate: boolean = false
+): Promise<void> => {
+  try {
+    console.log(
+      `[LinkedIn API] Updating profile for user ${userId} with LinkedIn data${forceUpdate ? ' (force update)' : ''}`
+    );
+
+    // Get current profile
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      console.warn(`[LinkedIn API] Profile not found for user ${userId}`);
+      return;
+    }
+
+    const updates: Partial<typeof profile> = {};
+
+    // Update basic profile fields if they're empty or if force update is enabled
+    if (linkedinData.basic_info?.fullname && (!profile.name || forceUpdate)) {
+      updates.name = linkedinData.basic_info.fullname;
+    }
+
+    if (linkedinData.basic_info?.headline && (!profile.title || forceUpdate)) {
+      updates.title = linkedinData.basic_info.headline;
+    }
+
+    // Use about/bio in order of preference
+    const bioText =
+      linkedinData.basic_info?.about ||
+      linkedinData.summary ||
+      linkedinData.bio ||
+      linkedinData.description;
+    if (bioText && (!profile.bio || forceUpdate)) {
+      updates.bio = bioText;
+    }
+
+    if (linkedinData.basic_info?.location && (!profile.location || forceUpdate)) {
+      // Use the full location string if available, otherwise construct from city/country
+      const location =
+        linkedinData.basic_info.location.full ||
+        linkedinData.basic_info.location.city ||
+        `${linkedinData.basic_info.location.city}, ${linkedinData.basic_info.location.country}`;
+      updates.location = location;
+    }
+
+    // Update profile if we have changes
+    if (Object.keys(updates).length > 0) {
+      await Profile.findOneAndUpdate({ userId }, { $set: updates }, { new: true });
+      console.log(`[LinkedIn API] Updated profile fields: ${Object.keys(updates).join(', ')}`);
+    }
+
+    console.log(`[LinkedIn API] Successfully updated profile for user ${userId} with LinkedIn data`);
+  } catch (error: any) {
+    console.error(`[LinkedIn API] Error updating profile from LinkedIn data: ${error.message}`);
+    // Don't throw - we don't want to fail the sync if profile update fails
+  }
+};
+
+/**
+ * Extract relevant data from LinkedIn profile
+ */
+export const extractLinkedInData = (profileData: LinkedInProfileData): {
+  name?: string;
+  title?: string;
+  bio?: string;
+  location?: string;
+  experience?: any[];
+  skills?: string[];
+  languages?: any[];
+} => {
+  return {
+    name: profileData.basic_info?.fullname,
+    title: profileData.basic_info?.headline,
+    bio:
+      profileData.basic_info?.about ||
+      profileData.summary ||
+      profileData.bio ||
+      profileData.description,
+    location: profileData.basic_info?.location?.full || profileData.basic_info?.location?.city,
+    experience: profileData.experience || [],
+    skills: profileData.skills?.map((skill) =>
+      typeof skill === 'string' ? skill : skill.name || skill.title || ''
+    ) || [],
+    languages: profileData.languages || [],
+  };
+};
+
