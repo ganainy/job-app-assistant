@@ -127,10 +127,13 @@ router.post(
                 throw new Error("Failed to parse Gemini response into valid JSON Resume structure.");
             }
 
-            // 5. Save JSON to User document
+            // 5. Save JSON to User document and clear analysis cache (since CV changed)
             const updatedUser = await User.findByIdAndUpdate(
                 req.user._id,
-                { $set: { cvJson: cvJsonResume } }, // Save the schema-compliant JSON
+                { 
+                    $set: { cvJson: cvJsonResume }, // Save the schema-compliant JSON
+                    $unset: { cvAnalysisCache: "" } // Clear cache since CV changed
+                },
                 { new: true }
             ).select('-passwordHash -cvJson'); // Exclude password and potentially large CV from response
 
@@ -172,7 +175,11 @@ router.get('/', authMiddleware as RequestHandler, async (req: Request, res: Resp
     }
     try {
         // User might not have cvJson yet if they haven't uploaded
-        res.status(200).json({ cvData: req.user.cvJson || null });
+        const user = await User.findById(req.user._id).select('cvJson cvAnalysisCache');
+        res.status(200).json({ 
+            cvData: user?.cvJson || null,
+            analysisCache: user?.cvAnalysisCache || null
+        });
     } catch (error) {
         console.error("Error fetching CV data:", error);
         res.status(500).json({ message: 'Failed to retrieve CV data.' });
@@ -200,10 +207,13 @@ router.put('/', authMiddleware as RequestHandler, async (req: Request, res: Resp
             return;
         }
 
-        // Update the user's CV JSON
+        // Update the user's CV JSON and clear analysis cache (since CV changed)
         const updatedUser = await User.findByIdAndUpdate(
             req.user._id,
-            { $set: { cvJson: cvData as JsonResumeSchema } },
+            { 
+                $set: { cvJson: cvData as JsonResumeSchema },
+                $unset: { cvAnalysisCache: "" } // Clear cache since CV changed
+            },
             { new: true }
         ).select('-passwordHash -cvJson');
 

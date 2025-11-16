@@ -158,7 +158,8 @@ export const analyzeAllCvSections = async (req: ValidatedRequest, res: Response)
 
     try {
         const { getAllSectionsAnalysis } = await import('../services/analysisService');
-        const analyses = await getAllSectionsAnalysis(cvData);
+        const userId = req.user?.id;
+        const analyses = await getAllSectionsAnalysis(cvData, userId);
         res.json(analyses);
     } catch (error: any) {
         console.error('Error in analyzeAllCvSections:', error);

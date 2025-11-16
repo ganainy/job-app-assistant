@@ -3,6 +3,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html,
+  body,
+  #root {
+    font-family: 'Roboto', sans-serif;
+  }
+  
+  .material-symbols-outlined {
+    font-variation-settings:
+      'FILL' 0,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24;
+  }
+}
+
 @keyframes slide-in {
     from {
         transform: translateX(100%);

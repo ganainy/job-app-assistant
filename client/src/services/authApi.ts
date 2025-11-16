@@ -18,6 +18,13 @@ interface RegisterResponse {
     message: string;
 }
 
+export interface UserProfile {
+    id: string;
+    email: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
 // Use generic error structure for now
 interface ApiError {
     message: string;
@@ -51,5 +58,18 @@ export const loginUser = async (credentials: {email: string, password: string}):
              throw error.response.data as ApiError;
         }
          throw { message: 'An unknown login error occurred.' } as ApiError;
+    }
+};
+
+export const getCurrentUserProfile = async (): Promise<UserProfile> => {
+    try {
+        const response = await axios.get<UserProfile>(`${API_BASE_URL}/me`);
+        return response.data;
+    } catch (error) {
+        console.error("Get Profile API error:", error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data as ApiError;
+        }
+        throw { message: 'An unknown error occurred fetching user profile.' } as ApiError;
     }
 };

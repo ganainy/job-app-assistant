@@ -31,6 +31,10 @@ const CVManagementPage: React.FC = () => {
   // Track original CV data for unsaved changes detection
   const originalCvDataRef = useRef<JsonResumeSchema | null>(null);
   const [saveTrigger, setSaveTrigger] = useState<number>(0); // Force recalculation after save
+  
+  // Track last analyzed CV hash to avoid re-analyzing unchanged CVs
+  // Can be backend hash (SHA256) or frontend hash (JSON string) - both work for comparison
+  const lastAnalyzedCvHashRef = useRef<string | null>(null);
 
 
   // Calculate unsaved changes
@@ -49,7 +53,20 @@ const CVManagementPage: React.FC = () => {
     }
   }, [currentCvData, saveTrigger]); // Include saveTrigger to force recalculation
 
+  // Generate a simple hash for CV comparison (only relevant sections)
+  // Note: This should match the backend hash generation logic
+  const generateCvHash = (cvJson: JsonResumeSchema): string => {
+    const relevantSections = {
+      work: cvJson.work || [],
+      education: cvJson.education || [],
+      skills: cvJson.skills || []
+    };
+    // Normalize by stringifying (backend uses SHA256, but for frontend comparison we just need consistency)
+    return JSON.stringify(relevantSections);
+  };
+
   // Run full CV analysis - single request for all sections
+  // Backend handles caching automatically - no need to check locally
   const runFullCvAnalysis = async (cvJson: JsonResumeSchema) => {
     if (isAnalyzing) return; // Prevent concurrent analyses
     
@@ -57,8 +74,11 @@ const CVManagementPage: React.FC = () => {
 
     try {
       // Single API call to analyze all sections at once
+      // Backend will check its cache and return cached results if CV hash matches
       const allAnalyses = await fetchAllSectionsAnalysis(cvJson);
       setAnalyses(allAnalyses);
+      // Store hash for reference (backend uses SHA256, we store the JSON string for local tracking)
+      lastAnalyzedCvHashRef.current = generateCvHash(cvJson);
     } catch (error: any) {
       console.error('Error running CV analysis:', error);
       setToast({ message: error.message || 'Failed to analyze CV sections.', type: 'error' });
@@ -79,7 +99,18 @@ const CVManagementPage: React.FC = () => {
         // Reset save trigger to ensure proper comparison
         setSaveTrigger(0);
         
-        // Run analysis after CV is loaded
+        // Load cached analysis if available
+        // Backend has already verified the hash matches, so we can trust the cache
+        if (cvData && response.analysisCache && response.analysisCache.analyses) {
+          console.log('Loading cached analysis results');
+          setAnalyses(response.analysisCache.analyses);
+          // Store the hash for future comparisons (backend uses SHA256, we'll use it for reference)
+          lastAnalyzedCvHashRef.current = response.analysisCache.cvHash;
+          setIsLoadingCv(false);
+          return; // Skip analysis if cache is valid
+        }
+        
+        // Run analysis after CV is loaded (only if no valid cache)
         if (cvData) {
           runFullCvAnalysis(cvData);
         }
@@ -190,6 +221,14 @@ const CVManagementPage: React.FC = () => {
 
   const handleCvChange = (updatedCv: JsonResumeSchema) => {
     setCurrentCvData(updatedCv);
+    
+    // Check if relevant sections changed and trigger re-analysis if needed
+    // Use simple JSON comparison to detect changes
+    const currentHash = generateCvHash(updatedCv);
+    if (lastAnalyzedCvHashRef.current !== currentHash) {
+      // CV sections changed, re-analyze (backend will use cache if hash matches)
+      runFullCvAnalysis(updatedCv);
+    }
   };
 
   const handleSaveCv = async () => {
@@ -311,6 +350,10 @@ const CVManagementPage: React.FC = () => {
         return updated;
       });
 
+      // Update hash since CV changed
+      const newHash = generateCvHash(updatedCv);
+      lastAnalyzedCvHashRef.current = newHash;
+
       setToast({ message: 'Section improved successfully!', type: 'success' });
     } catch (error: any) {
       console.error('Error improving section:', error);
@@ -326,7 +369,6 @@ const CVManagementPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4 pb-24">
-      <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100">Manage Your CV</h1>
 
       {/* Upload Section - Only show when no CV exists or when replacing */}
       {(!currentCvData || isReplacing) && !isLoadingCv && (

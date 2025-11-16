@@ -1,81 +1,48 @@
-// client/src/components/analytics/ApplicationsByStatusChart.tsx
+
 import React from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 interface ApplicationsByStatusChartProps {
-    applicationsByStatus: Record<string, number>;
+    data: { _id: string; count: number }[];
 }
 
-const ApplicationsByStatusChart: React.FC<ApplicationsByStatusChartProps> = ({ applicationsByStatus }) => {
-    // Convert the data to an array format for the chart
-    const data = Object.entries(applicationsByStatus).map(([name, value]) => ({
-        name,
-        value,
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
+
+export const ApplicationsByStatusChart: React.FC<ApplicationsByStatusChartProps> = ({ data }) => {
+    // Filter out statuses with 0 count for cleaner chart
+    const chartData = data.filter(item => item.count > 0).map(item => ({
+        name: item._id,
+        value: item.count,
     }));
 
-    // Define colors for the chart
-    const COLORS = [
-        '#3B82F6', // blue
-        '#10B981', // green
-        '#8B5CF6', // purple
-        '#F59E0B', // yellow
-        '#EF4444', // red
-        '#6B7280', // gray
-        '#EC4899', // pink
-    ];
-
-    // Custom label function
-    const renderLabel = (entry: any) => {
-        return `${entry.name}: ${entry.value}`;
-    };
-
-    if (data.length === 0) {
+    if (chartData.length === 0) {
         return (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Applications by Status
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                    No data available
-                </p>
+            <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+                No application status data to display.
             </div>
         );
     }
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Applications by Status
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                    <Pie
-                        data={data}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={renderLabel}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                    >
-                        {data.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                    </Pie>
-                    <Tooltip
-                        contentStyle={{
-                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '0.5rem',
-                        }}
-                    />
-                    <Legend />
-                </PieChart>
-            </ResponsiveContainer>
-        </div>
+        <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+                <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                    nameKey="name"
+                >
+                    {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+            </PieChart>
+        </ResponsiveContainer>
     );
 };
-
-export default ApplicationsByStatusChart;
-

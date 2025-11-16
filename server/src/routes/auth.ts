@@ -1,10 +1,11 @@
 // server/src/routes/auth.ts
-import express, { Router, Request, Response } from 'express';
+import express, { Router, Request, Response, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User'; // Import User model
 import { validateRequest } from '../middleware/validateRequest';
 import { registerBodySchema, loginBodySchema } from '../validations/authSchemas';
 import { ValidatedRequest } from '../middleware/validateRequest';
+import authMiddleware from '../middleware/authMiddleware';
 
 const router: Router = express.Router();
 
@@ -101,6 +102,29 @@ router.post('/login', validateRequest({ body: loginBodySchema }), async (req: Va
     } catch (error) {
         console.error("Login Error:", error);
         res.status(500).json({ message: 'Server error during login.' });
+    }
+});
+
+
+// --- Get Current User Profile Route ---
+// GET /api/auth/me
+router.get('/me', authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ message: 'User not authenticated.' });
+            return;
+        }
+
+        // Return user profile data (excluding password hash)
+        res.status(200).json({
+            id: req.user._id,
+            email: req.user.email,
+            createdAt: req.user.createdAt,
+            updatedAt: req.user.updatedAt,
+        });
+    } catch (error) {
+        console.error("Get Profile Error:", error);
+        res.status(500).json({ message: 'Server error fetching user profile.' });
     }
 });
 

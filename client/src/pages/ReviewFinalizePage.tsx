@@ -17,7 +17,6 @@ import ErrorAlert from '../components/common/ErrorAlert';
 import Spinner from '../components/common/Spinner';
 import Toast from '../components/common/Toast';
 import JobStatusBadge from '../components/jobs/JobStatusBadge';
-import ProgressIndicator from '../components/jobs/ProgressIndicator';
 import CoverLetterEditor from '../components/CoverLetterEditor';
 import { JobChatWindow, FloatingChatButton } from '../components/chat';
 
@@ -928,7 +927,7 @@ const ReviewFinalizePage: React.FC = () => {
                 {/* Page Title and Status Badges */}
                 <div className="mb-6">
                     <div className="flex flex-wrap items-center gap-3 mb-4">
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                             {jobApplication.jobTitle}
                         </h1>
                         <JobStatusBadge type="application" status={jobApplication.status} />
@@ -936,14 +935,9 @@ const ReviewFinalizePage: React.FC = () => {
                             <JobStatusBadge type="generation" status={jobApplication.generationStatus} />
                         )}
                     </div>
-                    <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
+                    <p className="text-base text-slate-600 dark:text-slate-400 mb-4">
                         {jobApplication.companyName}
                     </p>
-
-                    {/* Progress Indicator */}
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
-                        <ProgressIndicator steps={progressSteps} />
-                    </div>
                 </div>
 
                 {/* Job Details Section - Keep visible above tabs */}
@@ -952,7 +946,7 @@ const ReviewFinalizePage: React.FC = () => {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
                             {/* Job Details */}
                             <div className="lg:col-span-1 space-y-4">
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Job Details</h2>
+                                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Job Details</h2>
                                 <div className="space-y-3 text-sm">
                                     <div className="flex items-center justify-between">
                                         <span className="text-gray-500 dark:text-gray-400">Status:</span>
@@ -1001,7 +995,7 @@ const ReviewFinalizePage: React.FC = () => {
                             {/* Notes Section */}
                             <div className="lg:col-span-2">
                                 <div className="flex items-center justify-between mb-3">
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Notes</h2>
+                                    <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Notes</h2>
                                     <button
                                         onClick={() => handleSaveNotes(notes)}
                                         disabled={!notesHasChanged || isSavingNotes}
@@ -1040,49 +1034,108 @@ const ReviewFinalizePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Tabs Navigation */}
+                {/* Tabs Navigation with Integrated Progress Indicators */}
                 <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                     <div className="border-b border-gray-200 dark:border-gray-700">
                         <nav className="flex -mb-px" aria-label="Tabs">
-                            <button
-                                onClick={() => setActiveTab('ai-review')}
-                                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                                    activeTab === 'ai-review'
-                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                                }`}
-                            >
-                                AI Review
-                            </button>
+                            {/* Job Details Tab */}
                             <button
                                 onClick={() => setActiveTab('job-description')}
-                                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                                className={`group inline-flex items-center gap-3 py-4 px-6 border-b-2 font-medium text-sm transition-colors duration-200 w-1/4 justify-center ${
                                     activeTab === 'job-description'
                                         ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                                         : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                                 }`}
                             >
-                                Job Description
+                                <span
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-200 ${
+                                        progressSteps[0]?.completed
+                                            ? 'bg-green-500 text-white dark:bg-green-600'
+                                            : 'bg-gray-300 dark:bg-gray-700 dark:text-gray-400'
+                                    }`}
+                                >
+                                    {progressSteps[0]?.completed ? (
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    ) : null}
+                                </span>
+                                <span>Job Details</span>
                             </button>
-                            <button
-                                onClick={() => setActiveTab('cover-letter')}
-                                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                                    activeTab === 'cover-letter'
-                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                                }`}
-                            >
-                                Cover Letter
-                            </button>
+
+                            {/* CV Generated Tab */}
                             <button
                                 onClick={() => setActiveTab('cv')}
-                                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                                className={`group inline-flex items-center gap-3 py-4 px-6 border-b-2 font-medium text-sm transition-colors duration-200 w-1/4 justify-center ${
                                     activeTab === 'cv'
                                         ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                                         : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                                 }`}
                             >
-                                CV
+                                <span
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-200 ${
+                                        progressSteps[1]?.completed
+                                            ? 'bg-green-500 text-white dark:bg-green-600'
+                                            : 'bg-gray-300 dark:bg-gray-700 dark:text-gray-400'
+                                    }`}
+                                >
+                                    {progressSteps[1]?.completed ? (
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    ) : null}
+                                </span>
+                                <span>CV Generated</span>
+                            </button>
+
+                            {/* Cover Letter Generated Tab */}
+                            <button
+                                onClick={() => setActiveTab('cover-letter')}
+                                className={`group inline-flex items-center gap-3 py-4 px-6 border-b-2 font-medium text-sm transition-colors duration-200 w-1/4 justify-center ${
+                                    activeTab === 'cover-letter'
+                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                            >
+                                <span
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-200 ${
+                                        progressSteps[2]?.completed
+                                            ? 'bg-green-500 text-white dark:bg-green-600'
+                                            : 'bg-gray-300 dark:bg-gray-700 dark:text-gray-400'
+                                    }`}
+                                >
+                                    {progressSteps[2]?.completed ? (
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    ) : null}
+                                </span>
+                                <span>Cover Letter Generated</span>
+                            </button>
+
+                            {/* AI Reviewed Tab */}
+                            <button
+                                onClick={() => setActiveTab('ai-review')}
+                                className={`group inline-flex items-center gap-3 py-4 px-6 border-b-2 font-medium text-sm transition-colors duration-200 w-1/4 justify-center ${
+                                    activeTab === 'ai-review'
+                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                            >
+                                <span
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-200 ${
+                                        progressSteps[3]?.completed
+                                            ? 'bg-green-500 text-white dark:bg-green-600'
+                                            : 'bg-gray-300 dark:bg-gray-700 dark:text-gray-400'
+                                    }`}
+                                >
+                                    {progressSteps[3]?.completed ? (
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    ) : null}
+                                </span>
+                                <span>AI Reviewed</span>
                             </button>
                         </nav>
                     </div>
@@ -1094,33 +1147,36 @@ const ReviewFinalizePage: React.FC = () => {
                             <div>
                                 {jobApplication.jobDescriptionText ? (
                                     <div>
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                                                    <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                                    </svg>
+                                        {/* Grey rounded card containing title, description and button */}
+                                        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-700 mb-6">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                                        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">ATS Analysis</h2>
+                                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                            Analyze your CV compatibility with this job's requirements
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">ATS Analysis</h2>
-                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                                        Analyze your CV compatibility with this job's requirements
-                                                    </p>
-                                                </div>
+                                                {atsScores && !isScanningAts && (
+                                                    <button
+                                                        onClick={handleScanAts}
+                                                        disabled={isScanningAts || isLoadingAts || !hasMasterCv}
+                                                        className="group flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800/50 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow"
+                                                        title={!hasMasterCv ? 'Please upload your master CV first' : 'Rescan your CV'}
+                                                    >
+                                                        <svg className="w-4 h-4 text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                        </svg>
+                                                        <span>Rescan</span>
+                                                    </button>
+                                                )}
                                             </div>
-                                            {atsScores && !isScanningAts && (
-                                                <button
-                                                    onClick={handleScanAts}
-                                                    disabled={isScanningAts || isLoadingAts || !hasMasterCv}
-                                                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors text-sm"
-                                                    title={!hasMasterCv ? 'Please upload your master CV first' : 'Rescan your CV'}
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                    </svg>
-                                                    Rescan
-                                                </button>
-                                            )}
                                         </div>
                                         
                                         {/* ATS Progress Indicator */}
@@ -1156,7 +1212,7 @@ const ReviewFinalizePage: React.FC = () => {
                                                             </svg>
                                                         </div>
                                                     </div>
-                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
                                                         Ready to Analyze Your CV?
                                                     </h3>
                                                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
@@ -1259,13 +1315,14 @@ const ReviewFinalizePage: React.FC = () => {
                         {/* Tab 2: Job Description */}
                         {activeTab === 'job-description' && (
                             <div>
-                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-                                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Job Description</h2>
-                                    <div className="flex items-center gap-2">
+                                {/* Grey rounded card containing title and button */}
+                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-700 mb-4">
+                                    <div className="flex items-center justify-between">
+                                        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Job Description</h2>
                                         <button
                                             onClick={handleRefreshJobDetails}
                                             disabled={isRefreshing || !jobApplication.jobUrl}
-                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            className="group flex items-center gap-2.5 px-4 py-2.5 bg-blue-600 dark:bg-blue-600 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600 dark:disabled:hover:bg-blue-600 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md active:shadow-sm transform hover:scale-[1.02] active:scale-[0.98]"
                                         >
                                             {isRefreshing ? (
                                                 <>
@@ -1308,7 +1365,56 @@ const ReviewFinalizePage: React.FC = () => {
                                 {jobApplication.draftCoverLetterText ? (
                                     <>
                                         <div className="mb-4">
-                                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Cover Letter</h2>
+                                            {/* Grey rounded card containing title and buttons */}
+                                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-700 mb-4">
+                                                <div className="flex items-center justify-between">
+                                                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit Cover Letter</h2>
+                                                    
+                                                    {/* Action buttons - positioned on the right */}
+                                                    <div className="flex items-center gap-3">
+                                                        {/* Regenerate Cover Letter Text */}
+                                                        <button
+                                                            onClick={handleGenerateCoverLetter}
+                                                            disabled={isGeneratingCoverLetter || !jobApplication?.jobDescriptionText || !hasMasterCv}
+                                                            className="group flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800/50 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow"
+                                                            title={
+                                                                !hasMasterCv
+                                                                    ? 'Please upload your master CV first'
+                                                                    : !jobApplication?.jobDescriptionText
+                                                                    ? 'Please scrape the job description first'
+                                                                    : 'Regenerate cover letter text with AI'
+                                                            }
+                                                        >
+                                                            {isGeneratingCoverLetter ? (
+                                                                <>
+                                                                    <Spinner size="sm" />
+                                                                    <span>Regenerating...</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <svg className="w-4 h-4 text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                                    </svg>
+                                                                    <span>Regenerate Cover Letter Text</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                        
+                                                        {/* Download button - only shown when PDF exists */}
+                                                        {finalPdfFiles.cl && (
+                                                            <button
+                                                                onClick={() => handleDownload(finalPdfFiles.cl)}
+                                                                className="group flex items-center gap-2.5 px-4 py-2.5 bg-blue-600 dark:bg-blue-600 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md active:shadow-sm transform hover:scale-[1.02] active:scale-[0.98]"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                                </svg>
+                                                                <span>Download PDF</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
                                             
                                             {coverLetterError && (
                                                 <div className="mb-4">
@@ -1318,53 +1424,6 @@ const ReviewFinalizePage: React.FC = () => {
                                                     />
                                                 </div>
                                             )}
-                                            
-                                            {/* Action buttons - grouped logically */}
-                                            <div className="flex flex-wrap items-center gap-2 mb-4">
-                                                {/* Regenerate Cover Letter Text */}
-                                                <button
-                                                    onClick={handleGenerateCoverLetter}
-                                                    disabled={isGeneratingCoverLetter || !jobApplication?.jobDescriptionText || !hasMasterCv}
-                                                    className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm hover:shadow-md"
-                                                    title={
-                                                        !hasMasterCv
-                                                            ? 'Please upload your master CV first'
-                                                            : !jobApplication?.jobDescriptionText
-                                                            ? 'Please scrape the job description first'
-                                                            : 'Regenerate cover letter text with AI'
-                                                    }
-                                                >
-                                                    {isGeneratingCoverLetter ? (
-                                                        <>
-                                                            <Spinner size="sm" />
-                                                            <span>Regenerating...</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                            </svg>
-                                                            Regenerate Cover Letter Text
-                                                        </>
-                                                    )}
-                                                </button>
-                                                
-                                                {/* Download button - only shown when PDF exists */}
-                                                {finalPdfFiles.cl && (
-                                                    <>
-                                                        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                                                        <button
-                                                            onClick={() => handleDownload(finalPdfFiles.cl)}
-                                                            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-all font-medium shadow-sm hover:shadow-md"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                            </svg>
-                                                            Download PDF
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
                                         </div>
 
                                         <div className="h-[calc(100vh-500px)] min-h-[600px] flex flex-col">
@@ -1432,7 +1491,72 @@ const ReviewFinalizePage: React.FC = () => {
                                 {jobApplication.draftCvJson ? (
                                     <>
                                         <div className="mb-4">
-                                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit CV</h2>
+                                            {/* Grey rounded card containing title and buttons */}
+                                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-700 mb-4">
+                                                <div className="flex items-center justify-between">
+                                                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV</h2>
+                                                    
+                                                    {/* Action buttons - positioned on the right */}
+                                                    <div className="flex items-center gap-3">
+                                                        {/* Preview button */}
+                                                        <button
+                                                            onClick={handlePreviewCv}
+                                                            disabled={isGeneratingPreview || !jobApplication.draftCvJson}
+                                                            className="group flex items-center gap-2.5 px-4 py-2.5 bg-emerald-600 dark:bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 dark:hover:bg-emerald-700 active:bg-emerald-800 dark:active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-600 dark:disabled:hover:bg-emerald-600 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md active:shadow-sm transform hover:scale-[1.02] active:scale-[0.98]"
+                                                            title="Preview ATS CV"
+                                                        >
+                                                            {isGeneratingPreview ? (
+                                                                <>
+                                                                    <Spinner size="sm" />
+                                                                    <span>Generating...</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                    </svg>
+                                                                    <span>Preview ATS CV</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                        
+                                                        {/* Primary action: Generate/Regenerate PDF */}
+                                                        <button
+                                                            onClick={handleGenerateCvPdf}
+                                                            disabled={isRenderingCvPdf || isSaving || !jobApplication.draftCvJson}
+                                                            className="group flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800/50 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow"
+                                                        >
+                                                            {isRenderingCvPdf ? (
+                                                                <>
+                                                                    <Spinner size="sm" />
+                                                                    <span>{finalPdfFiles.cv ? 'Regenerating...' : 'Generating...'}</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <svg className="w-4 h-4 text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                                    </svg>
+                                                                    <span>{finalPdfFiles.cv ? 'Regenerate PDF' : 'Generate PDF'}</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                        
+                                                        {/* Download button - only shown when PDF exists */}
+                                                        {finalPdfFiles.cv && (
+                                                            <button
+                                                                onClick={() => handleDownload(finalPdfFiles.cv)}
+                                                                className="group flex items-center gap-2.5 px-4 py-2.5 bg-blue-600 dark:bg-blue-600 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md active:shadow-sm transform hover:scale-[1.02] active:scale-[0.98]"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                                </svg>
+                                                                <span>Download PDF</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
                                             
                                             {analyzeError && (
                                                 <div className="mb-4">
@@ -1442,71 +1566,6 @@ const ReviewFinalizePage: React.FC = () => {
                                                     />
                                                 </div>
                                             )}
-                                            
-                                            {/* Action buttons - grouped logically */}
-                                            <div className="flex flex-wrap items-center gap-2 mb-4">
-                                                {/* Preview button */}
-                                                <button
-                                                    onClick={handlePreviewCv}
-                                                    disabled={isGeneratingPreview || !jobApplication.draftCvJson}
-                                                    className="flex items-center gap-2 px-5 py-2.5 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm hover:shadow-md"
-                                                    title="Preview ATS CV"
-                                                >
-                                                    {isGeneratingPreview ? (
-                                                        <>
-                                                            <Spinner size="sm" />
-                                                            <span>Generating...</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                            </svg>
-                                                            Preview ATS CV
-                                                        </>
-                                                    )}
-                                                </button>
-                                                
-                                                <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                                                
-                                                {/* Primary action: Generate/Regenerate PDF */}
-                                                <button
-                                                    onClick={handleGenerateCvPdf}
-                                                    disabled={isRenderingCvPdf || isSaving || !jobApplication.draftCvJson}
-                                                    className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm hover:shadow-md"
-                                                >
-                                                    {isRenderingCvPdf ? (
-                                                        <>
-                                                            <Spinner size="sm" />
-                                                            <span>{finalPdfFiles.cv ? 'Regenerating...' : 'Generating...'}</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                            </svg>
-                                                            {finalPdfFiles.cv ? 'Regenerate PDF' : 'Generate PDF'}
-                                                        </>
-                                                    )}
-                                                </button>
-                                                
-                                                {/* Download button - only shown when PDF exists */}
-                                                {finalPdfFiles.cv && (
-                                                    <>
-                                                        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                                                        <button
-                                                            onClick={() => handleDownload(finalPdfFiles.cv)}
-                                                            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-all font-medium shadow-sm hover:shadow-md"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                            </svg>
-                                                            Download PDF
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
                                         </div>
 
                                         {cvData && (

@@ -11,6 +11,11 @@ interface UploadResponse {
 
 interface GetCvResponse {
     cvData: JsonResumeSchema | null; // Use JsonResumeSchema
+    analysisCache?: {
+        cvHash: string;
+        analyses: Record<string, Array<{ needsImprovement: boolean; feedback: string }>>;
+        analyzedAt: string;
+    } | null;
 }
 
 // Add interface for update response

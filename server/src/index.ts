@@ -15,7 +15,6 @@ import analysisRoutes from './routes/analysis'; // Import is correct
 import coverLetterRoutes from './routes/coverLetter';
 import atsRoutes from './routes/atsRoutes';
 import analyticsRoutes from './routes/analytics';
-import chatRoutes from './routes/chat';
 // Correct the import for the default export
 import protect from './middleware/authMiddleware'; // Import default export and alias it as 'protect'
 import { errorHandler } from './middleware/errorHandler';
@@ -43,7 +42,6 @@ app.use('/api/analysis', analysisRoutes); // Mounting looks correct
 app.use('/api/cover-letter', protect, coverLetterRoutes); // Protect Cover Letter routes
 app.use('/api/ats', protect, atsRoutes); // Protect ATS routes
 app.use('/api/analytics', protect, analyticsRoutes); // Protect Analytics routes
-app.use('/api/chat', chatRoutes); // Chat routes (already protected in router)
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

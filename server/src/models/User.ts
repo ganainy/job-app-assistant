@@ -6,7 +6,14 @@ import { JsonResumeSchema } from '../types/jsonresume';
 export interface IUser extends Document {
   email: string;
   passwordHash: string; // Store hash, not the plain password
-  cvJson?: JsonResumeSchema | mongoose.Schema.Types.Mixed; 
+  cvJson?: JsonResumeSchema | mongoose.Schema.Types.Mixed;
+  cvAnalysisCache?: {
+    cvHash: string; // Hash of the CV data that was analyzed
+    analyses: Record<string, Array<{ needsImprovement: boolean; feedback: string }>>;
+    analyzedAt: Date;
+  };
+  createdAt?: Date; // Added by Mongoose timestamps
+  updatedAt?: Date; // Added by Mongoose timestamps
   // Add other fields like name later if needed
   comparePassword(candidatePassword: string): Promise<boolean>; // Method to compare passwords
 }
@@ -28,6 +35,14 @@ const UserSchema: Schema = new Schema(
     cvJson: {
         type: Schema.Types.Mixed,
         required: false // Not required on registration
+    },
+    cvAnalysisCache: {
+        type: {
+            cvHash: String,
+            analyses: Schema.Types.Mixed,
+            analyzedAt: Date
+        },
+        required: false
     },
   },
   {

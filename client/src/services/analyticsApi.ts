@@ -1,28 +1,23 @@
-// client/src/services/analyticsApi.ts
+
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5001/api';
 
-export interface JobApplicationStats {
+export interface ApplicationStats {
     totalApplications: number;
-    applicationsByStatus: Record<string, number>;
-    applicationsOverTime: Array<{
-        date: string; // ISO date string (YYYY-MM-DD)
-        count: number;
-    }>;
+    applicationsByStatus: { _id: string; count: number }[];
+    applicationsOverTime: { _id: string; count: number }[];
 }
 
-/**
- * Fetch job application statistics for the authenticated user
- * @returns Promise<JobApplicationStats> - Statistics object
- */
-export const getJobApplicationStats = async (): Promise<JobApplicationStats> => {
+export const getApplicationStats = async (): Promise<ApplicationStats> => {
     try {
-        const response = await axios.get<JobApplicationStats>(`${API_BASE_URL}/analytics/job-applications`);
+        const response = await axios.get(`${API_BASE_URL}/analytics/job-applications`);
         return response.data;
     } catch (error) {
-        console.error('Error fetching job application stats:', error);
-        throw error;
+        console.error('Error fetching application stats:', error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data;
+        }
+        throw { message: 'An unknown error occurred while fetching application statistics.' };
     }
 };
-

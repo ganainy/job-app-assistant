@@ -6,6 +6,8 @@ import fs from 'fs'; // Import fs for cleanup
 import path from 'path'; // Import path for determining MIME type
 import { JsonResumeSchema } from '../types/jsonresume'; // Import JSON resume schema
 import { analyzeWithGemini } from './atsGeminiService';
+import crypto from 'crypto';
+import User from '../models/User';
 
 // Define the expected structure for the detailed results from Gemini
 // This should align with the IDetailedResultItem interface in CvAnalysis.ts
@@ -455,13 +457,48 @@ export const performAtsAnalysis = async (
 };
 
 /**
+ * Generates a hash for the CV data to detect changes
+ * @param cvJson - The CV JSON object
+ * @returns A hash string representing the CV content
+ */
+export const generateCvHash = (cvJson: JsonResumeSchema): string => {
+    // Create a normalized version of the CV (only relevant sections for analysis)
+    const normalizedCv = {
+        work: cvJson.work || [],
+        education: cvJson.education || [],
+        skills: cvJson.skills || []
+    };
+    const cvString = JSON.stringify(normalizedCv);
+    return crypto.createHash('sha256').update(cvString).digest('hex');
+};
+
+/**
  * Analyzes all CV sections in a single request and returns feedback for each section item
  * @param cvJson - The complete CV JSON object
+ * @param userId - Optional user ID to cache results
  * @returns Analysis results organized by section name, with an array of results for each section
  */
 export const getAllSectionsAnalysis = async (
-    cvJson: JsonResumeSchema
+    cvJson: JsonResumeSchema,
+    userId?: string | Types.ObjectId
 ): Promise<Record<string, Array<{ needsImprovement: boolean; feedback: string }>>> => {
+    // Check cache first if userId is provided
+    if (userId) {
+        try {
+            const user = await User.findById(userId).select('cvAnalysisCache');
+            if (user?.cvAnalysisCache) {
+                const currentHash = generateCvHash(cvJson);
+                if (user.cvAnalysisCache.cvHash === currentHash && user.cvAnalysisCache.analyses) {
+                    console.log('Using cached analysis results');
+                    return user.cvAnalysisCache.analyses as Record<string, Array<{ needsImprovement: boolean; feedback: string }>>;
+                }
+            }
+        } catch (error) {
+            console.warn('Error checking analysis cache:', error);
+            // Continue with fresh analysis if cache check fails
+        }
+    }
+
     console.log('Analyzing all CV sections in one request');
 
     const fullAnalysisPrompt = `
@@ -556,6 +593,26 @@ Guidelines:
                     result.skills.push({ needsImprovement: false, feedback: '' });
                 }
                 result.skills = result.skills.slice(0, cvJson.skills.length);
+            }
+        }
+
+        // Cache the results if userId is provided
+        if (userId) {
+            try {
+                const cvHash = generateCvHash(cvJson);
+                await User.findByIdAndUpdate(userId, {
+                    $set: {
+                        cvAnalysisCache: {
+                            cvHash,
+                            analyses: result,
+                            analyzedAt: new Date()
+                        }
+                    }
+                });
+                console.log('Analysis results cached for user');
+            } catch (cacheError) {
+                console.warn('Error caching analysis results:', cacheError);
+                // Don't fail the request if caching fails
             }
         }
 
