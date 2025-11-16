@@ -1,5 +1,6 @@
 // client/src/components/CoverLetterModal.tsx
 import React, { useState } from 'react';
+import CoverLetterEditor from './CoverLetterEditor';
 
 interface CoverLetterModalProps {
     isOpen: boolean;
@@ -90,17 +91,13 @@ const CoverLetterModal: React.FC<CoverLetterModalProps> = ({
                     </div>
                 ) : (
                     <>
-                        <div className="flex-1 mb-4 overflow-hidden flex flex-col">
-                            <label htmlFor="coverLetterText" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Edit your cover letter:
-                            </label>
-                            <textarea
-                                id="coverLetterText"
+                        <div className="flex-1 mb-4 overflow-hidden flex flex-col min-h-0 max-h-full">
+                            <CoverLetterEditor
                                 value={coverLetterText}
-                                onChange={(e) => setCoverLetterText(e.target.value)}
-                                className="flex-1 w-full p-3 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                                onChange={setCoverLetterText}
                                 placeholder="Your cover letter will appear here..."
                                 disabled={isSaving}
+                                className="flex-1 min-h-0 h-full"
                             />
                         </div>
 

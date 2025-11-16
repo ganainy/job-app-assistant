@@ -1,0 +1,81 @@
+import React, { useState } from 'react';
+import EditableTextarea from './EditableTextarea';
+
+interface EditableListProps {
+    items: string[];
+    onChange: (items: string[]) => void;
+    placeholder?: string;
+    className?: string;
+    bulletChar?: string;
+}
+
+const EditableList: React.FC<EditableListProps> = ({
+    items,
+    onChange,
+    placeholder = 'Add items (one per line)',
+    className = '',
+    bulletChar = '•'
+}) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editValue, setEditValue] = useState(items.join('\n'));
+
+    const handleClick = () => {
+        setIsEditing(true);
+    };
+
+    const handleBlur = () => {
+        setIsEditing(false);
+        const newItems = editValue
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
+        onChange(newItems);
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setEditValue(e.target.value);
+    };
+
+    if (isEditing) {
+        return (
+            <textarea
+                value={editValue}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`w-full bg-transparent border-2 border-blue-500 rounded focus:outline-none focus:border-blue-600 p-1 ${className}`}
+                rows={Math.max(3, items.length + 2)}
+                placeholder={placeholder}
+            />
+        );
+    }
+
+    if (items.length === 0) {
+        return (
+            <div
+                onClick={handleClick}
+                className={`cursor-text hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-1 py-0.5 transition-colors text-gray-400 italic ${className}`}
+                title="Click to edit"
+            >
+                {placeholder}
+            </div>
+        );
+    }
+
+    return (
+        <ul
+            onClick={handleClick}
+            className={`cursor-text hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-1 py-0.5 transition-colors list-none ${className}`}
+            title="Click to edit"
+        >
+            {items.map((item, index) => (
+                <li key={index} className="mb-1">
+                    <span className="mr-2">{bulletChar}</span>
+                    {item}
+                </li>
+            ))}
+        </ul>
+    );
+};
+
+export default EditableList;
+

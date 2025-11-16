@@ -17,6 +17,7 @@ import Spinner from '../components/common/Spinner';
 import Toast from '../components/common/Toast';
 import JobStatusBadge from '../components/jobs/JobStatusBadge';
 import ProgressIndicator from '../components/jobs/ProgressIndicator';
+import CoverLetterEditor from '../components/CoverLetterEditor';
 
 interface ToastState {
     message: string;
@@ -267,8 +268,8 @@ const ReviewFinalizePage: React.FC = () => {
         setCvData(updatedCv);
     };
 
-    const handleCoverLetterChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setCoverLetterText(event.target.value);
+    const handleCoverLetterChange = (value: string) => {
+        setCoverLetterText(value);
     };
 
     const handleRefreshJobDetails = async () => {
@@ -983,7 +984,7 @@ const ReviewFinalizePage: React.FC = () => {
 
                 {/* Cover Letter Generation or Editor Section */}
                 {jobApplication.draftCoverLetterText ? (
-                    <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                    <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit Cover Letter</h2>
@@ -1017,12 +1018,14 @@ const ReviewFinalizePage: React.FC = () => {
                                     />
                                 </div>
                             )}
-                            <textarea
-                                value={coverLetterText}
-                                onChange={handleCoverLetterChange}
-                                className="w-full h-64 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                                placeholder="Edit your cover letter here..."
-                            />
+                            <div className="h-[calc(100vh-400px)] min-h-[800px] flex flex-col">
+                                <CoverLetterEditor
+                                    value={coverLetterText}
+                                    onChange={handleCoverLetterChange}
+                                    placeholder="Edit your cover letter here..."
+                                    className="h-full"
+                                />
+                            </div>
                         </div>
                     </div>
                 ) : (
