@@ -11,7 +11,6 @@ import RegisterPage from './pages/RegisterPage';
 import CVManagementPage from './pages/CVManagementPage';
 import ReviewFinalizePage from './pages/ReviewFinalizePage';
 import AnalyticsPage from './pages/AnalyticsPage';
-import ProfilePage from './pages/ProfilePage';
 import PortfolioPage from './pages/PortfolioPage';
 import PortfolioSetupPage from './pages/PortfolioSetupPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -107,9 +106,13 @@ function App() {
   );
 
   if (!isAuthenticated) {
+    // Determine which auth link to show based on current route
+    const isLoginPage = location.pathname === '/login' || location.pathname === '/';
+    const isRegisterPage = location.pathname === '/register';
+
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900">
-        <nav className="bg-gray-800 dark:bg-gray-950 text-white shadow-md">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+        <nav className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="container mx-auto px-4">
             <div className="flex justify-between items-center h-16">
               <Link 
@@ -122,7 +125,7 @@ function App() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={toggleTheme}
-                  className="p-2 rounded-md hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors"
+                  className="p-2 rounded-md text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
                   aria-label="Toggle dark mode"
                 >
                   {theme === 'dark' ? (
@@ -135,30 +138,32 @@ function App() {
                     </svg>
                   )}
                 </button>
-                <div className="flex items-center gap-3">
-                  <Link 
-                    to="/login" 
-                    className="px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    Login
-                  </Link>
+                {isLoginPage && (
                   <Link 
                     to="/register" 
-                    className="px-4 py-2 rounded-md text-sm font-medium bg-gray-700 dark:bg-gray-600 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
+                    className="px-4 py-2 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
                   >
                     Register
                   </Link>
-                </div>
+                )}
+                {isRegisterPage && (
+                  <Link 
+                    to="/login" 
+                    className="px-4 py-2 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                  >
+                    Login
+                  </Link>
+                )}
               </div>
             </div>
           </div>
         </nav>
-        <main className="mt-4 text-gray-900 dark:text-gray-100">
+        <main className="bg-slate-50 dark:bg-slate-900">
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/" element={<LoginPage />} />
-            <Route path="*" element={<div className="text-center p-10 dark:text-gray-300">404 - Page Not Found</div>} />
+            <Route path="*" element={<div className="text-center p-10 text-slate-600 dark:text-slate-400">404 - Page Not Found</div>} />
           </Routes>
         </main>
       </div>
@@ -252,13 +257,12 @@ function App() {
               </button>
 
               {/* User Avatar */}
-              <Link
-                to="/profile"
-                className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center font-bold text-purple-700 dark:text-purple-300 text-sm hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors cursor-pointer"
-                aria-label="View profile"
+              <div
+                className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center font-bold text-purple-700 dark:text-purple-300 text-sm"
+                aria-label="User avatar"
               >
                 {user?.email ? user.email.charAt(0).toUpperCase() : 'U'}
-              </Link>
+              </div>
 
               {/* Logout Button */}
               <button
@@ -279,7 +283,6 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/manage-cv" element={<ProtectedRoute><CVManagementPage /></ProtectedRoute>} />
           <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/portfolio-setup" element={<ProtectedRoute><PortfolioSetupPage /></ProtectedRoute>} />
           <Route
             path="/jobs/:jobId/review"

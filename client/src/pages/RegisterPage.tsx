@@ -79,7 +79,7 @@ const getStrengthColor = (strength: PasswordStrength): string => {
     case 'strong':
       return 'bg-green-500';
     default:
-      return 'bg-gray-300';
+      return 'bg-slate-300';
   }
 };
 
@@ -253,11 +253,11 @@ const RegisterPage: React.FC = () => {
   const isConfirmPasswordInvalid = touched.confirmPassword && confirmPasswordError;
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4 py-8">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 transition-all duration-300">
+    <div className="flex justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-900 px-4 py-8">
+      <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 transition-all duration-300">
         <div className="text-center space-y-2">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Create Your Account</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Sign up to get started</p>
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Create Your Account</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Sign up to get started</p>
         </div>
 
         <form className="space-y-5" onSubmit={handleSubmit} noValidate>
@@ -282,12 +282,12 @@ const RegisterPage: React.FC = () => {
             <>
               {/* Email field */}
               <div>
-                <label htmlFor="email-register" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <label htmlFor="email-register" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Email address
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <EmailIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                    <EmailIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                   </div>
                   <input
                     id="email-register"
@@ -300,12 +300,12 @@ const RegisterPage: React.FC = () => {
                     onBlur={() => handleBlur('email')}
                     aria-invalid={isEmailInvalid ? 'true' : 'false'}
                     aria-describedby={isEmailInvalid ? 'email-error' : undefined}
-                    className={`mt-1 block w-full pl-10 pr-3 py-2.5 border rounded-lg shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm transition-all duration-200 ${
+                    className={`mt-1 block w-full pl-10 pr-3 py-2.5 border rounded-lg shadow-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm transition-all duration-200 ${
                       isEmailInvalid
                         ? 'border-red-300 dark:border-red-600 focus:ring-red-500 focus:border-red-500'
                         : isEmailValid
                         ? 'border-green-300 dark:border-green-600 focus:ring-green-500 focus:border-green-500'
-                        : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                        : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
                     }`}
                     placeholder="you@example.com"
                   />
@@ -320,12 +320,12 @@ const RegisterPage: React.FC = () => {
 
               {/* Password field */}
               <div>
-                <label htmlFor="password-register" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <label htmlFor="password-register" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Password
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <LockIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                    <LockIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                   </div>
                   <input
                     id="password-register"
@@ -338,19 +338,19 @@ const RegisterPage: React.FC = () => {
                     onBlur={() => handleBlur('password')}
                     aria-invalid={isPasswordInvalid ? 'true' : 'false'}
                     aria-describedby={isPasswordInvalid ? 'password-error' : undefined}
-                    className={`mt-1 block w-full pl-10 pr-10 py-2.5 border rounded-lg shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm transition-all duration-200 ${
+                    className={`mt-1 block w-full pl-10 pr-10 py-2.5 border rounded-lg shadow-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm transition-all duration-200 ${
                       isPasswordInvalid
                         ? 'border-red-300 dark:border-red-600 focus:ring-red-500 focus:border-red-500'
                         : isPasswordValid
                         ? 'border-green-300 dark:border-green-600 focus:ring-green-500 focus:border-green-500'
-                        : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                        : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
                     }`}
                     placeholder="Enter your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none transition-colors"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none transition-colors"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
@@ -366,7 +366,7 @@ const RegisterPage: React.FC = () => {
                 {password && (
                   <div className="mt-2">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Password strength:</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">Password strength:</span>
                       <span className={`text-xs font-medium ${
                         passwordStrength === 'weak' ? 'text-red-600 dark:text-red-400' :
                         passwordStrength === 'fair' ? 'text-orange-600 dark:text-orange-400' :
@@ -376,7 +376,7 @@ const RegisterPage: React.FC = () => {
                         {getStrengthText(passwordStrength)}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full transition-all duration-300 ${
                           passwordStrength === 'weak' ? 'w-1/4' :
@@ -386,7 +386,7 @@ const RegisterPage: React.FC = () => {
                         } ${getStrengthColor(passwordStrength)}`}
                       />
                     </div>
-                    <ul className="mt-2 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <ul className="mt-2 text-xs text-slate-600 dark:text-slate-400 space-y-1">
                       <li className={password.length >= 8 ? 'text-green-600 dark:text-green-400' : ''}>
                         {password.length >= 8 ? '✓' : '○'} At least 8 characters
                       </li>
@@ -406,12 +406,12 @@ const RegisterPage: React.FC = () => {
 
               {/* Confirm Password field */}
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Confirm Password
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <LockIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                    <LockIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                   </div>
                   <input
                     id="confirmPassword"
@@ -424,19 +424,19 @@ const RegisterPage: React.FC = () => {
                     onBlur={() => handleBlur('confirmPassword')}
                     aria-invalid={isConfirmPasswordInvalid ? 'true' : 'false'}
                     aria-describedby={isConfirmPasswordInvalid ? 'confirm-password-error' : undefined}
-                    className={`mt-1 block w-full pl-10 pr-10 py-2.5 border rounded-lg shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm transition-all duration-200 ${
+                    className={`mt-1 block w-full pl-10 pr-10 py-2.5 border rounded-lg shadow-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm transition-all duration-200 ${
                       isConfirmPasswordInvalid
                         ? 'border-red-300 dark:border-red-600 focus:ring-red-500 focus:border-red-500'
                         : isConfirmPasswordValid
                         ? 'border-green-300 dark:border-green-600 focus:ring-green-500 focus:border-green-500'
-                        : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                        : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
                     }`}
                     placeholder="Confirm your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none transition-colors"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none transition-colors"
                     aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                   >
                     {showConfirmPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
@@ -455,7 +455,7 @@ const RegisterPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+                  className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-purple-600 dark:bg-purple-700 hover:bg-purple-700 dark:hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   {isLoading ? (
                     <>
@@ -471,7 +471,7 @@ const RegisterPage: React.FC = () => {
           )}
         </form>
 
-        <p className="text-sm text-center text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-center text-slate-600 dark:text-slate-400">
           Already have an account?{' '}
           <Link
             to="/login"

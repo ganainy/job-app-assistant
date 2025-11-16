@@ -85,7 +85,8 @@ router.post('/login', validateRequest({ body: loginBodySchema }), async (req: Va
 
         const token = jwt.sign(
             payload,
-            JWT_SECRET , 
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRY }
         );
 
         // Send token back to client
