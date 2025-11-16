@@ -6,6 +6,8 @@ import CvPreviewModal from '../components/cv-editor/CvPreviewModal';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import Toast from '../components/common/Toast';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import { fetchAllSectionsAnalysis, fetchSectionAnalysis, SectionAnalysisResult } from '../services/analysisApi';
+import { improveSection } from '../services/generatorApi';
 
 const CVManagementPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -21,15 +23,49 @@ const CVManagementPage: React.FC = () => {
   const [previewPdfBase64, setPreviewPdfBase64] = useState<string | null>(null);
   const [isGeneratingPreview, setIsGeneratingPreview] = useState<boolean>(false);
   
+  // Analysis state
+  const [analyses, setAnalyses] = useState<Record<string, SectionAnalysisResult[]>>({});
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [improvingSections, setImprovingSections] = useState<Record<string, boolean>>({});
+  
   // Track original CV data for unsaved changes detection
   const originalCvDataRef = useRef<JsonResumeSchema | null>(null);
+  const [saveTrigger, setSaveTrigger] = useState<number>(0); // Force recalculation after save
 
 
   // Calculate unsaved changes
   const hasUnsavedChanges = useMemo(() => {
     if (!currentCvData || !originalCvDataRef.current) return false;
-    return JSON.stringify(currentCvData) !== JSON.stringify(originalCvDataRef.current);
-  }, [currentCvData]);
+    // Deep comparison using JSON.stringify
+    // This handles nested objects and arrays properly
+    try {
+      const currentStr = JSON.stringify(currentCvData);
+      const originalStr = JSON.stringify(originalCvDataRef.current);
+      return currentStr !== originalStr;
+    } catch (error) {
+      // If stringification fails, assume there are changes
+      console.error('Error comparing CV data:', error);
+      return true;
+    }
+  }, [currentCvData, saveTrigger]); // Include saveTrigger to force recalculation
+
+  // Run full CV analysis - single request for all sections
+  const runFullCvAnalysis = async (cvJson: JsonResumeSchema) => {
+    if (isAnalyzing) return; // Prevent concurrent analyses
+    
+    setIsAnalyzing(true);
+
+    try {
+      // Single API call to analyze all sections at once
+      const allAnalyses = await fetchAllSectionsAnalysis(cvJson);
+      setAnalyses(allAnalyses);
+    } catch (error: any) {
+      console.error('Error running CV analysis:', error);
+      setToast({ message: error.message || 'Failed to analyze CV sections.', type: 'error' });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   // Fetch current CV on mount
   useEffect(() => {
@@ -40,6 +76,13 @@ const CVManagementPage: React.FC = () => {
         const cvData = response.cvData || null;
         setCurrentCvData(cvData);
         originalCvDataRef.current = cvData ? JSON.parse(JSON.stringify(cvData)) : null;
+        // Reset save trigger to ensure proper comparison
+        setSaveTrigger(0);
+        
+        // Run analysis after CV is loaded
+        if (cvData) {
+          runFullCvAnalysis(cvData);
+        }
       } catch (error: any) {
         console.error("Error fetching current CV:", error);
         setToast({ message: error.message || 'Failed to load CV data.', type: 'error' });
@@ -124,6 +167,14 @@ const CVManagementPage: React.FC = () => {
       const cvData = response.cvData || null;
       setCurrentCvData(cvData);
       originalCvDataRef.current = cvData ? JSON.parse(JSON.stringify(cvData)) : null;
+      // Reset save trigger to ensure proper comparison
+      setSaveTrigger(0);
+      
+      // Run analysis after CV is uploaded
+      if (cvData) {
+        runFullCvAnalysis(cvData);
+      }
+      
       setSelectedFile(null);
       setIsReplacing(false);
       const fileInput = document.getElementById('cvFileInput') as HTMLInputElement;
@@ -149,11 +200,16 @@ const CVManagementPage: React.FC = () => {
     setIsSaving(true);
     try {
       const response = await updateCurrentCv(currentCvData);
+      // Deep copy to ensure proper comparison - update the ref with the exact data that was saved
       originalCvDataRef.current = JSON.parse(JSON.stringify(currentCvData));
+      // Trigger recalculation of hasUnsavedChanges
+      setSaveTrigger(prev => prev + 1);
       setToast({ message: response.message || 'CV updated successfully!', type: 'success' });
     } catch (error: any) {
       console.error("Error saving CV:", error);
-      setToast({ message: error.message || 'Failed to save CV changes.', type: 'error' });
+      // Handle both object errors and Error instances
+      const errorMessage = error?.message || error?.error || 'Failed to save CV changes.';
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -213,6 +269,59 @@ const CVManagementPage: React.FC = () => {
     const sizes = ['Bytes', 'KB', 'MB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  // Handle section improvement
+  const handleImproveSection = async (
+    sectionName: string,
+    sectionIndex: number,
+    originalData: any
+  ) => {
+    if (!currentCvData) return;
+
+    const sectionKey = `${sectionName}-${sectionIndex}`;
+    setImprovingSections((prev) => ({ ...prev, [sectionKey]: true }));
+
+    try {
+      const improvedData = await improveSection(sectionName, originalData);
+
+      // Update the CV data with improved section - deep copy to ensure proper change detection
+      const updatedCv = JSON.parse(JSON.stringify(currentCvData));
+      
+      if (sectionName === 'work' && updatedCv.work) {
+        updatedCv.work[sectionIndex] = { ...updatedCv.work[sectionIndex], ...improvedData };
+      } else if (sectionName === 'education' && updatedCv.education) {
+        updatedCv.education[sectionIndex] = { ...updatedCv.education[sectionIndex], ...improvedData };
+      } else if (sectionName === 'skills' && updatedCv.skills) {
+        updatedCv.skills[sectionIndex] = { ...updatedCv.skills[sectionIndex], ...improvedData };
+      }
+
+      setCurrentCvData(updatedCv);
+
+      // Re-analyze the improved section
+      const newAnalysis = await fetchSectionAnalysis(sectionName, improvedData);
+      setAnalyses((prev) => {
+        const updated = { ...prev };
+        if (!updated[sectionName]) {
+          updated[sectionName] = [];
+        }
+        const sectionArray = [...(updated[sectionName] || [])];
+        sectionArray[sectionIndex] = newAnalysis;
+        updated[sectionName] = sectionArray;
+        return updated;
+      });
+
+      setToast({ message: 'Section improved successfully!', type: 'success' });
+    } catch (error: any) {
+      console.error('Error improving section:', error);
+      setToast({ message: error.message || 'Failed to improve section.', type: 'error' });
+    } finally {
+      setImprovingSections((prev) => {
+        const updated = { ...prev };
+        delete updated[sectionKey];
+        return updated;
+      });
+    }
   };
 
   return (
@@ -341,6 +450,34 @@ const CVManagementPage: React.FC = () => {
       {/* CV Info Section - Show when CV exists and not replacing */}
       {currentCvData && !isLoadingCv && !isReplacing && (
         <div className="mb-8 p-6 border dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800">
+          {/* Analysis Status Indicator */}
+          {isAnalyzing && (
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-2">
+              <svg
+                className="animate-spin h-4 w-4 text-blue-600 dark:text-blue-400"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <span className="text-sm text-blue-800 dark:text-blue-300">
+                Analyzing CV sections for improvement suggestions...
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
@@ -450,8 +587,47 @@ const CVManagementPage: React.FC = () => {
               </div>
             ) : currentCvData ? (
               <div>
+                {/* Analysis Status Banner */}
+                {isAnalyzing && (
+                  <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-3">
+                    <svg
+                      className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                        Analyzing CV sections...
+                      </p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                        AI is reviewing your work experience, education, and skills to provide improvement suggestions.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {/* CV Editor */}
-                <CvFormEditor data={currentCvData} onChange={handleCvChange} />
+                <CvFormEditor
+                  data={currentCvData}
+                  onChange={handleCvChange}
+                  analyses={analyses}
+                  onImproveSection={handleImproveSection}
+                  improvingSections={improvingSections}
+                />
               </div>
             ) : (
               <div className="text-center py-12 px-4">

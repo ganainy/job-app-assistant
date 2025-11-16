@@ -150,3 +150,37 @@ export const renderCoverLetterPdf = async (jobId: string): Promise<RenderCoverLe
 export const getDownloadUrl = (filename: string): string => {
     return `${API_BASE_URL}/generator/download/${filename}`;
 };
+
+// Function to improve a CV section
+export const improveSection = async (
+    sectionName: string,
+    sectionData: any
+): Promise<any> => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+        throw new Error('No authentication token found.');
+    }
+
+    try {
+        const response = await axios.post(
+            `${API_BASE_URL}/generator/improve-section`,
+            {
+                sectionName,
+                sectionData
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        return response.data;
+    } catch (error: any) {
+        console.error('Error improving section:', error);
+        if (axios.isAxiosError(error)) {
+            throw new Error(error.response?.data?.message || 'Failed to improve section');
+        }
+        throw error;
+    }
+};

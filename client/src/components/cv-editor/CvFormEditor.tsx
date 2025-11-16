@@ -2,16 +2,20 @@ import React from 'react';
 import { EditorProps, CvData } from './types';
 import CvDocumentRenderer from './CvDocumentRenderer';
 import { JsonResumeSchema } from '../../../../server/src/types/jsonresume';
+import { SectionAnalysisResult } from '../../services/analysisApi';
 
 interface CvFormEditorProps extends EditorProps<CvData> {
-    analysisResult?: any;
-    onAnalyzeSection?: (section: string) => void;
-    analyzingSections?: Record<string, boolean>;
+    analyses?: Record<string, SectionAnalysisResult[]>;
+    onImproveSection?: (sectionName: string, sectionIndex: number, originalData: any) => void;
+    improvingSections?: Record<string, boolean>;
 }
 
 const CvFormEditor: React.FC<CvFormEditorProps> = ({
     data,
-    onChange
+    onChange,
+    analyses,
+    onImproveSection,
+    improvingSections
 }) => {
     if (!data) {
         return <div>Loading editor...</div>;
@@ -45,7 +49,13 @@ const CvFormEditor: React.FC<CvFormEditorProps> = ({
                         minHeight: '1056px',
                     }}
                 >
-                    <CvDocumentRenderer data={data as JsonResumeSchema} onChange={onChange} />
+                    <CvDocumentRenderer
+                        data={data as JsonResumeSchema}
+                        onChange={onChange}
+                        analyses={analyses}
+                        onImproveSection={onImproveSection}
+                        improvingSections={improvingSections}
+                    />
                 </div>
             </div>
         </div>

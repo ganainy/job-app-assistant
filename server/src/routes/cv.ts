@@ -179,6 +179,53 @@ router.get('/', authMiddleware as RequestHandler, async (req: Request, res: Resp
     }
 });
 
+// PUT route to update the user's CV JSON
+router.put('/', authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    if (!req.user) {
+        res.status(401).json({ message: 'User not authenticated correctly.' });
+        return;
+    }
+
+    try {
+        const cvData = req.body;
+
+        if (!cvData || typeof cvData !== 'object') {
+            res.status(400).json({ message: 'CV data is required in the request body.' });
+            return;
+        }
+
+        // Validate that it has at least a basics section (basic validation)
+        if (!cvData.basics) {
+            res.status(400).json({ message: 'CV data must include a basics section.' });
+            return;
+        }
+
+        // Update the user's CV JSON
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user._id,
+            { $set: { cvJson: cvData as JsonResumeSchema } },
+            { new: true }
+        ).select('-passwordHash -cvJson');
+
+        if (!updatedUser) {
+            res.status(404).json({ message: "User not found after update." });
+            return;
+        }
+
+        console.log(`CV data updated for user ${req.user.email}`);
+        res.status(200).json({
+            message: 'CV updated successfully.',
+            cvData: cvData // Return the updated CV data
+        });
+    } catch (error: any) {
+        console.error("Error updating CV data:", error);
+        res.status(500).json({ 
+            message: 'Failed to update CV data.',
+            error: error.message || 'Unknown server error'
+        });
+    }
+});
+
 // DELETE route to delete the user's CV
 router.delete('/', authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     if (!req.user) {

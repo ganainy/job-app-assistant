@@ -453,3 +453,172 @@ export const performAtsAnalysis = async (
         }
     }
 };
+
+/**
+ * Analyzes all CV sections in a single request and returns feedback for each section item
+ * @param cvJson - The complete CV JSON object
+ * @returns Analysis results organized by section name, with an array of results for each section
+ */
+export const getAllSectionsAnalysis = async (
+    cvJson: JsonResumeSchema
+): Promise<Record<string, Array<{ needsImprovement: boolean; feedback: string }>>> => {
+    console.log('Analyzing all CV sections in one request');
+
+    const fullAnalysisPrompt = `
+You are a professional CV reviewer. Analyze the following CV and provide feedback for each section item.
+
+CV Data:
+${JSON.stringify(cvJson, null, 2)}
+
+Your task:
+1. Analyze each item in the work experience section (if present)
+2. Analyze each item in the education section (if present)
+3. Analyze each item in the skills section (if present)
+4. For each item, evaluate quality and identify areas for improvement
+5. Provide concise, actionable feedback for each item
+
+Return ONLY a JSON object with this exact structure:
+{
+  "work": [
+    {
+      "needsImprovement": true or false,
+      "feedback": "A concise message explaining what can be improved, or an empty string if no improvements are needed."
+    },
+    ... (one object per work experience item)
+  ],
+  "education": [
+    {
+      "needsImprovement": true or false,
+      "feedback": "A concise message explaining what can be improved, or an empty string if no improvements are needed."
+    },
+    ... (one object per education item)
+  ],
+  "skills": [
+    {
+      "needsImprovement": true or false,
+      "feedback": "A concise message explaining what can be improved, or an empty string if no improvements are needed."
+    },
+    ... (one object per skills category)
+  ]
+}
+
+Guidelines:
+- Set "needsImprovement" to true if there are clear areas for improvement
+- Set "needsImprovement" to false if the section is well-written and follows best practices
+- Keep feedback concise (1-2 sentences) and actionable
+- Focus on: quantifiable achievements, strong action verbs, clarity, completeness, and ATS-friendliness
+- The arrays must match the length of the corresponding sections in the CV
+- If a section is empty or missing, return an empty array for that section
+`;
+
+    try {
+        const response = await generateStructuredResponse<Record<string, Array<{ needsImprovement: boolean; feedback: string }>>>(
+            fullAnalysisPrompt
+        );
+
+        if (!response || typeof response !== 'object') {
+            throw new Error('AI response did not return valid analysis structure');
+        }
+
+        // Ensure all sections have arrays, even if empty
+        const result: Record<string, Array<{ needsImprovement: boolean; feedback: string }>> = {
+            work: response.work || [],
+            education: response.education || [],
+            skills: response.skills || []
+        };
+
+        // Validate array lengths match CV data
+        if (cvJson.work && Array.isArray(cvJson.work)) {
+            if (result.work.length !== cvJson.work.length) {
+                console.warn(`Work analysis length (${result.work.length}) doesn't match CV work length (${cvJson.work.length})`);
+                // Pad or trim to match
+                while (result.work.length < cvJson.work.length) {
+                    result.work.push({ needsImprovement: false, feedback: '' });
+                }
+                result.work = result.work.slice(0, cvJson.work.length);
+            }
+        }
+
+        if (cvJson.education && Array.isArray(cvJson.education)) {
+            if (result.education.length !== cvJson.education.length) {
+                console.warn(`Education analysis length (${result.education.length}) doesn't match CV education length (${cvJson.education.length})`);
+                while (result.education.length < cvJson.education.length) {
+                    result.education.push({ needsImprovement: false, feedback: '' });
+                }
+                result.education = result.education.slice(0, cvJson.education.length);
+            }
+        }
+
+        if (cvJson.skills && Array.isArray(cvJson.skills)) {
+            if (result.skills.length !== cvJson.skills.length) {
+                console.warn(`Skills analysis length (${result.skills.length}) doesn't match CV skills length (${cvJson.skills.length})`);
+                while (result.skills.length < cvJson.skills.length) {
+                    result.skills.push({ needsImprovement: false, feedback: '' });
+                }
+                result.skills = result.skills.slice(0, cvJson.skills.length);
+            }
+        }
+
+        return result;
+    } catch (error: any) {
+        console.error('Error analyzing CV sections:', error);
+        throw new Error(`Failed to analyze CV sections: ${error.message}`);
+    }
+};
+
+/**
+ * Analyzes a single CV section and returns feedback (kept for backward compatibility, but deprecated)
+ * @param sectionName - The name of the section (e.g., "work", "education", "skills")
+ * @param sectionData - The JSON object for a single section item
+ * @returns Analysis result with needsImprovement flag and feedback message
+ * @deprecated Use getAllSectionsAnalysis instead for better efficiency
+ */
+export const getSectionAnalysis = async (
+    sectionName: string,
+    sectionData: any
+): Promise<{ needsImprovement: boolean; feedback: string }> => {
+    console.log(`Analyzing CV section: ${sectionName}`);
+
+    const sectionAnalysisPrompt = `
+You are a professional CV reviewer. Analyze the following CV section and provide feedback.
+
+Section Name: ${sectionName}
+Section Data:
+${JSON.stringify(sectionData, null, 2)}
+
+Your task:
+1. Evaluate the quality of this section
+2. Identify areas for improvement (e.g., lack of quantifiable achievements, weak action verbs, missing details)
+3. Provide concise, actionable feedback
+
+Return ONLY a JSON object with this exact structure:
+{
+  "needsImprovement": true or false,
+  "feedback": "A concise message explaining what can be improved, or an empty string if no improvements are needed."
+}
+
+Guidelines:
+- Set "needsImprovement" to true if there are clear areas for improvement
+- Set "needsImprovement" to false if the section is well-written and follows best practices
+- Keep feedback concise (1-2 sentences) and actionable
+- Focus on: quantifiable achievements, strong action verbs, clarity, completeness, and ATS-friendliness
+`;
+
+    try {
+        const response = await generateStructuredResponse<{ needsImprovement: boolean; feedback: string }>(
+            sectionAnalysisPrompt
+        );
+
+        if (!response || typeof response.needsImprovement !== 'boolean') {
+            throw new Error('AI response did not return valid analysis structure');
+        }
+
+        return {
+            needsImprovement: response.needsImprovement,
+            feedback: response.feedback || ''
+        };
+    } catch (error: any) {
+        console.error(`Error analyzing section ${sectionName}:`, error);
+        throw new Error(`Failed to analyze CV section: ${error.message}`);
+    }
+};

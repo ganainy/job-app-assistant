@@ -19,6 +19,7 @@ import Toast from '../components/common/Toast';
 import JobStatusBadge from '../components/jobs/JobStatusBadge';
 import ProgressIndicator from '../components/jobs/ProgressIndicator';
 import CoverLetterEditor from '../components/CoverLetterEditor';
+import { JobChatWindow, FloatingChatButton } from '../components/chat';
 
 interface ToastState {
     message: string;
@@ -54,6 +55,9 @@ const ReviewFinalizePage: React.FC = () => {
     const [hasMasterCv, setHasMasterCv] = useState<boolean>(false);
     const [notes, setNotes] = useState<string>('');
     const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
+    const [notesSaveStatus, setNotesSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const [notesHasChanged, setNotesHasChanged] = useState<boolean>(false);
+    const [originalNotes, setOriginalNotes] = useState<string>('');
     const [toast, setToast] = useState<ToastState | null>(null);
     const [isJobDescriptionExpanded, setIsJobDescriptionExpanded] = useState<boolean>(false);
     const [atsScores, setAtsScores] = useState<AtsScores | null>(null);
@@ -70,6 +74,7 @@ const ReviewFinalizePage: React.FC = () => {
     const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
     const [previewPdfBase64, setPreviewPdfBase64] = useState<string | null>(null);
     const [isGeneratingPreview, setIsGeneratingPreview] = useState<boolean>(false);
+    const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
     
     const ATS_POLLING_INTERVAL_MS = 3000; // Poll more frequently for ATS
     const ATS_POLLING_TIMEOUT_MS = 120000; // 2 minutes timeout
@@ -90,7 +95,10 @@ const ReviewFinalizePage: React.FC = () => {
                 setCvData(data.draftCvJson);
             }
             setCoverLetterText(data.draftCoverLetterText || '');
-            setNotes(data.notes || '');
+            const notesData = data.notes || '';
+            setNotes(notesData);
+            setOriginalNotes(notesData);
+            setNotesHasChanged(false);
 
             if (data.generatedCvFilename || data.generatedCoverLetterFilename) {
                 setFinalPdfFiles({
@@ -723,19 +731,38 @@ const ReviewFinalizePage: React.FC = () => {
         }
     };
 
-    const handleSaveNotes = async () => {
+    const handleSaveNotes = async (notesToSave: string) => {
         if (!jobId) return;
         setIsSavingNotes(true);
+        setNotesSaveStatus('saving');
         try {
-            const updatedJob = await updateJob(jobId, { notes });
-            setJobApplication(prev => prev ? { ...prev, notes } : null);
-            showToast('Notes saved successfully!', 'success');
+            const updatedJob = await updateJob(jobId, { notes: notesToSave });
+            setJobApplication(prev => prev ? { ...prev, notes: notesToSave } : null);
+            setOriginalNotes(notesToSave);
+            setNotesHasChanged(false);
+            setNotesSaveStatus('saved');
+            // Clear saved status after 2 seconds
+            setTimeout(() => {
+                setNotesSaveStatus('idle');
+            }, 2000);
         } catch (error: any) {
             console.error('Failed to save notes:', error);
+            setNotesSaveStatus('error');
             showToast(error.message || 'Failed to save notes.', 'error');
+            // Clear error status after 3 seconds
+            setTimeout(() => {
+                setNotesSaveStatus('idle');
+            }, 3000);
         } finally {
             setIsSavingNotes(false);
         }
+    };
+
+    // Handle notes change and show save button when text changes
+    const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newNotes = e.target.value;
+        setNotes(newNotes);
+        setNotesHasChanged(newNotes !== originalNotes);
     };
 
     // Calculate progress steps
@@ -751,24 +778,50 @@ const ReviewFinalizePage: React.FC = () => {
                 completed: !!jobApplication.draftCvJson,
             },
             {
-                label: 'Cover Letter',
+                label: 'Cover Letter Generated',
                 completed: !!jobApplication.draftCoverLetterText,
             },
             {
-                label: 'PDFs Ready',
-                completed: !!(finalPdfFiles.cv && finalPdfFiles.cl),
+                label: 'AI Reviewed',
+                completed: !!atsScores,
             },
         ];
     };
 
-    // Format date helper
+    // Format date helper with relative time
     const formatDate = (dateString?: string) => {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now.getTime() - date.getTime();
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 0) return 'Today';
+            if (diffDays === 1) return 'Yesterday';
+            if (diffDays < 7) return `${diffDays} days ago`;
+            
+            // For older dates, show full date
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+            });
+        } catch {
+            return 'N/A';
+        }
+    };
+
+    // Get full date for tooltip
+    const getFullDate = (dateString?: string) => {
         if (!dateString) return 'N/A';
         try {
             return new Date(dateString).toLocaleDateString('en-US', {
                 year: 'numeric',
-                month: 'short',
+                month: 'long',
                 day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
             });
         } catch {
             return 'N/A';
@@ -894,83 +947,95 @@ const ReviewFinalizePage: React.FC = () => {
                 </div>
 
                 {/* Job Details Section - Keep visible above tabs */}
-                <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                    <div className="p-6">
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-                            <div className="flex-1">
-                                <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">Job Details</h2>
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex items-center gap-2">
+                <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+                    <div className="p-4 sm:p-5 md:p-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+                            {/* Job Details */}
+                            <div className="lg:col-span-1 space-y-4">
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Job Details</h2>
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex items-center justify-between">
                                         <span className="text-gray-500 dark:text-gray-400">Status:</span>
-                                        <JobStatusBadge type="application" status={jobApplication.status} />
+                                        <span className="bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium px-3 py-1 rounded-full">
+                                            {jobApplication.status}
+                                        </span>
                                     </div>
                                     {jobApplication.dateApplied && (
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center justify-between">
                                             <span className="text-gray-500 dark:text-gray-400">Date Applied:</span>
-                                            <span className="text-gray-900 dark:text-gray-100">{formatDate(jobApplication.dateApplied)}</span>
+                                            <span className="font-medium text-gray-900 dark:text-gray-100">
+                                                {formatDate(jobApplication.dateApplied)}
+                                            </span>
                                         </div>
                                     )}
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center justify-between">
                                         <span className="text-gray-500 dark:text-gray-400">Created:</span>
-                                        <span className="text-gray-900 dark:text-gray-100">{formatDate(jobApplication.createdAt)}</span>
+                                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                                            {formatDate(jobApplication.createdAt)}
+                                        </span>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center justify-between">
                                         <span className="text-gray-500 dark:text-gray-400">Updated:</span>
-                                        <span className="text-gray-900 dark:text-gray-100">{formatDate(jobApplication.updatedAt)}</span>
+                                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                                            {formatDate(jobApplication.updatedAt)}
+                                        </span>
                                     </div>
-                                    {jobApplication.jobUrl && (
-                                        <div className="flex items-center gap-2">
-                                            <a
-                                                href={jobApplication.jobUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                                            >
+                                </div>
+                                {jobApplication.jobUrl && (
+                                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                        <a
+                                            href={jobApplication.jobUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold hover:underline"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                            </svg>
+                                            View Job Posting
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Notes Section */}
+                            <div className="lg:col-span-2">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Notes</h2>
+                                    <button
+                                        onClick={() => handleSaveNotes(notes)}
+                                        disabled={!notesHasChanged || isSavingNotes}
+                                        className={`bg-purple-600 dark:bg-purple-700 text-white font-semibold py-1.5 px-3 rounded-lg flex items-center gap-2 transition-opacity duration-300 text-sm ${
+                                            notesHasChanged || notesSaveStatus === 'saved' ? 'opacity-100' : 'opacity-0'
+                                        } disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-700 dark:hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                                    >
+                                        {notesSaveStatus === 'saved' ? (
+                                            <>
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                 </svg>
-                                                View Job Posting
-                                            </a>
-                                        </div>
-                                    )}
+                                                Saved!
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                                </svg>
+                                                Save
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                                <div className="relative">
+                                    <textarea
+                                        value={notes}
+                                        onChange={handleNotesChange}
+                                        rows={6}
+                                        placeholder="Start typing your notes here..."
+                                        className="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-150 ease-in-out placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 resize-y"
+                                    />
                                 </div>
                             </div>
-                        </div>
-                        
-                        {/* Notes Section */}
-                        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Notes</h3>
-                                <button
-                                    onClick={handleSaveNotes}
-                                    disabled={isSavingNotes}
-                                    className="px-4 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors flex items-center gap-2 text-sm"
-                                >
-                                    {isSavingNotes ? (
-                                        <>
-                                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Saving...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Save Notes
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                            <textarea
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                rows={6}
-                                placeholder="Add your notes about this job application..."
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-colors"
-                            />
                         </div>
                     </div>
                 </div>
@@ -1196,25 +1261,27 @@ const ReviewFinalizePage: React.FC = () => {
                             <div>
                                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
                                     <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Job Description</h2>
-                                    <button
-                                        onClick={handleRefreshJobDetails}
-                                        disabled={isRefreshing || !jobApplication.jobUrl}
-                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        {isRefreshing ? (
-                                            <>
-                                                <Spinner size="sm" />
-                                                <span>Refreshing...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                </svg>
-                                                <span>Refresh Job Details</span>
-                                            </>
-                                        )}
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleRefreshJobDetails}
+                                            disabled={isRefreshing || !jobApplication.jobUrl}
+                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            {isRefreshing ? (
+                                                <>
+                                                    <Spinner size="sm" />
+                                                    <span>Refreshing...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
+                                                    <span>Refresh Job Details</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {refreshError && (
@@ -1553,6 +1620,23 @@ const ReviewFinalizePage: React.FC = () => {
                     message={toast.message}
                     type={toast.type}
                     onClose={() => setToast(null)}
+                />
+            )}
+
+            {/* Floating Chat Button - Only show if job description exists */}
+            {jobApplication?.jobDescriptionText && !isChatOpen && (
+                <FloatingChatButton
+                    onClick={() => setIsChatOpen(true)}
+                />
+            )}
+
+            {/* Chat Window */}
+            {isChatOpen && jobId && jobApplication && (
+                <JobChatWindow
+                    jobId={jobId}
+                    jobTitle={`${jobApplication.jobTitle} at ${jobApplication.companyName}`}
+                    isOpen={isChatOpen}
+                    onClose={() => setIsChatOpen(false)}
                 />
             )}
         </div>

@@ -36,3 +36,15 @@ export const finalizeGenerationBodySchema = z.object({
   ),
 });
 
+/**
+ * Improve section body schema
+ */
+export const improveSectionBodySchema = z.object({
+  sectionName: z.string({
+    required_error: 'Section name is required',
+  }).min(1, 'Section name cannot be empty'),
+  sectionData: z.any({
+    required_error: 'Section data is required',
+  }), // Can be any JSON object representing a section item
+});
+

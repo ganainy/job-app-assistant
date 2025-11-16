@@ -54,10 +54,10 @@ The client is a single-page application (SPA) built with React and TypeScript.
 
 The server is a RESTful API built with Node.js, Express, and TypeScript.
 
-- **`src/controllers`**: These files handle the incoming HTTP requests, validate data, and call the appropriate services.
+- **`src/controllers`**: These files handle the incoming HTTP requests, validate data, and call the appropriate services. (e.g., `authController.ts`, `atsController.ts`, `analysisController.ts`, `analyticsController.ts`).
 - **`src/models`**: Defines the schemas for the MongoDB database collections (e.g., `User`, `JobApplication`).
-- **`src/routes`**: Defines the API endpoints and maps them to the corresponding controller functions.
-- **`src/services`**: Contains the core business logic of the application.
+- **`src/routes`**: Defines the API endpoints and maps them to the corresponding controller functions. (e.g., `auth.ts`, `atsRoutes.ts`, `analysis.ts`, `analytics.ts`).
+- **`src/services`**: Contains the core business logic of the application. (e.g., `atsGeminiService.ts`, `analysisService.ts`, `coverLetterService.ts`, `analyticsService.ts`).
 - **`src/utils`**: A collection of helper modules for specific tasks:
     - `aiExtractor.ts` & `geminiClient.ts`: Integration with Google Gemini for AI-powered features.
     - `pdfGenerator.ts`: Creates PDF documents from user data.

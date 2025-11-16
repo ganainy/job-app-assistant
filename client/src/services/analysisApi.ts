@@ -229,3 +229,72 @@ export const generateImprovement = async (
         throw error;
     }
 };
+
+// 5. Analyze a CV Section (deprecated - use fetchAllSectionsAnalysis instead)
+export interface SectionAnalysisResult {
+    needsImprovement: boolean;
+    feedback: string;
+}
+
+export const fetchSectionAnalysis = async (
+    sectionName: string,
+    sectionData: any
+): Promise<SectionAnalysisResult> => {
+    const token = getAuthToken();
+    if (!token) {
+        throw new Error('No authentication token found.');
+    }
+
+    try {
+        const response = await axios.post<SectionAnalysisResult>(
+            `${API_BASE_URL}/analysis/cv-section`,
+            {
+                sectionName,
+                sectionData
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            throw new Error(error.response?.data?.message || 'Failed to analyze CV section');
+        }
+        throw error;
+    }
+};
+
+// 6. Analyze all CV sections in one request
+export const fetchAllSectionsAnalysis = async (
+    cvData: JsonResumeSchema
+): Promise<Record<string, SectionAnalysisResult[]>> => {
+    const token = getAuthToken();
+    if (!token) {
+        throw new Error('No authentication token found.');
+    }
+
+    try {
+        const response = await axios.post<Record<string, SectionAnalysisResult[]>>(
+            `${API_BASE_URL}/analysis/analyze-all-sections`,
+            {
+                cv: cvData
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            throw new Error(error.response?.data?.message || 'Failed to analyze CV sections');
+        }
+        throw error;
+    }
+};

@@ -23,6 +23,12 @@ export interface IJobApplication extends Document {
     // --- New Fields for Final Filenames ---
     generatedCvFilename?: string; // Store the filename of the latest generated CV PDF
     generatedCoverLetterFilename?: string; // Store the filename of the latest generated CL PDF
+    // --- Chat History ---
+    chatHistory?: Array<{
+        sender: 'user' | 'ai';
+        text: string;
+        timestamp: Date;
+    }>;
     // --- Standard Timestamps ---
     createdAt: Date;
     updatedAt: Date;
@@ -51,6 +57,12 @@ const JobApplicationSchema: Schema = new Schema(
         // --- Schema Definitions for New Fields ---
         generatedCvFilename: { type: String, required: false },
         generatedCoverLetterFilename: { type: String, required: false },
+        // --- Chat History Schema ---
+        chatHistory: [{
+            sender: { type: String, enum: ['user', 'ai'], required: true },
+            text: { type: String, required: true },
+            timestamp: { type: Date, default: Date.now }
+        }],
     },
     { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );

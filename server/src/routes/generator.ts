@@ -10,8 +10,10 @@ import { JsonResumeSchema } from '../types/jsonresume';
 import mongoose from 'mongoose';
 import { generateCvPdfFromJsonResume, generateCoverLetterPdf } from '../utils/pdfGenerator'; // Import PDF generators
 import { validateRequest, ValidatedRequest } from '../middleware/validateRequest';
-import { generateDocumentsBodySchema, finalizeGenerationBodySchema } from '../validations/generatorSchemas';
+import { generateDocumentsBodySchema, finalizeGenerationBodySchema, improveSectionBodySchema } from '../validations/generatorSchemas';
 import { jobIdParamSchema, filenameParamSchema } from '../validations/commonSchemas';
+import { improveCvSection } from '../controllers/generatorController';
+import { asyncHandler } from '../utils/asyncHandler';
 
 const router: Router = express.Router();
 router.use(authMiddleware as RequestHandler); // Apply auth to all routes in this file
@@ -757,6 +759,7 @@ const renderCoverLetterPdfHandler: RequestHandler = async (req: ValidatedRequest
 };
 
 // === ROUTE DEFINITIONS (Order Matters!) ===
+router.post('/improve-section', validateRequest({ body: improveSectionBodySchema }), asyncHandler(improveCvSection)); // Improve CV section
 router.post('/finalize', validateRequest({ body: finalizeGenerationBodySchema }), finalizeGenerationHandler); // Finalize draft content
 router.post('/:jobId/render-pdf', validateRequest({ params: jobIdParamSchema }), renderFinalPdfsHandler); // Render both PDFs
 router.post('/:jobId/render-cv-pdf', validateRequest({ params: jobIdParamSchema }), renderCvPdfHandler); // Render CV PDF only

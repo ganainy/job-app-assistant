@@ -131,3 +131,37 @@ export const deleteAnalysis = async (req: ValidatedRequest, res: Response) => {
     await analysis.deleteOne();
     res.json({ message: 'Analysis deleted successfully' });
 };
+
+export const analyzeCvSection = async (req: ValidatedRequest, res: Response) => {
+    const { sectionName, sectionData } = req.validated!.body!;
+
+    if (!sectionName || !sectionData) {
+        throw new ValidationError('Section name and section data are required');
+    }
+
+    try {
+        const { getSectionAnalysis } = await import('../services/analysisService');
+        const analysis = await getSectionAnalysis(sectionName, sectionData);
+        res.json(analysis);
+    } catch (error: any) {
+        console.error('Error in analyzeCvSection:', error);
+        throw new InternalServerError(error.message || 'Failed to analyze CV section');
+    }
+};
+
+export const analyzeAllCvSections = async (req: ValidatedRequest, res: Response) => {
+    const cvData = req.validated!.body!.cv;
+
+    if (!cvData) {
+        throw new ValidationError('CV data is required');
+    }
+
+    try {
+        const { getAllSectionsAnalysis } = await import('../services/analysisService');
+        const analyses = await getAllSectionsAnalysis(cvData);
+        res.json(analyses);
+    } catch (error: any) {
+        console.error('Error in analyzeAllCvSections:', error);
+        throw new InternalServerError(error.message || 'Failed to analyze CV sections');
+    }
+};

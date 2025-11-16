@@ -4,13 +4,18 @@ import EditableText from './EditableText';
 import EditableTextarea from './EditableTextarea';
 import EditableList from './EditableList';
 import SectionManager from './SectionManager';
+import SectionAnalysisPanel from './SectionAnalysisPanel';
+import { SectionAnalysisResult } from '../../services/analysisApi';
 
 interface CvDocumentRendererProps {
     data: JsonResumeSchema;
     onChange: (data: JsonResumeSchema) => void;
+    analyses?: Record<string, SectionAnalysisResult[]>;
+    onImproveSection?: (sectionName: string, sectionIndex: number, originalData: any) => void;
+    improvingSections?: Record<string, boolean>;
 }
 
-const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange }) => {
+const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange, analyses, onImproveSection, improvingSections }) => {
     const basics = data.basics || { name: '', profiles: [] };
     const location = basics.location || {};
     const profiles = basics.profiles || [];
@@ -391,6 +396,14 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                         >
                             Delete
                         </button>
+                        {/* Section Analysis Panel */}
+                        {analyses?.work && analyses.work[index] && onImproveSection && (
+                            <SectionAnalysisPanel
+                                analysis={analyses.work[index]}
+                                onImprove={() => onImproveSection('work', index, item)}
+                                isLoading={improvingSections?.[`work-${index}`] || false}
+                            />
+                        )}
                     </div>
                 ))}
                 <SectionManager sectionName="Work Experience" onAdd={addWorkItem} />
@@ -597,6 +610,14 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                         >
                             Delete
                         </button>
+                        {/* Section Analysis Panel */}
+                        {analyses?.education && analyses.education[index] && onImproveSection && (
+                            <SectionAnalysisPanel
+                                analysis={analyses.education[index]}
+                                onImprove={() => onImproveSection('education', index, item)}
+                                isLoading={improvingSections?.[`education-${index}`] || false}
+                            />
+                        )}
                     </div>
                 ))}
                 <SectionManager sectionName="Education" onAdd={addEducationItem} />
@@ -694,6 +715,14 @@ const CvDocumentRenderer: React.FC<CvDocumentRendererProps> = ({ data, onChange 
                         >
                             Delete
                         </button>
+                        {/* Section Analysis Panel */}
+                        {analyses?.skills && analyses.skills[index] && onImproveSection && (
+                            <SectionAnalysisPanel
+                                analysis={analyses.skills[index]}
+                                onImprove={() => onImproveSection('skills', index, skillCat)}
+                                isLoading={improvingSections?.[`skills-${index}`] || false}
+                            />
+                        )}
                     </div>
                 ))}
                 <SectionManager sectionName="Skill Category" onAdd={addSkillItem} />
