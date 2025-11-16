@@ -116,6 +116,71 @@ const getBrowser = async (): Promise<Browser> => {
     return browserInstance;
 };
 
+// Helper function to prepare resume data for template
+const prepareResumeData = (cvJsonResumeObject: JsonResumeSchema): JsonResumeSchema => {
+    const resumeDataForTemplate: JsonResumeSchema = {
+        basics: { name: "Applicant", profiles: [], ...cvJsonResumeObject.basics },
+        work: Array.isArray(cvJsonResumeObject.work) ? cvJsonResumeObject.work : [],
+        education: Array.isArray(cvJsonResumeObject.education) ? cvJsonResumeObject.education : [],
+        skills: Array.isArray(cvJsonResumeObject.skills) ? cvJsonResumeObject.skills : [],
+        projects: Array.isArray(cvJsonResumeObject.projects) ? cvJsonResumeObject.projects : [],
+        languages: Array.isArray(cvJsonResumeObject.languages) ? cvJsonResumeObject.languages : [],
+        // Add other sections if needed
+        ...cvJsonResumeObject // Spread the rest
+    };
+    // Ensure basics has minimum content
+    if (!resumeDataForTemplate.basics || Object.keys(resumeDataForTemplate.basics).length === 0) {
+        resumeDataForTemplate.basics = { name: "Applicant", profiles: [] };
+    }
+    return resumeDataForTemplate;
+};
+
+// Helper function to generate PDF buffer (used for preview)
+export const generateCvPdfBuffer = async (
+    cvJsonResumeObject: JsonResumeSchema
+): Promise<Buffer> => {
+    console.log(`Attempting to generate CV PDF buffer using internal template...`);
+
+    let page: Page | undefined;
+    const browser = await getBrowser();
+
+    try {
+        const resumeDataForTemplate = prepareResumeData(cvJsonResumeObject);
+
+        // 1. Generate HTML using our internal template function
+        console.log("Rendering HTML using internal template...");
+        const htmlContent = getCvHtml(resumeDataForTemplate);
+        if (!htmlContent || typeof htmlContent !== 'string' || htmlContent.trim().length < 100) {
+            throw new Error(`Internal template rendered empty or invalid HTML.`);
+        }
+        console.log(`HTML rendered successfully`);
+
+        // 2. Generate PDF using Puppeteer and return buffer
+        console.log(`Generating PDF buffer...`);
+        page = await browser.newPage();
+        await page.goto('about:blank', { waitUntil: 'networkidle0' });
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+        const pdfOptions = {
+            format: 'A4' as const,
+            printBackground: true,
+            margin: { top: '25px', right: '25px', bottom: '25px', left: '25px' },
+        };
+        const pdfUint8Array = await page.pdf(pdfOptions);
+        // Convert Uint8Array to Buffer
+        const pdfBuffer = Buffer.from(pdfUint8Array);
+        console.log(`CV PDF buffer generated successfully`);
+        return pdfBuffer;
+
+    } catch (error: any) {
+        console.error(`Error generating CV PDF buffer:`, error);
+        throw new Error(`CV PDF generation failed: ${error.message || error}`);
+    } finally {
+        if (page) {
+            try { await page.close(); } catch (closeError) { console.error(`Error closing page:`, closeError); }
+        }
+    }
+};
+
 export const generateCvPdfFromJsonResume = async (
     // Expects schema-compliant data, but template might be forgiving
     cvJsonResumeObject: JsonResumeSchema,
@@ -125,29 +190,13 @@ export const generateCvPdfFromJsonResume = async (
     await ensureDirExists(TEMP_PDF_DIR);
     console.log(`Attempting to generate CV PDF using internal template...`);
 
-    let page: Page | undefined;
     const browser = await getBrowser();
     // Filename no longer needs theme
     const uniqueFilename = `${filenamePrefix}_${Date.now()}.pdf`;
     const filePath = path.join(TEMP_PDF_DIR, uniqueFilename);
 
     try {
-        // --- Add Defaults for required top-level objects as safety net ---
-         const resumeDataForTemplate: JsonResumeSchema = {
-             basics: { name: "Applicant", profiles: [], ...cvJsonResumeObject.basics },
-             work: Array.isArray(cvJsonResumeObject.work) ? cvJsonResumeObject.work : [],
-             education: Array.isArray(cvJsonResumeObject.education) ? cvJsonResumeObject.education : [],
-             skills: Array.isArray(cvJsonResumeObject.skills) ? cvJsonResumeObject.skills : [],
-             projects: Array.isArray(cvJsonResumeObject.projects) ? cvJsonResumeObject.projects : [],
-             languages: Array.isArray(cvJsonResumeObject.languages) ? cvJsonResumeObject.languages : [],
-             // Add other sections if needed
-             ...cvJsonResumeObject // Spread the rest
-         };
-         // Ensure basics has minimum content
-         if (!resumeDataForTemplate.basics || Object.keys(resumeDataForTemplate.basics).length === 0) {
-              resumeDataForTemplate.basics = { name: "Applicant", profiles: [] };
-          }
-
+        const resumeDataForTemplate = prepareResumeData(cvJsonResumeObject);
 
         // 1. Generate HTML using our internal template function
         console.log("Rendering HTML using internal template...");
@@ -167,7 +216,7 @@ export const generateCvPdfFromJsonResume = async (
 
         // 2. Generate PDF using Puppeteer (as before)
         console.log(`Generating PDF for: ${uniqueFilename}`);
-        page = await browser.newPage();
+        const page = await browser.newPage();
         await page.goto('about:blank', { waitUntil: 'networkidle0' });
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
         const pdfOptions = {
@@ -177,16 +226,13 @@ export const generateCvPdfFromJsonResume = async (
             margin: { top: '25px', right: '25px', bottom: '25px', left: '25px' }, // Use consistent margins
         };
         await page.pdf(pdfOptions);
+        await page.close();
         console.log(`CV PDF saved temporarily to: ${filePath}`);
         return uniqueFilename;
 
     } catch (error: any) {
         console.error(`Error generating CV PDF ${uniqueFilename}:`, error);
         throw new Error(`CV PDF generation failed: ${error.message || error}`);
-    } finally {
-        if (page) {
-            try { await page.close(); } catch (closeError) { console.error(`Error closing page:`, closeError); }
-        }
     }
 };
 

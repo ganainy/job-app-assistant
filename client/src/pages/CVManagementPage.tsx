@@ -1,7 +1,8 @@
 // client/src/pages/CVManagementPage.tsx
 import React, { useState, ChangeEvent, FormEvent, useEffect, useRef, useMemo } from 'react';
-import { uploadCV, getCurrentCv, updateCurrentCv, deleteCurrentCv } from '../services/cvApi';
+import { uploadCV, getCurrentCv, updateCurrentCv, deleteCurrentCv, previewCv } from '../services/cvApi';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
+import CvPreviewModal from '../components/cv-editor/CvPreviewModal';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import Toast from '../components/common/Toast';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
@@ -16,6 +17,9 @@ const CVManagementPage: React.FC = () => {
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isReplacing, setIsReplacing] = useState<boolean>(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
+  const [previewPdfBase64, setPreviewPdfBase64] = useState<string | null>(null);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState<boolean>(false);
   
   // Track original CV data for unsaved changes detection
   const originalCvDataRef = useRef<JsonResumeSchema | null>(null);
@@ -183,6 +187,25 @@ const CVManagementPage: React.FC = () => {
     }
   };
 
+  const handlePreviewCv = async () => {
+    if (!currentCvData) {
+      setToast({ message: 'No CV data available to preview.', type: 'error' });
+      return;
+    }
+
+    setIsGeneratingPreview(true);
+    try {
+      const response = await previewCv(currentCvData);
+      setPreviewPdfBase64(response.pdfBase64);
+      setIsPreviewOpen(true);
+    } catch (error: any) {
+      console.error("Error generating CV preview:", error);
+      setToast({ message: error.message || 'Failed to generate CV preview.', type: 'error' });
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -337,6 +360,30 @@ const CVManagementPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <button
+                onClick={handlePreviewCv}
+                disabled={isGeneratingPreview}
+                className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors"
+                title="Preview ATS CV"
+              >
+                {isGeneratingPreview ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    Preview ATS CV
+                  </>
+                )}
+              </button>
+              <button
                 onClick={() => {
                   setIsReplacing(true);
                   setSelectedFile(null);
@@ -454,6 +501,17 @@ const CVManagementPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* CV Preview Modal */}
+      <CvPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => {
+          setIsPreviewOpen(false);
+          setPreviewPdfBase64(null);
+        }}
+        pdfBase64={previewPdfBase64}
+        isLoading={isGeneratingPreview}
+      />
 
       {/* Toast Notification */}
       {toast && (

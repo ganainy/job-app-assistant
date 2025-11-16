@@ -7,6 +7,7 @@ import User from '../models/User';
 import { geminiModel } from '../utils/geminiClient'; // Import configured Gemini model
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 import { JsonResumeSchema } from '../types/jsonresume';
+import { generateCvPdfBuffer } from '../utils/pdfGenerator';
 
 const router: Router = express.Router();
 
@@ -201,6 +202,40 @@ router.delete('/', authMiddleware as RequestHandler, async (req: Request, res: R
     } catch (error) {
         console.error("Error deleting CV data:", error);
         res.status(500).json({ message: 'Failed to delete CV data.' });
+    }
+});
+
+// POST route to generate CV preview
+router.post('/preview', authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    if (!req.user) {
+        res.status(401).json({ message: 'User not authenticated correctly.' });
+        return;
+    }
+
+    try {
+        const { cvData } = req.body;
+
+        if (!cvData || typeof cvData !== 'object') {
+            res.status(400).json({ message: 'CV data is required in the request body.' });
+            return;
+        }
+
+        // Generate PDF buffer
+        const pdfBuffer = await generateCvPdfBuffer(cvData as JsonResumeSchema);
+
+        // Convert buffer to base64 string
+        const base64Pdf = pdfBuffer.toString('base64');
+
+        res.status(200).json({
+            message: 'CV preview generated successfully.',
+            pdfBase64: base64Pdf
+        });
+    } catch (error: any) {
+        console.error("Error generating CV preview:", error);
+        res.status(500).json({ 
+            message: 'Failed to generate CV preview.', 
+            error: error.message || 'Unknown server error' 
+        });
     }
 });
 

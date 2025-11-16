@@ -80,3 +80,23 @@ export const deleteCurrentCv = async (): Promise<{ message: string }> => {
         throw { message: 'An unknown error occurred deleting CV data.' };
     }
 };
+
+// Interface for preview response
+interface PreviewCvResponse {
+    message: string;
+    pdfBase64: string;
+}
+
+// Function to generate CV preview
+export const previewCv = async (cvData: JsonResumeSchema): Promise<PreviewCvResponse> => {
+    try {
+        const response = await axios.post<PreviewCvResponse>(`${API_BASE_URL}/preview`, { cvData });
+        return response.data;
+    } catch (error: any) {
+        console.error("Preview CV API error:", error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data;
+        }
+        throw { message: 'An unknown error occurred generating CV preview.' };
+    }
+};

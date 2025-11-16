@@ -8,8 +8,9 @@ import { scanAts, getAtsScores, getAtsForJob, AtsScores } from '../services/atsA
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
 import { generateCoverLetter } from '../services/coverLetterApi';
-import { getCurrentCv } from '../services/cvApi';
+import { getCurrentCv, previewCv } from '../services/cvApi';
 import { AtsFeedbackPanel } from '../components/ats';
+import CvPreviewModal from '../components/cv-editor/CvPreviewModal';
 import axios from 'axios';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import ErrorAlert from '../components/common/ErrorAlert';
@@ -66,6 +67,9 @@ const ReviewFinalizePage: React.FC = () => {
     const isInitialLoadRef = useRef<boolean>(true);
     const lastSavedCvDataRef = useRef<string | null>(null);
     const lastSavedCoverLetterRef = useRef<string | null>(null);
+    const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
+    const [previewPdfBase64, setPreviewPdfBase64] = useState<string | null>(null);
+    const [isGeneratingPreview, setIsGeneratingPreview] = useState<boolean>(false);
     
     const ATS_POLLING_INTERVAL_MS = 3000; // Poll more frequently for ATS
     const ATS_POLLING_TIMEOUT_MS = 120000; // 2 minutes timeout
@@ -567,6 +571,25 @@ const ReviewFinalizePage: React.FC = () => {
             setRenderError(error.message || 'Failed to generate CV PDF.');
         } finally {
             setIsRenderingCvPdf(false);
+        }
+    };
+
+    const handlePreviewCv = async () => {
+        if (!cvData || !jobApplication?.draftCvJson) {
+            showToast('No CV data available to preview.', 'error');
+            return;
+        }
+
+        setIsGeneratingPreview(true);
+        try {
+            const response = await previewCv(cvData);
+            setPreviewPdfBase64(response.pdfBase64);
+            setIsPreviewOpen(true);
+        } catch (error: any) {
+            console.error("Error generating CV preview:", error);
+            showToast(error.message || 'Failed to generate CV preview.', 'error');
+        } finally {
+            setIsGeneratingPreview(false);
         }
     };
 
@@ -1355,6 +1378,31 @@ const ReviewFinalizePage: React.FC = () => {
                                             
                                             {/* Action buttons - grouped logically */}
                                             <div className="flex flex-wrap items-center gap-2 mb-4">
+                                                {/* Preview button */}
+                                                <button
+                                                    onClick={handlePreviewCv}
+                                                    disabled={isGeneratingPreview || !jobApplication.draftCvJson}
+                                                    className="flex items-center gap-2 px-5 py-2.5 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm hover:shadow-md"
+                                                    title="Preview ATS CV"
+                                                >
+                                                    {isGeneratingPreview ? (
+                                                        <>
+                                                            <Spinner size="sm" />
+                                                            <span>Generating...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                            Preview ATS CV
+                                                        </>
+                                                    )}
+                                                </button>
+                                                
+                                                <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+                                                
                                                 {/* Primary action: Generate/Regenerate PDF */}
                                                 <button
                                                     onClick={handleGenerateCvPdf}
@@ -1486,6 +1534,26 @@ const ReviewFinalizePage: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* CV Preview Modal */}
+            <CvPreviewModal
+                isOpen={isPreviewOpen}
+                onClose={() => {
+                    setIsPreviewOpen(false);
+                    setPreviewPdfBase64(null);
+                }}
+                pdfBase64={previewPdfBase64}
+                isLoading={isGeneratingPreview}
+            />
+
+            {/* Toast Notification */}
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
             )}
         </div>
     );
