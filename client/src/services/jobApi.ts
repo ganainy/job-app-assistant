@@ -3,9 +3,7 @@ import axios from 'axios';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume'; // Adjust path if needed or redefine/share type
 
 // Define the base URL for your backend API
-// It's good practice to use environment variables for this later,
-// but for now, we'll hardcode it for local development.
-const API_BASE_URL = 'http://localhost:5001/api'; // Your backend URL
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api'; // Your backend URL
 
 
 // Define the expected structure of a job application (matching backend)

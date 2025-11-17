@@ -2,7 +2,7 @@
 import axios from 'axios';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume'; // Import the type
 
-const API_BASE_URL = 'http://localhost:5001/api/cv';
+const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api'}/cv`;
 
 interface UploadResponse {
     message: string;

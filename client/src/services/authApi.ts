@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Reuse or redefine API_BASE_URL
-const API_BASE_URL = 'http://localhost:5001/api/auth'; // Auth specific endpoint
+const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api'}/auth`; // Auth specific endpoint
 
 // --- Type Definitions ---
 interface AuthResponse {

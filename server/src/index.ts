@@ -27,8 +27,36 @@ import { errorHandler } from './middleware/errorHandler';
 const app: Express = express();
 const port = process.env.PORT || 5001;
 
+// CORS Configuration
+const allowedOrigins = [
+  process.env.FRONTEND_URL, // Netlify URL
+  'http://localhost:5173', // Local development
+  'http://localhost:3000', // Alternative local port
+].filter(Boolean) as string[]; // Remove undefined values
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // In development, allow all origins for easier testing
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
 // Middleware
-app.use(cors()); // Enable CORS
+app.use(cors(corsOptions)); // Enable CORS with configuration
 app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
 

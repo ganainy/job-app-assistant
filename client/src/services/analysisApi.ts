@@ -2,7 +2,7 @@
 import axios from 'axios';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api'; // Adjust as needed
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api'; // Adjust as needed
 
 // Helper to get the auth token from localStorage (or context)
 const getAuthToken = (): string | null => {
