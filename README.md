@@ -1,6 +1,14 @@
 # VibeHired
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Visit_Now-blue?style=for-the-badge)](https://vibehired-ai.netlify.app)
+
 VibeHired is an AI-powered job application assistant built on Google Gemini AI that automates and enhances your job search process. The platform uses advanced AI to analyze CVs, generate personalized cover letters, score ATS compatibility, extract job requirements, and provide real-time application assistance—all while you maintain full control over your data and API usage. Transform the tedious job application process into an efficient, intelligent workflow.
+
+## 🚀 Live Preview
+
+**Try the live application:** [https://vibehired-ai.netlify.app](https://vibehired-ai.netlify.app)
+
+> **Note:** You'll need to provide your own API keys (Gemini API key for AI features) after registration. Get your free Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey).
 
 ## Core Features
 

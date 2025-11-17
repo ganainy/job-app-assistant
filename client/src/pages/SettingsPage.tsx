@@ -189,33 +189,41 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    // Validate Gemini key (required)
-    if (!geminiKey.trim()) {
-      setToast({ message: 'Gemini API key is required', type: 'error' });
+    // Check if at least one key is provided
+    const hasGeminiKey = geminiKey.trim();
+    const hasApifyToken = apifyToken.trim();
+
+    if (!hasGeminiKey && !hasApifyToken) {
+      setToast({ message: 'Please provide at least one API key to save', type: 'error' });
       return;
     }
 
-    if (!validateGeminiKey(geminiKey.trim())) {
+    // Validate Gemini key if provided
+    if (hasGeminiKey && !validateGeminiKey(geminiKey.trim())) {
       setToast({ message: 'Invalid Gemini API key format. Key should start with "AIza"', type: 'error' });
       return;
     }
 
-    // Validate Apify token if provided (optional)
-    if (apifyToken.trim() && !validateApifyToken(apifyToken.trim())) {
+    // Validate Apify token if provided
+    if (hasApifyToken && !validateApifyToken(apifyToken.trim())) {
       setToast({ message: 'Invalid Apify token format. Token should start with "apify_api_"', type: 'error' });
       return;
     }
 
     try {
       setIsSaving(true);
-      const updateData: any = {
-        gemini: {
+      const updateData: any = {};
+
+      // Add Gemini key if provided
+      if (hasGeminiKey) {
+        updateData.gemini = {
           accessToken: geminiKey.trim(),
           enabled: true,
-        },
-      };
+        };
+      }
 
-      if (apifyToken.trim()) {
+      // Add Apify token if provided
+      if (hasApifyToken) {
         updateData.apify = {
           accessToken: apifyToken.trim(),
           enabled: true,
@@ -223,17 +231,24 @@ const SettingsPage: React.FC = () => {
       }
 
       await updateApiKeys(updateData);
-      setToast({ message: 'API keys saved successfully!', type: 'success' });
+      
+      const savedKeys = [];
+      if (hasGeminiKey) savedKeys.push('Gemini');
+      if (hasApifyToken) savedKeys.push('Apify');
+      
+      setToast({ message: `${savedKeys.join(' and ')} API key${savedKeys.length > 1 ? 's' : ''} saved successfully!`, type: 'success' });
       
       // Clear form
       setGeminiKey('');
       setApifyToken('');
+      setGeminiKeyTouched(false);
+      setApifyTokenTouched(false);
       
       // Reload keys to show masked versions
       await loadApiKeys();
       
-      // If new user, redirect to dashboard after a short delay
-      if (isNewUser) {
+      // If new user with Gemini key, redirect to dashboard after a short delay
+      if (isNewUser && hasGeminiKey) {
         setTimeout(() => {
           navigate('/dashboard');
         }, 2000);
@@ -328,10 +343,10 @@ const SettingsPage: React.FC = () => {
                 <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-blue-100 dark:border-blue-800">
                   <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
                     <KeyIcon />
-                    Gemini API Key (Required)
+                    Gemini API Key (Recommended)
                   </h3>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                    Required for AI features: CV analysis, cover letter generation, chat assistance, and job description extraction.
+                    Powers AI features: CV analysis, cover letter generation, chat assistance, and job description extraction. Highly recommended for full functionality.
                   </p>
                   <div className="space-y-2 text-sm">
                     <p className="font-medium text-slate-700 dark:text-slate-300">How to get your free Gemini API key:</p>
@@ -397,7 +412,7 @@ const SettingsPage: React.FC = () => {
                       Gemini API Key
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                      Required for AI features
+                      Recommended for AI features
                     </p>
                   </div>
                 </div>
@@ -427,7 +442,7 @@ const SettingsPage: React.FC = () => {
             <div className="p-4 sm:p-6 space-y-4">
               <div>
                 <label htmlFor="gemini-key" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  API Key <span className="text-red-500">*</span>
+                  API Key
                 </label>
                 <div className="relative">
                   <input
@@ -596,7 +611,12 @@ const SettingsPage: React.FC = () => {
           <div className="flex justify-end">
             <button
               onClick={handleSave}
-              disabled={isSaving || !geminiKey.trim() || (geminiValidation?.valid === false)}
+              disabled={
+                isSaving || 
+                (geminiKey.trim() === '' && apifyToken.trim() === '') || 
+                (geminiKey.trim() !== '' && geminiValidation?.valid === false) ||
+                (apifyToken.trim() !== '' && apifyValidation?.valid === false)
+              }
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shadow-sm"
             >
               {isSaving ? (
