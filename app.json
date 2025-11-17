@@ -1,0 +1,17 @@
+{
+  "name": "Job App Assistant Backend",
+  "description": "Backend API for Job Application Assistant",
+  "repository": "https://github.com/your-username/job-app-assistant",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "env": {
+    "NODE_ENV": {
+      "required": true,
+      "value": "production"
+    }
+  }
+}
+

@@ -14,7 +14,9 @@
     "install:all": "npm install",
     "build:server": "npm run build --workspace=server",
     "build:client": "npm run build --workspace=client",
-    "build": "npm run build:server && npm run build:client"
+    "build": "npm run build --workspace=server",
+    "heroku-postbuild": "npm run build --workspace=server",
+    "start": "cd server && npm start"
   },
   "keywords": [],
   "author": "Ganainy",
