@@ -4,17 +4,25 @@ import authMiddleware from '../middleware/authMiddleware';
 import Profile from '../models/Profile';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ValidationError, NotFoundError } from '../utils/errors/AppError';
+import { encrypt, decrypt } from '../utils/encryption';
 
 const router: Router = express.Router();
 router.use(authMiddleware as RequestHandler); // Apply auth to all routes
 
 /**
  * Mask API key - show only last 4 characters
+ * Handles both encrypted and unencrypted keys (for migration compatibility)
  */
-function maskApiKey(key: string | undefined): string | null {
+function maskApiKey(key: string | undefined | null): string | null {
   if (!key) return null;
-  if (key.length <= 4) return '****';
-  return '****' + key.slice(-4);
+  
+  // Try to decrypt first (in case it's encrypted)
+  // If decryption fails or returns the same value, it might be unencrypted
+  const decrypted = decrypt(key);
+  const valueToMask = decrypted || key;
+  
+  if (valueToMask.length <= 4) return '****';
+  return '****' + valueToMask.slice(-4);
 }
 
 /**
@@ -101,7 +109,12 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
       updates['integrations.gemini.accessToken'] = null;
       updates['integrations.gemini.enabled'] = false;
     } else {
-      updates['integrations.gemini.accessToken'] = gemini.accessToken;
+      // Encrypt the API key before storing
+      const encryptedKey = encrypt(gemini.accessToken);
+      if (!encryptedKey) {
+        throw new ValidationError('Failed to encrypt Gemini API key');
+      }
+      updates['integrations.gemini.accessToken'] = encryptedKey;
       updates['integrations.gemini.enabled'] = gemini.enabled !== undefined ? gemini.enabled : true;
     }
   }
@@ -112,7 +125,12 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
       updates['integrations.apify.accessToken'] = null;
       updates['integrations.apify.enabled'] = false;
     } else {
-      updates['integrations.apify.accessToken'] = apify.accessToken;
+      // Encrypt the API token before storing
+      const encryptedToken = encrypt(apify.accessToken);
+      if (!encryptedToken) {
+        throw new ValidationError('Failed to encrypt Apify token');
+      }
+      updates['integrations.apify.accessToken'] = encryptedToken;
       updates['integrations.apify.enabled'] = apify.enabled !== undefined ? apify.enabled : true;
     }
   }
