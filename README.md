@@ -161,6 +161,20 @@ After starting the application:
 
 **Note:** API keys (Gemini, Apify) are managed per-user in the app settings page. GitHub token is managed per-user in the portfolio setup page.
 
+## Deployment & Self-Hosting
+
+If you want to host your own instance of VibeHired, i provide a comprehensive deployment guide that covers:
+
+- **MongoDB Atlas Setup:** Database configuration and connection
+- **Heroku Backend Deployment:** Step-by-step backend deployment instructions
+- **Netlify Frontend Deployment:** Frontend hosting and configuration
+- **Environment Variables:** Complete guide to required configuration
+- **Database Migrations:** Running migrations for new features
+- **Update Workflows:** How to push updates to production
+- **Troubleshooting:** Common issues and solutions
+
+📖 **See [DEPLOYMENT.md](./DEPLOYMENT.md) for the complete deployment guide.**
+
 ## App Showcase
 
 | Feature | Description | Screenshot |

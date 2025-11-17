@@ -22,6 +22,7 @@ interface RegisterResponse {
 export interface UserProfile {
     id: string;
     email: string;
+    username?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -34,7 +35,7 @@ interface ApiError {
 
 // --- API Functions ---
 
-export const registerUser = async (credentials: {email: string, password: string}): Promise<RegisterResponse> => {
+export const registerUser = async (credentials: {email: string, username: string, password: string}): Promise<RegisterResponse> => {
     try {
         // Note: Axios automatically throws for non-2xx status codes
         const response = await axios.post<RegisterResponse>(`${API_BASE_URL}/register`, credentials);
@@ -72,5 +73,18 @@ export const getCurrentUserProfile = async (): Promise<UserProfile> => {
             throw error.response.data as ApiError;
         }
         throw { message: 'An unknown error occurred fetching user profile.' } as ApiError;
+    }
+};
+
+export const updateUsername = async (username: string): Promise<{ message: string; username: string }> => {
+    try {
+        const response = await axios.put<{ message: string; username: string }>(`${API_BASE_URL}/username`, { username });
+        return response.data;
+    } catch (error) {
+        console.error("Update Username API error:", error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data as ApiError;
+        }
+        throw { message: 'An unknown error occurred updating username.' } as ApiError;
     }
 };

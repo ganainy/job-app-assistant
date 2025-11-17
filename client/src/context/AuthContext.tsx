@@ -7,6 +7,7 @@ import axios from 'axios'; // Import axios to set default header
 interface User {
   id: string;
   email: string;
+  username?: string;
   cvJson?: any;
   preferredTheme?: string; // Add this line
 }
@@ -19,7 +20,7 @@ interface AuthContextType {
   isLoading: boolean; // Track initial auth state loading
   error: string | null; // Store login/register errors
   login: (credentials: {email: string, password: string}) => Promise<void>;
-  register: (credentials: {email: string, password: string}) => Promise<void>;
+  register: (credentials: {email: string, username: string, password: string}) => Promise<void>;
   logout: () => void;
 }
 
@@ -88,7 +89,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
    // Register function (doesn't log in automatically)
-  const register = async (credentials: {email: string, password: string}) => {
+  const register = async (credentials: {email: string, username: string, password: string}) => {
     setError(null);
     setIsLoading(true); // Use isLoading maybe? Or a separate registerLoading state
     try {

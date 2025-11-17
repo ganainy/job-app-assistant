@@ -14,12 +14,11 @@ export const getProjectsByUsername = asyncHandler(
   async (req: Request, res: Response) => {
     const { username } = req.params;
 
-    const user = await User.findOne({
-      $or: [{ email: username }, { username: username }],
-    });
+    // Find user by username only
+    const user = await User.findOne({ username: username });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('User not found. Portfolio username may be incorrect.');
     }
 
     const projects = await Project.find({

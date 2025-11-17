@@ -27,13 +27,20 @@ const JWT_EXPIRY: string = process.env.JWT_EXPIRY || '1d'; // Default to 1 day e
 // --- Registration Route ---
 // POST /api/auth/register
 router.post('/register', validateRequest({ body: registerBodySchema }), async (req: ValidatedRequest, res: Response) => {
-    const { email, password } = req.validated!.body!;
+    const { email, password, username } = req.validated!.body!;
 
     try {
-        // Check if user already exists
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
+        // Check if user already exists by email
+        const existingUserByEmail = await User.findOne({ email });
+        if (existingUserByEmail) {
              res.status(400).json({ message: 'User with this email already exists.' });
+             return;
+        }
+
+        // Check if username is already taken
+        const existingUserByUsername = await User.findOne({ username });
+        if (existingUserByUsername) {
+             res.status(400).json({ message: 'Username is already taken. Please choose a different username.' });
              return;
         }
 
@@ -41,6 +48,7 @@ router.post('/register', validateRequest({ body: registerBodySchema }), async (r
         // The pre-save hook in the model will hash it before saving
         const newUser = new User({
             email,
+            username,
             passwordHash: password, // Assign plain password here, hook will hash it
         });
 
@@ -129,12 +137,75 @@ router.get('/me', authMiddleware as RequestHandler, async (req: Request, res: Re
         res.status(200).json({
             id: req.user._id,
             email: req.user.email,
+            username: req.user.username,
             createdAt: req.user.createdAt,
             updatedAt: req.user.updatedAt,
         });
     } catch (error) {
         console.error("Get Profile Error:", error);
         res.status(500).json({ message: 'Server error fetching user profile.' });
+    }
+});
+
+// --- Update Username Route ---
+// PUT /api/auth/username
+router.put('/username', authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ message: 'User not authenticated.' });
+            return;
+        }
+
+        const { username } = req.body;
+
+        // Validate username format
+        if (!username || typeof username !== 'string') {
+            res.status(400).json({ message: 'Username is required.' });
+            return;
+        }
+
+        const trimmedUsername = username.trim().toLowerCase();
+
+        // Username validation: alphanumeric, hyphens, underscores only (3-30 characters)
+        const usernameRegex = /^[a-z0-9_-]{3,30}$/;
+        if (!usernameRegex.test(trimmedUsername)) {
+            res.status(400).json({ 
+                message: 'Username must be 3-30 characters long and contain only letters, numbers, hyphens, or underscores.' 
+            });
+            return;
+        }
+
+        // Check if username is already taken
+        const existingUser = await User.findOne({ username: trimmedUsername });
+        if (existingUser && String(existingUser._id) !== String(req.user._id)) {
+            res.status(400).json({ message: 'Username is already taken.' });
+            return;
+        }
+
+        // Update username
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user._id,
+            { username: trimmedUsername },
+            { new: true }
+        );
+
+        if (!updatedUser) {
+            res.status(404).json({ message: 'User not found.' });
+            return;
+        }
+
+        res.status(200).json({
+            message: 'Username updated successfully',
+            username: updatedUser.username,
+        });
+
+    } catch (error) {
+        console.error("Update Username Error:", error);
+        if (error instanceof Error && error.name === 'MongoServerError' && (error as any).code === 11000) {
+            res.status(400).json({ message: 'Username is already taken.' });
+            return;
+        }
+        res.status(500).json({ message: 'Server error updating username.' });
     }
 });
 

@@ -23,9 +23,6 @@ yarn-error.log*
 # Temporary files
 server/temp_pdfs
 
-# Documentation files
-DEPLOYMENT.md
-
 # Ignore influence directory
 influence/
 

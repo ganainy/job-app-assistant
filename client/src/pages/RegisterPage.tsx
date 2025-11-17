@@ -101,6 +101,7 @@ const getStrengthText = (strength: PasswordStrength): string => {
 
 const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -108,9 +109,10 @@ const RegisterPage: React.FC = () => {
   const [localError, setLocalError] = useState<string | null>(null);
   const [registrationSuccess, setRegistrationSuccess] = useState<boolean>(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
-  const [touched, setTouched] = useState({ email: false, password: false, confirmPassword: false });
+  const [touched, setTouched] = useState({ email: false, username: false, password: false, confirmPassword: false });
   const { register, error: authError, isLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -120,6 +122,23 @@ const RegisterPage: React.FC = () => {
   const validateEmail = (emailValue: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(emailValue);
+  };
+
+  // Username validation
+  const validateUsername = (usernameValue: string): string | null => {
+    if (!usernameValue.trim()) {
+      return 'Username is required';
+    }
+    if (usernameValue.length < 3) {
+      return 'Username must be at least 3 characters long';
+    }
+    if (usernameValue.length > 30) {
+      return 'Username must be at most 30 characters long';
+    }
+    if (!/^[a-z0-9_-]+$/i.test(usernameValue)) {
+      return 'Username can only contain letters, numbers, hyphens, and underscores';
+    }
+    return null;
   };
 
   // Password validation
@@ -140,6 +159,17 @@ const RegisterPage: React.FC = () => {
       } else {
         setEmailError(null);
       }
+    }
+  };
+
+  // Handle username change
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    setUsername(value);
+    setLocalError(null);
+    if (touched.username) {
+      const error = validateUsername(value);
+      setUsernameError(error);
     }
   };
 
@@ -178,13 +208,16 @@ const RegisterPage: React.FC = () => {
   };
 
   // Handle blur events
-  const handleBlur = (field: 'email' | 'password' | 'confirmPassword') => {
+  const handleBlur = (field: 'email' | 'username' | 'password' | 'confirmPassword') => {
     setTouched(prev => ({ ...prev, [field]: true }));
     
     if (field === 'email' && email && !validateEmail(email)) {
       setEmailError('Please enter a valid email address');
     } else if (field === 'email') {
       setEmailError(null);
+    } else if (field === 'username' && username) {
+      const error = validateUsername(username);
+      setUsernameError(error);
     } else if (field === 'password' && password) {
       const error = validatePassword(password);
       setPasswordError(error);
@@ -210,13 +243,20 @@ const RegisterPage: React.FC = () => {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setTouched({ email: true, password: true, confirmPassword: true });
+    setTouched({ email: true, username: true, password: true, confirmPassword: true });
     setLocalError(null);
     setRegistrationSuccess(false);
 
     // Validate email
     if (!validateEmail(email)) {
       setEmailError('Please enter a valid email address');
+      return;
+    }
+
+    // Validate username
+    const usernameValidationError = validateUsername(username);
+    if (usernameValidationError) {
+      setUsernameError(usernameValidationError);
       return;
     }
 
@@ -235,10 +275,11 @@ const RegisterPage: React.FC = () => {
     }
 
     setEmailError(null);
+    setUsernameError(null);
     setPasswordError(null);
     setConfirmPasswordError(null);
 
-    await register({ email, password });
+    await register({ email, username, password });
 
     // Check if registration was successful
     if (!authError && !isLoading) {
@@ -248,6 +289,8 @@ const RegisterPage: React.FC = () => {
 
   const isEmailValid = email && touched.email && !emailError;
   const isEmailInvalid = touched.email && emailError;
+  const isUsernameValid = username && touched.username && !usernameError;
+  const isUsernameInvalid = touched.username && usernameError;
   const isPasswordValid = password && touched.password && !passwordError;
   const isPasswordInvalid = touched.password && passwordError;
   const isConfirmPasswordValid = confirmPassword && touched.confirmPassword && !confirmPasswordError;
@@ -315,6 +358,51 @@ const RegisterPage: React.FC = () => {
                   <p id="email-error" className="mt-1.5 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
                     <ErrorIcon className="w-4 h-4" />
                     {emailError}
+                  </p>
+                )}
+              </div>
+
+              {/* Username field */}
+              <div>
+                <label htmlFor="username-register" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                  Username
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <input
+                    id="username-register"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    required
+                    value={username}
+                    onChange={handleUsernameChange}
+                    onBlur={() => handleBlur('username')}
+                    aria-invalid={isUsernameInvalid ? 'true' : 'false'}
+                    aria-describedby={isUsernameInvalid ? 'username-error' : undefined}
+                    className={`mt-1 block w-full pl-10 pr-3 py-2.5 border rounded-lg shadow-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm transition-all duration-200 ${
+                      isUsernameInvalid
+                        ? 'border-red-300 dark:border-red-600 focus:ring-red-500 focus:border-red-500'
+                        : isUsernameValid
+                        ? 'border-green-300 dark:border-green-600 focus:ring-green-500 focus:border-green-500'
+                        : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
+                    }`}
+                    placeholder="your-username"
+                  />
+                </div>
+                {isUsernameInvalid && (
+                  <p id="username-error" className="mt-1.5 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <ErrorIcon className="w-4 h-4" />
+                    {usernameError}
+                  </p>
+                )}
+                {username && !usernameError && (
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    Your portfolio will be at: /portfolio/{username}
                   </p>
                 )}
               </div>

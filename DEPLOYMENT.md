@@ -80,12 +80,12 @@ This guide walks you through deploying the Job Application Assistant to Netlify 
 
 1. **Create a new Heroku app:**
    ```bash
-   heroku create vibehired-backend
+   heroku create your-app-name-backend
    ```
-   Note: The app name `vibehired-backend` is already created. If creating a new app, replace with your desired app name (must be unique)
+   Note: Replace `your-app-name-backend` with your desired app name (must be unique). For example: `my-job-assistant-backend`
 
 2. **Note your Heroku app URL:**
-   - It will be something like: `https://vibehired-backend.herokuapp.com`
+   - It will be something like: `https://your-app-name-backend.herokuapp.com`
    - **Save this URL** - you'll need it for Netlify configuration
 
 ### Step 4: Configure Environment Variables
@@ -94,7 +94,7 @@ Set the required environment variables on Heroku using the Heroku Dashboard:
 
 1. **Go to your Heroku Dashboard:**
    - Visit [Heroku Dashboard](https://dashboard.heroku.com)
-   - Select your app: `vibehired-backend`
+   - Select your app (e.g., `your-app-name-backend`)
 
 2. **Navigate to Settings:**
    - Click on the **Settings** tab in your app's dashboard
@@ -118,13 +118,13 @@ Set the required environment variables on Heroku using the Heroku Dashboard:
 
 **Alternative: Using Heroku CLI**
 
-If you prefer using the CLI, you can set config vars using:
+If you prefer using the CLI, you can set config vars using (replace `your-app-name-backend` with your actual Heroku app name):
 ```bash
-heroku config:set --app vibehired-backend MONGODB_URI='mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/job-app-assistant?retryWrites=true&w=majority'
-heroku config:set --app vibehired-backend JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
-heroku config:set --app vibehired-backend ENCRYPTION_KEY="your-encryption-key-min-32-chars"
-heroku config:set --app vibehired-backend FRONTEND_URL="https://your-netlify-app.netlify.app"
-heroku config:set --app vibehired-backend NODE_ENV="production"
+heroku config:set --app your-app-name-backend MONGODB_URI='mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/job-app-assistant?retryWrites=true&w=majority'
+heroku config:set --app your-app-name-backend JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
+heroku config:set --app your-app-name-backend ENCRYPTION_KEY="your-encryption-key-min-32-chars"
+heroku config:set --app your-app-name-backend FRONTEND_URL="https://your-netlify-app.netlify.app"
+heroku config:set --app your-app-name-backend NODE_ENV="production"
 ```
 
 **Note:** The Dashboard method is recommended as it avoids shell escaping issues with special characters like `&` in connection strings.
@@ -138,8 +138,9 @@ heroku config:set --app vibehired-backend NODE_ENV="production"
 
 2. **Add Heroku remote (if not already added):**
    ```bash
-   heroku git:remote -a vibehired-backend
+   heroku git:remote -a your-app-name-backend
    ```
+   Replace `your-app-name-backend` with your actual Heroku app name.
 
 3. **Deploy:**
    ```bash
@@ -155,14 +156,16 @@ heroku config:set --app vibehired-backend NODE_ENV="production"
 
 5. **Verify deployment:**
    ```bash
-   heroku open --app vibehired-backend
+   heroku open --app your-app-name-backend
    ```
+   Replace `your-app-name-backend` with your actual Heroku app name.
    - You should see: "Job App Assistant Backend is Running!"
 
 6. **Check logs:**
    ```bash
-   heroku logs --tail --app vibehired-backend
+   heroku logs --tail --app your-app-name-backend
    ```
+   Replace `your-app-name-backend` with your actual Heroku app name.
    - Look for "MongoDB Connected Successfully"
    - Look for server running message
 
@@ -183,8 +186,9 @@ Once you have your Netlify URL, update the Heroku config:
 
 **Alternative: Using Heroku CLI**
 ```bash
-heroku config:set --app vibehired-backend FRONTEND_URL="https://your-actual-netlify-url.netlify.app"
+heroku config:set --app your-app-name-backend FRONTEND_URL="https://your-actual-netlify-url.netlify.app"
 ```
+Replace `your-app-name-backend` with your actual Heroku app name.
 
 ## Part 3: Netlify Frontend Deployment
 
@@ -228,7 +232,8 @@ heroku config:set --app vibehired-backend FRONTEND_URL="https://your-actual-netl
    - Go to Site settings → Environment variables
    - Add the following:
      - **Key:** `VITE_BACKEND_URL`
-     - **Value:** `https://vibehired-backend.herokuapp.com/api`
+     - **Value:** `https://your-app-name-backend.herokuapp.com/api`
+     - Replace `your-app-name-backend` with your actual Heroku app name
 
 5. **Deploy:**
    - Click "Deploy site"
@@ -257,8 +262,9 @@ After you have your Netlify URL, update Heroku:
 
 **Alternative: Using Heroku CLI**
 ```bash
-heroku config:set --app vibehired-backend FRONTEND_URL="https://your-netlify-app.netlify.app"
+heroku config:set --app your-app-name-backend FRONTEND_URL="https://your-netlify-app.netlify.app"
 ```
+Replace `your-app-name-backend` with your actual Heroku app name.
 
 This will allow your Netlify frontend to make API requests to your Heroku backend.
 
@@ -283,15 +289,18 @@ This will allow your Netlify frontend to make API requests to your Heroku backen
 
 1. **Check Heroku logs:**
    ```bash
-   heroku logs --tail --app vibehired-backend
+   heroku logs --tail --app your-app-name-backend
    ```
+   Replace `your-app-name-backend` with your actual Heroku app name.
 
 2. **Test API endpoint:**
-   - Visit: `https://vibehired-backend.herokuapp.com`
+   - Visit: `https://your-app-name-backend.herokuapp.com`
+   - Replace `your-app-name-backend` with your actual Heroku app name
    - Should see: "Job App Assistant Backend is Running!"
 
 3. **Test API route:**
-   - Visit: `https://vibehired-backend.herokuapp.com/api/auth/register`
+   - Visit: `https://your-app-name-backend.herokuapp.com/api/auth/register`
+   - Replace `your-app-name-backend` with your actual Heroku app name
    - Should see an error (expected - needs POST request)
    - This confirms the route is accessible
 
@@ -348,11 +357,12 @@ Updating the backend is straightforward - just push to the Heroku remote.
 5. **Verify the update:**
    ```bash
    # Check logs for any errors
-   heroku logs --tail --app vibehired-backend
+   heroku logs --tail --app your-app-name-backend
    
    # Test the API endpoint
-   heroku open --app vibehired-backend
+   heroku open --app your-app-name-backend
    ```
+   Replace `your-app-name-backend` with your actual Heroku app name.
 
 **Quick Command:**
 ```bash
@@ -432,20 +442,21 @@ If you need to update environment variables:
 
 ```bash
 # Update a single variable
-heroku config:set --app vibehired-backend KEY="new-value"
+heroku config:set --app your-app-name-backend KEY="new-value"
 
 # Update multiple variables
-heroku config:set --app vibehired-backend KEY1="value1" KEY2="value2"
+heroku config:set --app your-app-name-backend KEY1="value1" KEY2="value2"
 
 # View all variables
-heroku config --app vibehired-backend
+heroku config --app your-app-name-backend
 
 # Remove a variable
-heroku config:unset --app vibehired-backend KEY
+heroku config:unset --app your-app-name-backend KEY
 
 # Restart app (if needed)
-heroku restart --app vibehired-backend
+heroku restart --app your-app-name-backend
 ```
+Replace `your-app-name-backend` with your actual Heroku app name in all commands.
 
 **Reference:** See the [Heroku Config Vars documentation](https://devcenter.heroku.com/articles/config-vars) for more details.
 
@@ -471,19 +482,21 @@ If something goes wrong, you can quickly rollback to a previous version.
 
 1. **List recent releases:**
    ```bash
-   heroku releases --app vibehired-backend
+   heroku releases --app your-app-name-backend
    ```
+   Replace `your-app-name-backend` with your actual Heroku app name.
 
 2. **Rollback to a previous release:**
    ```bash
-   heroku rollback v123 --app vibehired-backend
+   heroku rollback v123 --app your-app-name-backend
    ```
-   Replace `v123` with the release number you want to rollback to
+   Replace `v123` with the release number you want to rollback to, and `your-app-name-backend` with your actual Heroku app name.
 
 3. **Or rollback to the previous release:**
    ```bash
-   heroku rollback --app vibehired-backend
+   heroku rollback --app your-app-name-backend
    ```
+   Replace `your-app-name-backend` with your actual Heroku app name.
 
 #### Frontend Rollback (Netlify)
 
@@ -537,17 +550,18 @@ If something goes wrong, you can quickly rollback to a previous version.
 cd server && git push heroku main
 
 # View logs
-heroku logs --tail --app vibehired-backend
+heroku logs --tail --app your-app-name-backend
 
 # Restart app
-heroku restart --app vibehired-backend
+heroku restart --app your-app-name-backend
 
 # Rollback
-heroku rollback --app vibehired-backend
+heroku rollback --app your-app-name-backend
 
 # Check status
-heroku ps --app vibehired-backend
+heroku ps --app your-app-name-backend
 ```
+Replace `your-app-name-backend` with your actual Heroku app name in all commands.
 
 **Frontend (Netlify):**
 ```bash
@@ -560,6 +574,89 @@ cd client && netlify deploy --prod
 # View build logs
 # (Check Netlify dashboard)
 ```
+
+## Database Migrations
+
+### Username Migration (One-Time Setup)
+
+**When to run:** This migration should be run **once** when deploying the username feature for the first time or if you have existing users without usernames.
+
+**What it does:** Automatically generates usernames for all existing users based on their email addresses. This enables the new username-based portfolio URLs (e.g., `/portfolio/john-doe`) instead of email-based URLs.
+
+#### Run the Migration
+
+**Option 1: Locally (Recommended for testing):**
+
+1. **Configure environment:**
+   ```bash
+   cd server
+   # Make sure server/.env has your MongoDB connection string
+   ```
+
+2. **Run migration:**
+   ```bash
+   npm run migrate:usernames
+   ```
+
+3. **Expected output:**
+   ```
+   🔄 Starting username migration...
+   ✅ Connected to MongoDB
+   📊 Found 4 users without usernames
+   ✅ a@a.com → a00
+   ✅ a2@a.com → a20
+   ✅ a3@a.com → a30
+   ✅ amrmohammedali11@gmail.com → amrmohammedali11
+   🎉 Successfully migrated 4 users!
+   ✅ Disconnected from MongoDB
+   ✅ Migration completed successfully!
+   ```
+
+**Option 2: On Heroku (After deployment):**
+
+```bash
+# Run migration on Heroku
+heroku run npm run migrate:usernames --app your-app-name-backend
+
+# View output
+heroku logs --tail --app your-app-name-backend
+```
+Replace `your-app-name-backend` with your actual Heroku app name.
+
+#### How Usernames Are Generated
+
+- Takes the part before `@` from the email address
+- Converts to lowercase
+- Replaces special characters with hyphens
+- Ensures 3-30 character length
+- Handles duplicates by adding number suffixes (e.g., `john-doe`, `john-doe1`)
+
+#### Safety Features
+
+- **Idempotent:** Safe to run multiple times - only affects users without usernames
+- **Unique:** Automatically handles duplicate usernames
+- **No data loss:** Only adds usernames, doesn't modify existing data
+
+#### Important Notes
+
+- ⚠️ Run this migration **BEFORE** deploying the code that removes email-based portfolio lookup
+- ✅ Users can change their auto-generated username later in the Portfolio Setup page
+- ✅ The migration connects to your MongoDB database (uses `MONGODB_URI` from `.env`)
+
+#### After Migration
+
+1. **Verify usernames were created:**
+   - Check your MongoDB database - all users should have a `username` field
+   - Log into the app and check Portfolio Setup page
+
+2. **Deploy updated code:**
+   ```bash
+   # Backend (removes email-based portfolio lookup)
+   git push heroku main
+   
+   # Frontend (uses username-based URLs)
+   git push origin main  # Netlify auto-deploys
+   ```
 
 ## Troubleshooting
 
@@ -582,7 +679,8 @@ cd client && netlify deploy --prod
 ### Backend Issues
 
 **Build fails:**
-- Check Heroku build logs: `heroku logs --tail --app vibehired-backend`
+- Check Heroku build logs: `heroku logs --tail --app your-app-name-backend`
+  - Replace `your-app-name-backend` with your actual Heroku app name
 - Ensure `Procfile` exists in `server/` directory
 - Verify TypeScript compiles: `npm run build`
 
@@ -597,7 +695,8 @@ cd client && netlify deploy --prod
 - Check server logs for CORS errors
 
 **App crashes:**
-- Check Heroku logs: `heroku logs --tail --app vibehired-backend`
+- Check Heroku logs: `heroku logs --tail --app your-app-name-backend`
+  - Replace `your-app-name-backend` with your actual Heroku app name
 - Verify all environment variables are set in Heroku Dashboard (Settings → Config Vars)
 - Check for missing dependencies
 
@@ -613,20 +712,21 @@ cd client && netlify deploy --prod
 **CLI Commands:**
 ```bash
 # View logs
-heroku logs --tail --app vibehired-backend
+heroku logs --tail --app your-app-name-backend
 
 # View config vars (CLI alternative)
-heroku config --app vibehired-backend
+heroku config --app your-app-name-backend
 
 # Set config var (CLI alternative)
-heroku config:set --app vibehired-backend KEY=value
+heroku config:set --app your-app-name-backend KEY=value
 
 # Restart app
-heroku restart --app vibehired-backend
+heroku restart --app your-app-name-backend
 
 # Open app
-heroku open --app vibehired-backend
+heroku open --app your-app-name-backend
 ```
+Replace `your-app-name-backend` with your actual Heroku app name in all commands.
 
 **Netlify:**
 - View build logs in Netlify dashboard
@@ -667,7 +767,8 @@ heroku open --app vibehired-backend
 
 ### Netlify (Frontend)
 - `VITE_BACKEND_URL` - Your Heroku backend URL + `/api`
-  - Example: `https://vibehired-backend.herokuapp.com/api`
+  - Example: `https://your-app-name-backend.herokuapp.com/api`
+  - Replace `your-app-name-backend` with your actual Heroku app name
 
 ## Support
 

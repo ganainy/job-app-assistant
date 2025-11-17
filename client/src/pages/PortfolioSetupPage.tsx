@@ -13,6 +13,7 @@ import {
   togglePortfolioPublish,
   Project,
 } from '../services/portfolioApi';
+import { updateUsername as updateUsernameAPI } from '../services/authApi';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import ErrorAlert from '../components/common/ErrorAlert';
 import Toast from '../components/common/Toast';
@@ -122,6 +123,9 @@ const PortfolioSetupPage: React.FC = () => {
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [githubUsername, setGithubUsername] = useState('');
   const [githubToken, setGithubToken] = useState('');
+  const [portfolioUsername, setPortfolioUsername] = useState('');
+  const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -209,6 +213,9 @@ const PortfolioSetupPage: React.FC = () => {
           bio: data.profile?.bio || '',
           location: data.profile?.location || '',
         });
+        
+        // Load portfolio username from user object
+        setPortfolioUsername(data.user?.username || '');
         
         // Load projects for Configure GitHub tab
         if (activeTab === 1) {
@@ -532,6 +539,35 @@ const PortfolioSetupPage: React.FC = () => {
       setToast({ message: errorMessage, type: 'error' });
     } finally {
       setIsTogglingPublish(false);
+    }
+  };
+
+  const handleUpdateUsername = async () => {
+    try {
+      setIsUpdatingUsername(true);
+      setUsernameError(null);
+
+      if (!portfolioUsername.trim()) {
+        setUsernameError('Username is required');
+        return;
+      }
+
+      // Validate username format (client-side)
+      const usernameRegex = /^[a-z0-9_-]{3,30}$/i;
+      if (!usernameRegex.test(portfolioUsername.trim())) {
+        setUsernameError('Username must be 3-30 characters long and contain only letters, numbers, hyphens, or underscores');
+        return;
+      }
+
+      await updateUsernameAPI(portfolioUsername.trim());
+      setToast({ message: 'Username updated successfully!', type: 'success' });
+      setUsernameError(null);
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to update username';
+      setUsernameError(errorMessage);
+      setToast({ message: errorMessage, type: 'error' });
+    } finally {
+      setIsUpdatingUsername(false);
     }
   };
 
@@ -1041,6 +1077,40 @@ const PortfolioSetupPage: React.FC = () => {
                   </p>
                 </div>
 
+                {/* Username Configuration */}
+                <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/80 rounded-xl p-6 shadow-sm">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Portfolio Username</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Choose a unique username for your portfolio URL. This will be used instead of your email address.
+                  </p>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={portfolioUsername}
+                        onChange={(e) => setPortfolioUsername(e.target.value.toLowerCase())}
+                        placeholder="your-username"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {usernameError && (
+                        <p className="text-red-500 dark:text-red-400 text-xs mt-2">{usernameError}</p>
+                      )}
+                      {portfolioUsername && !usernameError && (
+                        <p className="text-gray-500 dark:text-gray-400 text-xs mt-2">
+                          Your portfolio will be at: {window.location.origin}/portfolio/{portfolioUsername}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleUpdateUsername}
+                      disabled={isUpdatingUsername || !portfolioUsername.trim()}
+                      className="px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isUpdatingUsername ? 'Saving...' : 'Save Username'}
+                    </button>
+                  </div>
+                </div>
+
                 {/* Publish/Unpublish Section - Improved UX */}
                 <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/80 rounded-xl p-8 shadow-sm">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
@@ -1068,20 +1138,28 @@ const PortfolioSetupPage: React.FC = () => {
                           : 'Your portfolio is currently unpublished and not visible to the public. Publish it to make it accessible.'}
                       </p>
                       
-                      {profile?.isPublished && user?.email && (
+                      {profile?.isPublished && portfolioUsername && (
                         <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
                           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Portfolio URL</p>
                           <a
-                            href={`${window.location.origin}/portfolio/${user.email}`}
+                            href={`${window.location.origin}/portfolio/${portfolioUsername}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-2 text-sm text-primary font-medium hover:text-primary/80 transition-colors break-all"
                           >
-                            <span>{window.location.origin}/portfolio/{user.email}</span>
+                            <span>{window.location.origin}/portfolio/{portfolioUsername}</span>
                             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                             </svg>
                           </a>
+                        </div>
+                      )}
+                      {profile?.isPublished && !portfolioUsername && (
+                        <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700">
+                          <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-400 mb-1">⚠️ No Username Set</p>
+                          <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                            Please set a username above to get your portfolio URL.
+                          </p>
                         </div>
                       )}
                     </div>

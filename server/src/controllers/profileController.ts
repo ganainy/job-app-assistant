@@ -47,15 +47,11 @@ export const getAggregatedProfile = asyncHandler(
   async (req: Request, res: Response) => {
     const { username } = req.params;
 
-    // Find user by username (we need to add username to User model or use email)
-    // For now, let's assume we can find by email or we'll need to add username field
-    // Let's check if username is actually an email
-    const user = await User.findOne({
-      $or: [{ email: username }, { username: username }],
-    });
+    // Find user by username only (no longer support email lookup)
+    const user = await User.findOne({ username: username });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('User not found. Portfolio username may be incorrect.');
     }
 
     const profile = await Profile.findOne({ userId: user._id });
@@ -222,12 +218,11 @@ export const getProfileByUsername = asyncHandler(
   async (req: Request, res: Response) => {
     const { username } = req.params;
 
-    const user = await User.findOne({
-      $or: [{ email: username }, { username: username }],
-    });
+    // Find user by username only
+    const user = await User.findOne({ username: username });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('User not found. Portfolio username may be incorrect.');
     }
 
     const profile = await Profile.findOne({ userId: user._id });
@@ -280,6 +275,7 @@ export const getCurrentUserProfile = asyncHandler(
         user: {
           email: req.user.email,
           id: req.user._id,
+          username: req.user.username,
         },
       },
     });
