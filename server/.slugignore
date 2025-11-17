@@ -1,0 +1,11 @@
+# Ignore root package.json and client directory
+../package.json
+../client
+../.gitignore
+../README.md
+../DEPLOYMENT.md
+../PROJECT_STRUCTURE.md
+../netlify.toml
+../influence
+../demo
+
