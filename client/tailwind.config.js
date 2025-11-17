@@ -9,9 +9,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        "primary": "#3182CE", // Cool Blue
-        "background-light": "#F7FAFC", // Off-white
-        "background-dark": "#0A192F", // Dark Blue
+        "primary": "#4F46E5", // Indigo
+        "background-light": "#F9FAFB", // Off-white
+        "background-dark": "#111827", // Dark Gray
         "text-light-primary": "#1A202C", // Dark Charcoal
         "text-dark-primary": "#F7FAFC", // Off-white
         "text-light-secondary": "#A0AEC0", // Medium Gray

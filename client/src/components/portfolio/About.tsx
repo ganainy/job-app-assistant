@@ -9,6 +9,62 @@ interface AboutProps {
   isDarkMode?: boolean;
 }
 
+// Helper function to get country code from language name
+const getCountryCode = (language: string): string => {
+  const languageMap: { [key: string]: string } = {
+    'english': 'GB',
+    'german': 'DE',
+    'french': 'FR',
+    'spanish': 'ES',
+    'italian': 'IT',
+    'portuguese': 'PT',
+    'dutch': 'NL',
+    'russian': 'RU',
+    'chinese': 'CN',
+    'japanese': 'JP',
+    'korean': 'KR',
+    'arabic': 'SA',
+    'hindi': 'IN',
+    'polish': 'PL',
+    'turkish': 'TR',
+    'swedish': 'SE',
+    'norwegian': 'NO',
+    'danish': 'DK',
+    'finnish': 'FI',
+    'greek': 'GR',
+    'czech': 'CZ',
+    'hungarian': 'HU',
+    'romanian': 'RO',
+    'ukrainian': 'UA',
+    'vietnamese': 'VN',
+    'thai': 'TH',
+    'indonesian': 'ID',
+    'malay': 'MY',
+    'hebrew': 'IL',
+    'persian': 'IR',
+    'urdu': 'PK',
+  };
+
+  const normalized = language.toLowerCase().trim();
+  return languageMap[normalized] || '';
+};
+
+// Helper function to get flag emoji from country code
+const getFlagEmoji = (countryCode: string): string => {
+  if (!countryCode) return '';
+  const codePoints = countryCode
+    .toUpperCase()
+    .split('')
+    .map(char => 127397 + char.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
+};
+
+// Helper function to get language flag
+const getLanguageFlag = (language: string): string => {
+  const countryCode = getCountryCode(language);
+  return countryCode ? getFlagEmoji(countryCode) : '';
+};
+
 const About: React.FC<AboutProps> = ({ profile, isDarkMode = false }) => {
   const { skills, name, title, bio, linkedinData } = profile;
   
@@ -21,208 +77,245 @@ const About: React.FC<AboutProps> = ({ profile, isDarkMode = false }) => {
   const linkedInLanguages = linkedinData?.languages;
 
   return (
-    <section id="about" className="scroll-mt-20 py-16 md:py-20">
-      <div className="text-center mb-16">
-        <h2 className={`text-4xl md:text-5xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>About Me</h2>
-        <p className={`text-lg mx-auto ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-          Learn more about my background, skills, and professional experience.
-        </p>
-      </div>
-
-      <div className="flex flex-col w-full mx-auto">
-          {/* Skills Section */}
-          {skills && (skills.programmingLanguages?.length > 0 || skills.otherSkills?.length > 0) && (
-            <div className="pb-12">
-              <div className="flex items-center gap-3 mb-6">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDarkMode ? 'bg-primary/20' : 'bg-primary/10'}`}>
-                  <svg className={`w-6 h-6 ${isDarkMode ? 'text-primary' : 'text-primary'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                  </svg>
-                </div>
-                <h3 className={`text-xl md:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Technical Skills</h3>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                {skills.programmingLanguages && skills.programmingLanguages.length > 0 && (
-                  <div>
-                    <h4 className={`font-semibold mb-4 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                      Programming Languages
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {skills.programmingLanguages.slice(0, 8).map((lang: string, index: number) => (
-                        <span
-                          key={`lang-${index}`}
-                          className={`px-2 py-1 text-sm ${
-                            isDarkMode 
-                              ? 'text-slate-300' 
-                              : 'text-slate-600'
-                          }`}
-                        >
-                          {lang}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {skills.otherSkills && skills.otherSkills.length > 0 && (() => {
-                  const frameworks = skills.otherSkills.filter((skill: string) => 
-                    /react|vue|angular|next|express|django|flask|spring|laravel|rails|flutter|react-native/i.test(skill)
-                  );
-                  const tools = skills.otherSkills.filter((skill: string) => 
-                    !/react|vue|angular|next|express|django|flask|spring|laravel|rails|flutter|react-native/i.test(skill)
-                  );
-                  
-                  return (
-                  <>
-                      {frameworks.length > 0 && (
-                    <div>
-                      <h4 className={`font-semibold mb-4 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                        Frameworks & Libraries
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                            {frameworks.slice(0, 8).map((skill: string, index: number) => (
-                          <span
-                            key={`framework-${index}`}
-                            className={`px-2 py-1 text-sm ${
-                              isDarkMode 
-                                ? 'text-slate-300' 
-                                : 'text-slate-600'
-                            }`}
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                      )}
-                      {tools.length > 0 && (
-                    <div>
-                      <h4 className={`font-semibold mb-4 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                        Tools & Technologies
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                            {tools.slice(0, 8).map((skill: string, index: number) => (
-                          <span
-                            key={`tool-${index}`}
-                            className={`px-2 py-1 text-sm ${
-                              isDarkMode 
-                                ? 'text-slate-300' 
-                                : 'text-slate-600'
-                            }`}
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                      )}
-                  </>
-                  );
-                })()}
-              </div>
-            </div>
+    <>
+      {/* About Me Section */}
+      <section className="py-16 md:py-24" id="about">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className={`text-3xl font-bold mb-4 ${
+            isDarkMode ? 'text-white' : 'text-slate-900'
+          }`}>
+            About Me
+          </h2>
+          {displayBio && (
+            <p className={isDarkMode ? 'text-slate-400' : 'text-slate-600'}>
+              {typeof displayBio === 'string' 
+                ? displayBio.replace(/[#*_`]/g, '')
+                : displayBio}
+            </p>
           )}
+        </div>
+      </section>
 
-          {/* LinkedIn Experience Section */}
-          {linkedInExperience && linkedInExperience.length > 0 && (
-            <>
-              <div className={`border-t-[0.5px] pt-12 pb-12 ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
-            <div className="flex items-center gap-3 mb-6">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'}`}>
-                <svg className={`w-6 h-6 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className={`text-xl md:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Work Experience</h3>
-            </div>
+      {/* Skills Section */}
+      {skills && (skills.programmingLanguages?.length > 0 || skills.otherSkills?.length > 0) && (
+        <section className={`py-16 md:py-24 rounded-2xl ${
+          isDarkMode ? 'bg-slate-900' : 'bg-white'
+        }`} id="skills">
+          <div className="max-w-4xl mx-auto px-6">
+            <h2 className={`text-3xl font-bold text-center mb-12 ${
+              isDarkMode ? 'text-white' : 'text-slate-900'
+            }`}>
+              Technical Skills
+            </h2>
             <div className="space-y-8">
-              {linkedInExperience.map((exp: any, index: number) => (
-                <div key={`exp-${index}`} className={`border-l-2 pl-4 ${isDarkMode ? 'border-blue-400' : 'border-blue-500'}`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
-                    <h4 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{exp.title || 'Position'}</h4>
-                    <span className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                      {exp.startDate?.month && exp.startDate?.year ? `${exp.startDate.month} ${exp.startDate.year}` : ''}
-                      {exp.startDate && (exp.endDate || exp.isCurrent) ? ' - ' : ''}
-                      {exp.isCurrent ? 'Present' : exp.endDate?.month && exp.endDate?.year ? `${exp.endDate.month} ${exp.endDate.year}` : ''}
-                    </span>
+              {skills.programmingLanguages && skills.programmingLanguages.length > 0 && (
+                <div>
+                  <h3 className={`text-lg font-semibold mb-4 ${
+                    isDarkMode ? 'text-slate-200' : 'text-slate-800'
+                  }`}>
+                    Programming Languages
+                  </h3>
+                  <div className="flex flex-wrap gap-3">
+                    {skills.programmingLanguages.map((lang: string, index: number) => (
+                      <span
+                        key={`lang-${index}`}
+                        className="bg-primary/10 text-primary font-medium px-4 py-1.5 rounded-full text-sm transition-all duration-300 hover:scale-110 hover:bg-primary/20 hover:shadow-md cursor-default"
+                      >
+                        {lang}
+                      </span>
+                    ))}
                   </div>
-                  <p className={`font-medium mb-2 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>{exp.company || 'Company'}</p>
+                </div>
+              )}
+              {skills.otherSkills && skills.otherSkills.length > 0 && (() => {
+                const frameworks = skills.otherSkills.filter((skill: string) => 
+                  /react|vue|angular|next|express|django|flask|spring|laravel|rails|flutter|react-native/i.test(skill)
+                );
+                const tools = skills.otherSkills.filter((skill: string) => 
+                  !/react|vue|angular|next|express|django|flask|spring|laravel|rails|flutter|react-native/i.test(skill)
+                );
+                
+                return (
+                  <>
+                    {frameworks.length > 0 && (
+                      <div>
+                        <h3 className={`text-lg font-semibold mb-4 ${
+                          isDarkMode ? 'text-slate-200' : 'text-slate-800'
+                        }`}>
+                          Frameworks & Libraries
+                        </h3>
+                        <div className="flex flex-wrap gap-3">
+                          {frameworks.map((skill: string, index: number) => (
+                            <span
+                              key={`framework-${index}`}
+                              className={`font-medium px-4 py-1.5 rounded-full text-sm transition-all duration-300 hover:scale-110 hover:shadow-md cursor-default ${
+                                isDarkMode
+                                  ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                              }`}
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {tools.length > 0 && (
+                      <div>
+                        <h3 className={`text-lg font-semibold mb-4 ${
+                          isDarkMode ? 'text-slate-200' : 'text-slate-800'
+                        }`}>
+                          Tools & Technologies
+                        </h3>
+                        <div className="flex flex-wrap gap-3">
+                          {tools.map((skill: string, index: number) => (
+                            <span
+                              key={`tool-${index}`}
+                              className={`font-medium px-4 py-1.5 rounded-full text-sm transition-all duration-300 hover:scale-110 hover:shadow-md cursor-default ${
+                                isDarkMode
+                                  ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                              }`}
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* LinkedIn Experience Section */}
+      {linkedInExperience && linkedInExperience.length > 0 && (
+        <section className="py-16 md:py-24" id="experience">
+          <div className="max-w-3xl mx-auto">
+            <h2 className={`text-3xl font-bold text-center mb-12 ${
+              isDarkMode ? 'text-white' : 'text-slate-900'
+            }`}>
+              Work Experience
+            </h2>
+            <div className={`relative pl-8 border-l-2 space-y-12 ${
+              isDarkMode ? 'border-slate-700' : 'border-slate-200'
+            }`}>
+              {linkedInExperience.map((exp: any, index: number) => (
+                <div key={`exp-${index}`} className="relative transition-all duration-300 hover:translate-x-2 group">
+                  <div className={`absolute -left-[34px] top-1 h-4 w-4 rounded-full bg-primary ring-8 transition-all duration-300 group-hover:scale-125 group-hover:ring-primary/50 ${
+                    isDarkMode ? 'ring-background-dark' : 'ring-background-light'
+                  }`}></div>
+                  <p className={`text-sm font-medium ${
+                    isDarkMode ? 'text-slate-400' : 'text-slate-500'
+                  }`}>
+                    {exp.startDate?.month && exp.startDate?.year ? `${exp.startDate.month} ${exp.startDate.year}` : ''}
+                    {exp.startDate && (exp.endDate || exp.isCurrent) ? ' - ' : ''}
+                    {exp.isCurrent ? 'Present' : exp.endDate?.month && exp.endDate?.year ? `${exp.endDate.month} ${exp.endDate.year}` : ''}
+                  </p>
+                  <h3 className={`text-xl font-semibold mt-1 ${
+                    isDarkMode ? 'text-white' : 'text-slate-900'
+                  }`}>
+                    {exp.title || 'Position'}
+                  </h3>
+                  <p className={`text-md font-medium text-primary mb-2`}>
+                    {exp.company || 'Company'}
+                  </p>
                   {exp.location && (
-                    <p className={`text-sm mb-3 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{exp.location}</p>
+                    <p className={`text-sm mb-2 ${
+                      isDarkMode ? 'text-slate-400' : 'text-slate-500'
+                    }`}>
+                      {exp.location}
+                    </p>
                   )}
                   {exp.description && (
-                    <p className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{exp.description}</p>
+                    <p className={isDarkMode ? 'text-slate-400' : 'text-slate-600'}>
+                      {exp.description}
+                    </p>
                   )}
                 </div>
               ))}
             </div>
-              </div>
-            </>
-        )}
+          </div>
+        </section>
+      )}
 
-          {/* LinkedIn Skills Section */}
-          {linkedInSkills && linkedInSkills.length > 0 && (
-            <>
-              <div className={`border-t-[0.5px] pt-12 pb-12 ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
-            <div className="flex items-center gap-3 mb-6">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDarkMode ? 'bg-green-900/30' : 'bg-green-100'}`}>
-                <svg className={`w-6 h-6 ${isDarkMode ? 'text-green-400' : 'text-green-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                </svg>
-              </div>
-              <h3 className={`text-xl md:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>LinkedIn Skills</h3>
-            </div>
-            <div className="flex gap-4 flex-wrap">
+      {/* LinkedIn Skills Section */}
+      {linkedInSkills && linkedInSkills.length > 0 && (
+        <section className={`py-16 md:py-24 rounded-2xl ${
+          isDarkMode ? 'bg-slate-900' : 'bg-white'
+        }`}>
+          <div className="max-w-4xl mx-auto px-6">
+            <h2 className={`text-3xl font-bold text-center mb-12 ${
+              isDarkMode ? 'text-white' : 'text-slate-900'
+            }`}>
+              LinkedIn Skills
+            </h2>
+            <div className="flex flex-wrap gap-3 justify-center">
               {linkedInSkills.map((skill: string, index: number) => (
                 <span
                   key={`linkedin-skill-${index}`}
-                  className={`px-2 py-1 text-sm ${
-                    isDarkMode 
-                      ? 'text-slate-300' 
-                      : 'text-slate-600'
+                  className={`font-medium px-4 py-1.5 rounded-full text-sm transition-all duration-300 hover:scale-110 hover:shadow-md cursor-default ${
+                    isDarkMode
+                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                   }`}
                 >
                   {skill}
                 </span>
               ))}
             </div>
-              </div>
-            </>
-        )}
+          </div>
+        </section>
+      )}
 
-          {/* LinkedIn Languages Section */}
-          {linkedInLanguages && linkedInLanguages.length > 0 && (
-            <>
-              <div className={`border-t-[0.5px] pt-12 pb-12 ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
-            <div className="flex items-center gap-3 mb-6">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDarkMode ? 'bg-orange-900/30' : 'bg-orange-100'}`}>
-                <svg className={`w-6 h-6 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                </svg>
-              </div>
-              <h3 className={`text-xl md:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Languages</h3>
+      {/* LinkedIn Languages Section */}
+      {linkedInLanguages && linkedInLanguages.length > 0 && (
+        <section className="py-16 md:py-24">
+          <div className="max-w-4xl mx-auto px-6">
+            <h2 className={`text-3xl font-bold text-center mb-12 ${
+              isDarkMode ? 'text-white' : 'text-slate-900'
+            }`}>
+              Languages
+            </h2>
+            <div className="flex flex-wrap gap-3 justify-center">
+              {linkedInLanguages.map((lang: any, index: number) => {
+                const languageName = lang.language || lang;
+                const flagEmoji = getLanguageFlag(languageName);
+                const countryCode = getCountryCode(languageName);
+                return (
+                  <span
+                    key={`linkedin-lang-${index}`}
+                    className={`font-medium px-4 py-2 rounded-full text-sm flex items-center gap-2 transition-all duration-300 hover:scale-110 hover:shadow-md cursor-default ${
+                      isDarkMode
+                        ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                    }`}
+                  >
+                    {countryCode && (
+                      <span className={`text-xs font-bold flex items-center justify-center rounded-full w-6 h-6 ${
+                        isDarkMode
+                          ? 'bg-slate-700 text-slate-200'
+                          : 'bg-white text-slate-700'
+                      }`}>
+                        {countryCode}
+                      </span>
+                    )}
+                    <span>
+                      {languageName}
+                      {lang.proficiency && ` (${lang.proficiency})`}
+                    </span>
+                  </span>
+                );
+              })}
             </div>
-            <div className="flex gap-4 flex-wrap">
-              {linkedInLanguages.map((lang: any, index: number) => (
-                <span
-                  key={`linkedin-lang-${index}`}
-                  className={`px-2 py-1 text-sm ${
-                    isDarkMode 
-                      ? 'text-slate-300' 
-                      : 'text-slate-600'
-                  }`}
-                >
-                  {lang.language || lang}
-                  {lang.proficiency && ` (${lang.proficiency})`}
-                </span>
-              ))}
-            </div>
-              </div>
-            </>
-        )}
-      </div>
-    </section>
+          </div>
+        </section>
+      )}
+    </>
   );
 };
 
 export default About;
-
