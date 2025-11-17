@@ -1,6 +1,6 @@
 // client/src/pages/PortfolioSetupPage.tsx
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   getCurrentUserProfile,
@@ -13,7 +13,8 @@ import {
   togglePortfolioPublish,
   Project,
 } from '../services/portfolioApi';
-import { updateUsername as updateUsernameAPI } from '../services/authApi';
+// Username updates are no longer allowed after registration
+// import { updateUsername as updateUsernameAPI } from '../services/authApi';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import ErrorAlert from '../components/common/ErrorAlert';
 import Toast from '../components/common/Toast';
@@ -116,7 +117,12 @@ const SortableProjectItem: React.FC<SortableProjectItemProps> = ({ project, onTo
 
 const PortfolioSetupPage: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Initialize activeTab from URL parameter, default to 0
+  const tabFromUrl = searchParams.get('tab');
+  const initialTab = tabFromUrl ? parseInt(tabFromUrl, 10) : 0;
+  const [activeTab, setActiveTab] = useState(initialTab >= 0 && initialTab <= 3 ? initialTab : 0);
   const [profile, setProfile] = useState<any>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [githubUrl, setGithubUrl] = useState('');
@@ -124,8 +130,6 @@ const PortfolioSetupPage: React.FC = () => {
   const [githubUsername, setGithubUsername] = useState('');
   const [githubToken, setGithubToken] = useState('');
   const [portfolioUsername, setPortfolioUsername] = useState('');
-  const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
-  const [usernameError, setUsernameError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -163,6 +167,14 @@ const PortfolioSetupPage: React.FC = () => {
   });
 
   const stepNames = ['Connecting Accounts', 'Configuring GitHub Repos', 'Configuring LinkedIn Data', 'Publish Portfolio'];
+
+  // Function to change tab and update URL
+  const handleTabChange = (tabIndex: number) => {
+    if (tabIndex >= 0 && tabIndex <= 3) {
+      setActiveTab(tabIndex);
+      setSearchParams({ tab: tabIndex.toString() });
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -240,6 +252,17 @@ const PortfolioSetupPage: React.FC = () => {
       fetchData();
     }
   }, [user]);
+
+  // Sync activeTab with URL parameter when it changes (e.g., browser back/forward)
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl !== null) {
+      const tabIndex = parseInt(tabFromUrl, 10);
+      if (tabIndex >= 0 && tabIndex <= 3 && tabIndex !== activeTab) {
+        setActiveTab(tabIndex);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (activeTab === 1) {
@@ -324,16 +347,16 @@ const PortfolioSetupPage: React.FC = () => {
       // Save URLs and move to next tab
       await handleSave();
       if (!error) {
-        setActiveTab(1);
+        handleTabChange(1);
       }
     } else if (activeTab === 1) {
       // Move to LinkedIn configuration tab
-      setActiveTab(2);
+      handleTabChange(2);
     } else if (activeTab === 2) {
       // Save LinkedIn data and settings, move to publish
       await handleSaveLinkedInData();
       if (!error) {
-        setActiveTab(3);
+        handleTabChange(3);
       }
     }
   };
@@ -542,34 +565,8 @@ const PortfolioSetupPage: React.FC = () => {
     }
   };
 
-  const handleUpdateUsername = async () => {
-    try {
-      setIsUpdatingUsername(true);
-      setUsernameError(null);
-
-      if (!portfolioUsername.trim()) {
-        setUsernameError('Username is required');
-        return;
-      }
-
-      // Validate username format (client-side)
-      const usernameRegex = /^[a-z0-9_-]{3,30}$/i;
-      if (!usernameRegex.test(portfolioUsername.trim())) {
-        setUsernameError('Username must be 3-30 characters long and contain only letters, numbers, hyphens, or underscores');
-        return;
-      }
-
-      await updateUsernameAPI(portfolioUsername.trim());
-      setToast({ message: 'Username updated successfully!', type: 'success' });
-      setUsernameError(null);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to update username';
-      setUsernameError(errorMessage);
-      setToast({ message: errorMessage, type: 'error' });
-    } finally {
-      setIsUpdatingUsername(false);
-    }
-  };
+  // Username updates are no longer allowed after registration
+  // The handleUpdateUsername function has been removed
 
   if (isLoading) {
     return (
@@ -601,7 +598,7 @@ const PortfolioSetupPage: React.FC = () => {
           <div className="mt-6">
             <div className="flex border-b border-gray-200 dark:border-gray-700/80 gap-4 sm:gap-8 px-4 overflow-x-auto">
               <button
-                onClick={() => setActiveTab(0)}
+                onClick={() => handleTabChange(0)}
                 className={`flex items-center justify-center gap-2 border-b-[3px] pb-[13px] pt-4 transition-colors whitespace-nowrap ${
                   activeTab === 0
                     ? 'border-b-primary text-gray-900 dark:text-white'
@@ -612,7 +609,7 @@ const PortfolioSetupPage: React.FC = () => {
                 <p className="text-sm font-bold leading-normal tracking-[0.015em]">Connect Accounts</p>
               </button>
               <button
-                onClick={() => setActiveTab(1)}
+                onClick={() => handleTabChange(1)}
                 className={`flex items-center justify-center gap-2 border-b-[3px] pb-[13px] pt-4 transition-colors whitespace-nowrap ${
                   activeTab === 1
                     ? 'border-b-primary text-gray-900 dark:text-white'
@@ -623,7 +620,7 @@ const PortfolioSetupPage: React.FC = () => {
                 <p className="text-sm font-bold leading-normal tracking-[0.015em]">GitHub Repos</p>
               </button>
               <button
-                onClick={() => setActiveTab(2)}
+                onClick={() => handleTabChange(2)}
                 className={`flex items-center justify-center gap-2 border-b-[3px] pb-[13px] pt-4 transition-colors whitespace-nowrap ${
                   activeTab === 2
                     ? 'border-b-primary text-gray-900 dark:text-white'
@@ -634,7 +631,7 @@ const PortfolioSetupPage: React.FC = () => {
                 <p className="text-sm font-bold leading-normal tracking-[0.015em]">LinkedIn Data</p>
               </button>
               <button
-                onClick={() => setActiveTab(3)}
+                onClick={() => handleTabChange(3)}
                 className={`flex items-center justify-center gap-2 border-b-[3px] pb-[13px] pt-4 transition-colors whitespace-nowrap ${
                   activeTab === 3
                     ? 'border-b-primary text-gray-900 dark:text-white'
@@ -1079,35 +1076,28 @@ const PortfolioSetupPage: React.FC = () => {
 
                 {/* Username Configuration */}
                 <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/80 rounded-xl p-6 shadow-sm">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Portfolio Username</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Choose a unique username for your portfolio URL. This will be used instead of your email address.
-                  </p>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Portfolio Username</h3>
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <input
                         type="text"
-                        value={portfolioUsername}
-                        onChange={(e) => setPortfolioUsername(e.target.value.toLowerCase())}
+                        value={portfolioUsername || 'Not set'}
+                        readOnly
+                        disabled
                         placeholder="your-username"
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm cursor-not-allowed opacity-75"
                       />
-                      {usernameError && (
-                        <p className="text-red-500 dark:text-red-400 text-xs mt-2">{usernameError}</p>
-                      )}
-                      {portfolioUsername && !usernameError && (
+                      {portfolioUsername && (
                         <p className="text-gray-500 dark:text-gray-400 text-xs mt-2">
                           Your portfolio will be at: {window.location.origin}/portfolio/{portfolioUsername}
                         </p>
                       )}
+                      {!portfolioUsername && (
+                        <p className="text-amber-600 dark:text-amber-400 text-xs mt-2">
+                          No username set. Your portfolio URL will use your email address.
+                        </p>
+                      )}
                     </div>
-                    <button
-                      onClick={handleUpdateUsername}
-                      disabled={isUpdatingUsername || !portfolioUsername.trim()}
-                      className="px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {isUpdatingUsername ? 'Saving...' : 'Save Username'}
-                    </button>
                   </div>
                 </div>
 

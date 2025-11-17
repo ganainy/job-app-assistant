@@ -76,15 +76,17 @@ export const getCurrentUserProfile = async (): Promise<UserProfile> => {
     }
 };
 
-export const updateUsername = async (username: string): Promise<{ message: string; username: string }> => {
-    try {
-        const response = await axios.put<{ message: string; username: string }>(`${API_BASE_URL}/username`, { username });
-        return response.data;
-    } catch (error) {
-        console.error("Update Username API error:", error);
-        if (axios.isAxiosError(error) && error.response) {
-            throw error.response.data as ApiError;
-        }
-        throw { message: 'An unknown error occurred updating username.' } as ApiError;
-    }
-};
+// Username updates are no longer allowed after registration
+// The updateUsername function has been removed
+// export const updateUsername = async (username: string): Promise<{ message: string; username: string }> => {
+//     try {
+//         const response = await axios.put<{ message: string; username: string }>(`${API_BASE_URL}/username`, { username });
+//         return response.data;
+//     } catch (error) {
+//         console.error("Update Username API error:", error);
+//         if (axios.isAxiosError(error) && error.response) {
+//             throw error.response.data as ApiError;
+//         }
+//         throw { message: 'An unknown error occurred updating username.' } as ApiError;
+//     }
+// };

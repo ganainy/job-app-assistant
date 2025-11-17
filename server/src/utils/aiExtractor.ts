@@ -16,28 +16,53 @@ export interface ExtractedJobData {
     notes?: string; // Optional additional notes/keywords extracted
 }
 
-// Fetch HTML (same as before, slightly refined)
-async function fetchHtml(url: string): Promise<string> {
-    console.log(`Fetching HTML for AI extraction: ${url}`);
-    try {
-        const response = await axios.get(url, {
-            headers: { // Basic headers
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml',
-                'Accept-Language': 'en-US,en',
-            },
-            timeout: 15000
-        });
-        if (response.status !== 200) throw new Error(`Status ${response.status}`);
-        if (!response.data || typeof response.data !== 'string' || !response.data.toLowerCase().includes('<html')) {
-            throw new Error('Invalid HTML content received.');
+// Fetch HTML with retry logic and increased timeout
+async function fetchHtml(url: string, retries: number = 3): Promise<string> {
+    const maxRetries = retries;
+    const timeout = 45000; // Increased to 45 seconds for slow-responding sites
+    const baseDelay = 2000; // Base delay of 2 seconds between retries
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        console.log(`Fetching HTML for AI extraction (attempt ${attempt}/${maxRetries}): ${url}`);
+        try {
+            const response = await axios.get(url, {
+                headers: { // Basic headers
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml',
+                    'Accept-Language': 'en-US,en',
+                },
+                timeout: timeout,
+                maxRedirects: 5, // Allow up to 5 redirects
+            });
+            if (response.status !== 200) throw new Error(`Status ${response.status}`);
+            if (!response.data || typeof response.data !== 'string' || !response.data.toLowerCase().includes('<html')) {
+                throw new Error('Invalid HTML content received.');
+            }
+            console.log(`Fetched HTML (length: ${response.data.length})`);
+            return response.data;
+        } catch (error: any) {
+            const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+            const isLastAttempt = attempt === maxRetries;
+            
+            if (isLastAttempt) {
+                console.error(`Error fetching URL ${url} for AI after ${maxRetries} attempts:`, error.message);
+                const errorMessage = isTimeout 
+                    ? `Request timed out after ${timeout}ms. The website may be slow or unresponsive.`
+                    : error.message;
+                throw new Error(`Could not fetch content from URL for AI processing. ${errorMessage}`);
+            }
+            
+            // Calculate exponential backoff delay: 2s, 4s, 8s, etc.
+            const delay = baseDelay * Math.pow(2, attempt - 1);
+            console.warn(`Attempt ${attempt} failed for ${url}: ${error.message}. Retrying in ${delay}ms...`);
+            
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, delay));
         }
-        console.log(`Fetched HTML (length: ${response.data.length})`);
-        return response.data;
-    } catch (error: any) {
-        console.error(`Error fetching URL ${url} for AI:`, error.message);
-        throw new Error(`Could not fetch content from URL for AI processing. ${error.message}`);
     }
+    
+    // This should never be reached, but TypeScript requires it
+    throw new Error(`Failed to fetch HTML after ${maxRetries} attempts`);
 }
 
 // Parse Gemini's JSON response for extracted data

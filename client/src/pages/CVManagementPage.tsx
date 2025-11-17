@@ -134,9 +134,10 @@ const CVManagementPage: React.FC = () => {
   };
 
   // Trigger ATS analysis for general CV review (no job description)
-  const runAtsAnalysis = async () => {
-    if (!currentCvData) {
-      setToast({ message: 'No CV data available for ATS analysis.', type: 'error' });
+  const runAtsAnalysis = async (cvDataOverride?: JsonResumeSchema | null) => {
+    const cvDataToUse = cvDataOverride !== undefined ? cvDataOverride : currentCvData;
+    if (!cvDataToUse) {
+      // Silently return if no CV data - don't show error toast
       return;
     }
 
@@ -233,7 +234,7 @@ const CVManagementPage: React.FC = () => {
         
         // Trigger ATS analysis only if no existing scores were found
         if (cvData && !hasExistingAtsScores) {
-          setTimeout(() => runAtsAnalysis(), 1000);
+          setTimeout(() => runAtsAnalysis(cvData), 1000);
         }
       } catch (error: any) {
         console.error("Error fetching current CV:", error);
@@ -332,8 +333,8 @@ const CVManagementPage: React.FC = () => {
       // Run analysis after CV is uploaded
       if (cvData) {
         runFullCvAnalysis(cvData);
-        // Also trigger ATS analysis
-        setTimeout(() => runAtsAnalysis(), 1000); // Small delay to let section analysis start first
+        // Also trigger ATS analysis - pass cvData directly to avoid state timing issues
+        setTimeout(() => runAtsAnalysis(cvData), 1000); // Small delay to let section analysis start first
       }
       
       setSelectedFile(null);
@@ -359,7 +360,7 @@ const CVManagementPage: React.FC = () => {
       // CV sections changed, re-analyze (backend will use cache if hash matches)
       runFullCvAnalysis(updatedCv);
       // Also trigger ATS analysis when CV changes
-      setTimeout(() => runAtsAnalysis(), 1000);
+      setTimeout(() => runAtsAnalysis(updatedCv), 1000);
     }
   };
 

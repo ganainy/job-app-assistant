@@ -147,67 +147,8 @@ router.get('/me', authMiddleware as RequestHandler, async (req: Request, res: Re
     }
 });
 
-// --- Update Username Route ---
-// PUT /api/auth/username
-router.put('/username', authMiddleware as RequestHandler, async (req: Request, res: Response) => {
-    try {
-        if (!req.user) {
-            res.status(401).json({ message: 'User not authenticated.' });
-            return;
-        }
-
-        const { username } = req.body;
-
-        // Validate username format
-        if (!username || typeof username !== 'string') {
-            res.status(400).json({ message: 'Username is required.' });
-            return;
-        }
-
-        const trimmedUsername = username.trim().toLowerCase();
-
-        // Username validation: alphanumeric, hyphens, underscores only (3-30 characters)
-        const usernameRegex = /^[a-z0-9_-]{3,30}$/;
-        if (!usernameRegex.test(trimmedUsername)) {
-            res.status(400).json({ 
-                message: 'Username must be 3-30 characters long and contain only letters, numbers, hyphens, or underscores.' 
-            });
-            return;
-        }
-
-        // Check if username is already taken
-        const existingUser = await User.findOne({ username: trimmedUsername });
-        if (existingUser && String(existingUser._id) !== String(req.user._id)) {
-            res.status(400).json({ message: 'Username is already taken.' });
-            return;
-        }
-
-        // Update username
-        const updatedUser = await User.findByIdAndUpdate(
-            req.user._id,
-            { username: trimmedUsername },
-            { new: true }
-        );
-
-        if (!updatedUser) {
-            res.status(404).json({ message: 'User not found.' });
-            return;
-        }
-
-        res.status(200).json({
-            message: 'Username updated successfully',
-            username: updatedUser.username,
-        });
-
-    } catch (error) {
-        console.error("Update Username Error:", error);
-        if (error instanceof Error && error.name === 'MongoServerError' && (error as any).code === 11000) {
-            res.status(400).json({ message: 'Username is already taken.' });
-            return;
-        }
-        res.status(500).json({ message: 'Server error updating username.' });
-    }
-});
+// Username updates are no longer allowed after registration
+// The PUT /api/auth/username endpoint has been removed
 
 
 export default router;
