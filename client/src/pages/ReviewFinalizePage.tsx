@@ -1573,8 +1573,6 @@ const ReviewFinalizePage: React.FC = () => {
                                                 data={cvData}
                                                 onChange={handleCvChange}
                                                 analysisResult={analysisResult}
-                                                onAnalyzeSection={handleAnalyzeSection}
-                                                analyzingSections={analyzingSections}
                                             />
                                         )}
                                     </>

@@ -46,6 +46,10 @@ const CVManagementPage: React.FC = () => {
   // Can be backend hash (SHA256) or frontend hash (JSON string) - both work for comparison
   const lastAnalyzedCvHashRef = useRef<string | null>(null);
 
+  // Helper function to check if error is API key related
+  const isApiKeyError = (errorMessage: string): boolean => {
+    return errorMessage?.toLowerCase().includes('api key');
+  };
 
   // Calculate unsaved changes
   const hasUnsavedChanges = useMemo(() => {

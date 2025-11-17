@@ -51,11 +51,12 @@ const BasicsEditor: React.FC<BasicsEditorProps> = ({ data = {}, onChange, analys
     return (
         <div>
             {/* Conditionally render the analysis panel */}
-            {showAnalysis && analysis && (
+            {/* TODO: Fix SectionAnalysisPanel props to match interface */}
+            {/* {showAnalysis && analysis && (
                 <div className="mb-2">
                     <SectionAnalysisPanel issues={analysis.issues} suggestions={analysis.suggestions} />
                 </div>
-            )}
+            )} */}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {/* Name */}

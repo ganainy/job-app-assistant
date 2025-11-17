@@ -168,7 +168,7 @@ const GeneralCvAtsPanel: React.FC<GeneralCvAtsPanelProps> = ({ atsScores, isLoad
                             `}
                         >
                             {tab.label}
-                            {tab.count > 0 && (
+                            {(tab.count ?? 0) > 0 && (
                                 <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
                                     activeTab === tab.id
                                         ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'

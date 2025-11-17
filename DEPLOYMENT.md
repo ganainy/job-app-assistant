@@ -80,38 +80,54 @@ This guide walks you through deploying the Job Application Assistant to Netlify 
 
 1. **Create a new Heroku app:**
    ```bash
-   heroku create your-app-name
+   heroku create vibehired-backend
    ```
-   Replace `your-app-name` with your desired app name (must be unique)
+   Note: The app name `vibehired-backend` is already created. If creating a new app, replace with your desired app name (must be unique)
 
 2. **Note your Heroku app URL:**
-   - It will be something like: `https://your-app-name.herokuapp.com`
+   - It will be something like: `https://vibehired-backend.herokuapp.com`
    - **Save this URL** - you'll need it for Netlify configuration
 
 ### Step 4: Configure Environment Variables
 
-Set the required environment variables on Heroku:
+Set the required environment variables on Heroku using the Heroku Dashboard:
 
+1. **Go to your Heroku Dashboard:**
+   - Visit [Heroku Dashboard](https://dashboard.heroku.com)
+   - Select your app: `vibehired-backend`
+
+2. **Navigate to Settings:**
+   - Click on the **Settings** tab in your app's dashboard
+   - Scroll down to the **Config Vars** section
+   - Click **Reveal Config Vars** or **Edit Config Vars**
+
+3. **Add the following environment variables:**
+   - Click **Add** for each variable and enter:
+   
+   | Key | Value | Notes |
+   |-----|-------|-------|
+   | `MONGODB_URI` | `mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/job-app-assistant?retryWrites=true&w=majority` | Replace with your MongoDB connection string from Part 1 |
+   | `JWT_SECRET` | `your-super-secret-jwt-key-min-32-chars` | Generate a strong random string (min 32 characters). You can use: `openssl rand -base64 32` |
+   | `ENCRYPTION_KEY` | `your-encryption-key-min-32-chars` | Generate a strong random string (min 32 characters) for encrypting API keys. You can use: `openssl rand -base64 32` |
+   | `FRONTEND_URL` | `https://your-netlify-app.netlify.app` | Set a placeholder for now, update after Netlify deployment |
+   | `NODE_ENV` | `production` | Set to production mode |
+
+4. **Save each variable:**
+   - Click **Add** after entering each key-value pair
+   - Your app will automatically restart after each config var is added
+
+**Alternative: Using Heroku CLI**
+
+If you prefer using the CLI, you can set config vars using:
 ```bash
-# MongoDB Connection String (from Part 1)
-heroku config:set MONGODB_URI="mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/job-app-assistant?retryWrites=true&w=majority"
-
-# JWT Secret (generate a strong random string)
-# Generate one using: openssl rand -base64 32
-heroku config:set JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
-
-# Frontend URL (your Netlify URL - set this after deploying frontend)
-# For now, you can set a placeholder and update it later
-heroku config:set FRONTEND_URL="https://your-netlify-app.netlify.app"
-
-# Node Environment
-heroku config:set NODE_ENV="production"
+heroku config:set --app vibehired-backend MONGODB_URI='mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/job-app-assistant?retryWrites=true&w=majority'
+heroku config:set --app vibehired-backend JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
+heroku config:set --app vibehired-backend ENCRYPTION_KEY="your-encryption-key-min-32-chars"
+heroku config:set --app vibehired-backend FRONTEND_URL="https://your-netlify-app.netlify.app"
+heroku config:set --app vibehired-backend NODE_ENV="production"
 ```
 
-**View all config vars:**
-```bash
-heroku config
-```
+**Note:** The Dashboard method is recommended as it avoids shell escaping issues with special characters like `&` in connection strings.
 
 ### Step 5: Deploy to Heroku
 
@@ -122,7 +138,7 @@ heroku config
 
 2. **Add Heroku remote (if not already added):**
    ```bash
-   heroku git:remote -a your-app-name
+   heroku git:remote -a vibehired-backend
    ```
 
 3. **Deploy:**
@@ -139,13 +155,13 @@ heroku config
 
 5. **Verify deployment:**
    ```bash
-   heroku open
+   heroku open --app vibehired-backend
    ```
    - You should see: "Job App Assistant Backend is Running!"
 
 6. **Check logs:**
    ```bash
-   heroku logs --tail
+   heroku logs --tail --app vibehired-backend
    ```
    - Look for "MongoDB Connected Successfully"
    - Look for server running message
@@ -154,8 +170,20 @@ heroku config
 
 Once you have your Netlify URL, update the Heroku config:
 
+1. **Go to your Heroku Dashboard:**
+   - Visit [Heroku Dashboard](https://dashboard.heroku.com)
+   - Select your app
+   - Go to **Settings** → **Config Vars**
+
+2. **Update the `FRONTEND_URL` variable:**
+   - Find `FRONTEND_URL` in the list
+   - Click **Edit** (or the pencil icon)
+   - Update the value to your actual Netlify URL: `https://your-actual-netlify-url.netlify.app`
+   - Click **Save**
+
+**Alternative: Using Heroku CLI**
 ```bash
-heroku config:set FRONTEND_URL="https://your-actual-netlify-url.netlify.app"
+heroku config:set --app vibehired-backend FRONTEND_URL="https://your-actual-netlify-url.netlify.app"
 ```
 
 ## Part 3: Netlify Frontend Deployment
@@ -200,8 +228,7 @@ heroku config:set FRONTEND_URL="https://your-actual-netlify-url.netlify.app"
    - Go to Site settings → Environment variables
    - Add the following:
      - **Key:** `VITE_BACKEND_URL`
-     - **Value:** `https://your-heroku-app-name.herokuapp.com/api`
-     - Replace `your-heroku-app-name` with your actual Heroku app name
+     - **Value:** `https://vibehired-backend.herokuapp.com/api`
 
 5. **Deploy:**
    - Click "Deploy site"
@@ -217,8 +244,20 @@ heroku config:set FRONTEND_URL="https://your-actual-netlify-url.netlify.app"
 
 After you have your Netlify URL, update Heroku:
 
+1. **Go to your Heroku Dashboard:**
+   - Visit [Heroku Dashboard](https://dashboard.heroku.com)
+   - Select your app
+   - Go to **Settings** → **Config Vars**
+
+2. **Update the `FRONTEND_URL` variable:**
+   - Find `FRONTEND_URL` in the list
+   - Click **Edit** (or the pencil icon)
+   - Update the value to your Netlify URL: `https://your-netlify-app.netlify.app`
+   - Click **Save**
+
+**Alternative: Using Heroku CLI**
 ```bash
-heroku config:set FRONTEND_URL="https://your-netlify-app.netlify.app"
+heroku config:set --app vibehired-backend FRONTEND_URL="https://your-netlify-app.netlify.app"
 ```
 
 This will allow your Netlify frontend to make API requests to your Heroku backend.
@@ -244,15 +283,15 @@ This will allow your Netlify frontend to make API requests to your Heroku backen
 
 1. **Check Heroku logs:**
    ```bash
-   heroku logs --tail
+   heroku logs --tail --app vibehired-backend
    ```
 
 2. **Test API endpoint:**
-   - Visit: `https://your-heroku-app.herokuapp.com`
+   - Visit: `https://vibehired-backend.herokuapp.com`
    - Should see: "Job App Assistant Backend is Running!"
 
 3. **Test API route:**
-   - Visit: `https://your-heroku-app.herokuapp.com/api/auth/register`
+   - Visit: `https://vibehired-backend.herokuapp.com/api/auth/register`
    - Should see an error (expected - needs POST request)
    - This confirms the route is accessible
 
@@ -309,10 +348,10 @@ Updating the backend is straightforward - just push to the Heroku remote.
 5. **Verify the update:**
    ```bash
    # Check logs for any errors
-   heroku logs --tail
+   heroku logs --tail --app vibehired-backend
    
    # Test the API endpoint
-   heroku open
+   heroku open --app vibehired-backend
    ```
 
 **Quick Command:**
@@ -374,24 +413,41 @@ git push origin main
 
 If you need to update environment variables:
 
+**Using Heroku Dashboard (Recommended):**
+
+1. **Go to your Heroku Dashboard:**
+   - Visit [Heroku Dashboard](https://dashboard.heroku.com)
+   - Select your app
+   - Go to **Settings** → **Config Vars**
+
+2. **Manage config vars:**
+   - **Add a variable:** Click **Add**, enter the key and value, then click **Add**
+   - **Edit a variable:** Click **Edit** (or pencil icon) next to the variable, update the value, then click **Save**
+   - **Remove a variable:** Click **Delete** (or trash icon) next to the variable
+   - **View all variables:** All config vars are listed in the Config Vars section
+
+**Note:** Your app automatically restarts when you add, edit, or remove config vars.
+
+**Alternative: Using Heroku CLI**
+
 ```bash
 # Update a single variable
-heroku config:set KEY="new-value"
+heroku config:set --app vibehired-backend KEY="new-value"
 
 # Update multiple variables
-heroku config:set KEY1="value1" KEY2="value2"
+heroku config:set --app vibehired-backend KEY1="value1" KEY2="value2"
 
 # View all variables
-heroku config
+heroku config --app vibehired-backend
 
 # Remove a variable
-heroku config:unset KEY
+heroku config:unset --app vibehired-backend KEY
+
+# Restart app (if needed)
+heroku restart --app vibehired-backend
 ```
 
-**Important:** After updating environment variables, restart the app:
-```bash
-heroku restart
-```
+**Reference:** See the [Heroku Config Vars documentation](https://devcenter.heroku.com/articles/config-vars) for more details.
 
 #### Frontend (Netlify)
 
@@ -415,18 +471,18 @@ If something goes wrong, you can quickly rollback to a previous version.
 
 1. **List recent releases:**
    ```bash
-   heroku releases
+   heroku releases --app vibehired-backend
    ```
 
 2. **Rollback to a previous release:**
    ```bash
-   heroku rollback v123
+   heroku rollback v123 --app vibehired-backend
    ```
    Replace `v123` with the release number you want to rollback to
 
 3. **Or rollback to the previous release:**
    ```bash
-   heroku rollback
+   heroku rollback --app vibehired-backend
    ```
 
 #### Frontend Rollback (Netlify)
@@ -481,16 +537,16 @@ If something goes wrong, you can quickly rollback to a previous version.
 cd server && git push heroku main
 
 # View logs
-heroku logs --tail
+heroku logs --tail --app vibehired-backend
 
 # Restart app
-heroku restart
+heroku restart --app vibehired-backend
 
 # Rollback
-heroku rollback
+heroku rollback --app vibehired-backend
 
 # Check status
-heroku ps
+heroku ps --app vibehired-backend
 ```
 
 **Frontend (Netlify):**
@@ -526,43 +582,50 @@ cd client && netlify deploy --prod
 ### Backend Issues
 
 **Build fails:**
-- Check Heroku build logs: `heroku logs --tail`
+- Check Heroku build logs: `heroku logs --tail --app vibehired-backend`
 - Ensure `Procfile` exists in `server/` directory
 - Verify TypeScript compiles: `npm run build`
 
 **MongoDB connection fails:**
-- Verify `MONGODB_URI` is set correctly in Heroku
+- Verify `MONGODB_URI` is set correctly in Heroku Dashboard (Settings → Config Vars)
 - Check MongoDB Atlas network access (should allow 0.0.0.0/0)
 - Verify database user credentials
 
 **CORS errors:**
-- Check `FRONTEND_URL` is set in Heroku config
+- Check `FRONTEND_URL` is set correctly in Heroku Dashboard (Settings → Config Vars)
 - Verify the URL matches your Netlify domain exactly
 - Check server logs for CORS errors
 
 **App crashes:**
-- Check Heroku logs: `heroku logs --tail`
-- Verify all environment variables are set
+- Check Heroku logs: `heroku logs --tail --app vibehired-backend`
+- Verify all environment variables are set in Heroku Dashboard (Settings → Config Vars)
 - Check for missing dependencies
 
 ### Common Commands
 
 **Heroku:**
+
+**Config Vars (Recommended: Use Dashboard):**
+- Go to [Heroku Dashboard](https://dashboard.heroku.com) → Your App → Settings → Config Vars
+- Add, edit, or remove config vars directly in the Dashboard
+- See [Heroku Config Vars documentation](https://devcenter.heroku.com/articles/config-vars)
+
+**CLI Commands:**
 ```bash
 # View logs
-heroku logs --tail
+heroku logs --tail --app vibehired-backend
 
-# View config vars
-heroku config
+# View config vars (CLI alternative)
+heroku config --app vibehired-backend
 
-# Set config var
-heroku config:set KEY=value
+# Set config var (CLI alternative)
+heroku config:set --app vibehired-backend KEY=value
 
 # Restart app
-heroku restart
+heroku restart --app vibehired-backend
 
 # Open app
-heroku open
+heroku open --app vibehired-backend
 ```
 
 **Netlify:**
@@ -592,15 +655,19 @@ heroku open
 ## Environment Variables Summary
 
 ### Heroku (Backend)
+
+**Set these in Heroku Dashboard:** [Dashboard](https://dashboard.heroku.com) → Your App → Settings → Config Vars
+
 - `MONGODB_URI` - MongoDB Atlas connection string
 - `JWT_SECRET` - Secret key for JWT tokens (min 32 chars)
+- `ENCRYPTION_KEY` - Secret key for encrypting API keys (min 32 chars)
 - `FRONTEND_URL` - Your Netlify app URL
 - `NODE_ENV` - Set to "production"
 - `PORT` - Automatically set by Heroku
 
 ### Netlify (Frontend)
 - `VITE_BACKEND_URL` - Your Heroku backend URL + `/api`
-  - Example: `https://your-app.herokuapp.com/api`
+  - Example: `https://vibehired-backend.herokuapp.com/api`
 
 ## Support
 
