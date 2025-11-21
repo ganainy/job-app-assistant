@@ -58,6 +58,8 @@ VibeHired is an AI-powered job application assistant built on Google Gemini AI t
   - GitHub repository links
 - **Portfolio Publishing:** Toggle portfolio visibility (public/private)
 
+> **Example Portfolio:** See a live example of an automatically generated portfolio created using LinkedIn scraping, GitHub integration, and AI (not just a static portfolio) at [https://vibehired-ai.netlify.app/portfolio/ganainy](https://vibehired-ai.netlify.app/portfolio/ganainy).
+
 ### Settings & Configuration
 - **API Key Management:** Secure interface for managing API keys:
   - Gemini API Key (Required for AI features)

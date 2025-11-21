@@ -19,8 +19,8 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean; // Track initial auth state loading
   error: string | null; // Store login/register errors
-  login: (credentials: {email: string, password: string}) => Promise<void>;
-  register: (credentials: {email: string, username: string, password: string}) => Promise<void>;
+  login: (credentials: { email: string, password: string }) => Promise<void>;
+  register: (credentials: { email: string, username: string, password: string }) => Promise<void>;
   logout: () => void;
 }
 
@@ -39,30 +39,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading initially
   const [error, setError] = useState<string | null>(null);
 
-  // Effect to check for existing token in localStorage on initial load
-  useEffect(() => {
-    setIsLoading(true);
-    const storedToken = localStorage.getItem('authToken');
-    const storedUser = localStorage.getItem('authUser');
-
-    if (storedToken && storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setToken(storedToken);
-        setUser(parsedUser);
-        // Set Axios default Authorization header for subsequent requests
-        axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-      } catch (e) {
-         console.error("Failed to parse stored user data", e);
-         localStorage.removeItem('authToken');
-         localStorage.removeItem('authUser');
-      }
-    }
-    setIsLoading(false); // Finished loading initial state
+  // Logout function
+  const logout = React.useCallback(() => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('authUser');
+    // Remove Axios default Authorization header
+    delete axios.defaults.headers.common['Authorization'];
   }, []);
 
+  // Effect to check for existing token in localStorage on initial load
+  useEffect(() => {
+    const initAuth = async () => {
+      setIsLoading(true);
+      const storedToken = localStorage.getItem('authToken');
+      const storedUser = localStorage.getItem('authUser');
+
+      if (storedToken && storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setToken(storedToken);
+          setUser(parsedUser);
+          // Set Axios default Authorization header for subsequent requests
+          axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+        } catch (e) {
+          console.error("Failed to parse stored user data", e);
+          logout(); // Use logout to clean up
+        }
+      }
+      setIsLoading(false); // Finished loading initial state
+    };
+
+    initAuth();
+  }, [logout]);
+
+  // Axios interceptor to handle 401 Unauthorized responses
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          console.warn('Received 401 Unauthorized. Logging out...');
+          logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, [logout]);
+
   // Login function
-  const login = async (credentials: {email: string, password: string}) => {
+  const login = React.useCallback(async (credentials: { email: string, password: string }) => {
     setError(null); // Clear previous errors
     setIsLoading(true);
     try {
@@ -80,39 +111,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(err.message || 'Login failed. Please check credentials.');
       setIsLoading(false);
       // Ensure cleanup if login fails
-      setUser(null);
-      setToken(null);
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('authUser');
-      delete axios.defaults.headers.common['Authorization'];
+      logout();
     }
-  };
+  }, [logout]);
 
-   // Register function (doesn't log in automatically)
-  const register = async (credentials: {email: string, username: string, password: string}) => {
+  // Register function (doesn't log in automatically)
+  const register = React.useCallback(async (credentials: { email: string, username: string, password: string }) => {
     setError(null);
     setIsLoading(true); // Use isLoading maybe? Or a separate registerLoading state
     try {
-        await registerUser(credentials);
-        // Optionally set a success message state here instead of error
-        setIsLoading(false);
-        // Maybe redirect to login or show success message
+      await registerUser(credentials);
+      // Optionally set a success message state here instead of error
+      setIsLoading(false);
+      // Maybe redirect to login or show success message
     } catch (err: any) {
-        console.error("Registration failed:", err);
-        setError(err.message || 'Registration failed.');
-        setIsLoading(false);
+      console.error("Registration failed:", err);
+      setError(err.message || 'Registration failed.');
+      setIsLoading(false);
     }
-  };
-
-  // Logout function
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('authUser');
-    // Remove Axios default Authorization header
-    delete axios.defaults.headers.common['Authorization'];
-  };
+  }, []);
 
   // Value provided by the context
   const value = {
