@@ -46,5 +46,6 @@ export const improveSectionBodySchema = z.object({
   sectionData: z.any({
     required_error: 'Section data is required',
   }), // Can be any JSON object representing a section item
+  customInstructions: z.string().optional(),
 });
 

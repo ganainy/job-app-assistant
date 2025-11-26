@@ -13,6 +13,7 @@ export interface IUser extends Document {
     analyses: Record<string, Array<{ needsImprovement: boolean; feedback: string }>>;
     analyzedAt: Date;
   };
+  selectedTemplate?: string; // Selected CV template ID
   createdAt?: Date; // Added by Mongoose timestamps
   updatedAt?: Date; // Added by Mongoose timestamps
   // Add other fields like name later if needed
@@ -51,6 +52,11 @@ const UserSchema: Schema = new Schema(
             analyzedAt: Date
         },
         required: false
+    },
+    selectedTemplate: {
+        type: String,
+        required: false,
+        default: 'modern-clean'
     },
   },
   {

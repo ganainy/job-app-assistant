@@ -8,7 +8,7 @@ export const improveCvSection = async (req: ValidatedRequest, res: Response) => 
         throw new ValidationError('User not authenticated');
     }
 
-    const { sectionName, sectionData } = req.validated!.body!;
+    const { sectionName, sectionData, customInstructions } = req.validated!.body!;
     const userId = String(req.user._id);
 
     if (!sectionName || !sectionData) {
@@ -16,7 +16,7 @@ export const improveCvSection = async (req: ValidatedRequest, res: Response) => 
     }
 
     try {
-        const improvedData = await improveSectionWithAi(userId, sectionName, sectionData);
+        const improvedData = await improveSectionWithAi(userId, sectionName, sectionData, customInstructions);
         res.json(improvedData);
     } catch (error: any) {
         console.error('Error in improveCvSection:', error);

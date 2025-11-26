@@ -11,7 +11,8 @@ import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 export const improveSectionWithAi = async (
     userId: string,
     sectionName: string,
-    sectionData: any
+    sectionData: any,
+    customInstructions?: string
 ): Promise<any> => {
     console.log(`Improving CV section: ${sectionName}`);
 
@@ -21,6 +22,12 @@ You are a professional CV writing expert. Your task is to improve a specific sec
 Section Name: ${sectionName}
 Original Section Data:
 ${JSON.stringify(sectionData, null, 2)}
+
+${customInstructions ? `
+IMPORTANT - USER CUSTOM INSTRUCTIONS:
+The user has provided specific instructions for this improvement. You MUST prioritize these instructions above general guidelines:
+"${customInstructions}"
+` : ''}
 
 Instructions:
 1. Analyze the provided section data

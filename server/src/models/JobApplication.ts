@@ -29,6 +29,13 @@ export interface IJobApplication extends Document {
         text: string;
         timestamp: Date;
     }>;
+    // --- Recommendation Cache ---
+    recommendation?: {
+        score: number | null;
+        shouldApply: boolean;
+        reason: string;
+        cachedAt: Date;
+    };
     // --- Standard Timestamps ---
     createdAt: Date;
     updatedAt: Date;
@@ -63,6 +70,13 @@ const JobApplicationSchema: Schema = new Schema(
             text: { type: String, required: true },
             timestamp: { type: Date, default: Date.now }
         }],
+        // --- Recommendation Cache Schema ---
+        recommendation: {
+            score: { type: Number, required: false },
+            shouldApply: { type: Boolean, required: false },
+            reason: { type: String, required: false },
+            cachedAt: { type: Date, required: false }
+        }
     },
     { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );

@@ -1,32 +1,29 @@
-// server/src/routes/cv.ts
-import express, { Router, Request, Response, RequestHandler } from 'express'; // Add RequestHandler
+import express, { Router, Request, Response, RequestHandler } from 'express';
 import multer from 'multer';
 import authMiddleware from '../middleware/authMiddleware';
 import User from '../models/User';
-// Correct the import to use a named import
-import { getGeminiModel } from '../utils/geminiClient'; // Import configured Gemini model
+import { getGeminiModel } from '../utils/geminiClient';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 import { NotFoundError } from '../utils/errors/AppError';
 import { JsonResumeSchema } from '../types/jsonresume';
 import { generateCvPdfBuffer } from '../utils/pdfGenerator';
+import { CVTemplate } from '../utils/cvTemplates';
 
 const router: Router = express.Router();
 
-// Configure Multer for in-memory storage (easier for processing)
-// Increase limits if handling large CVs
+// Configure Multer for in-memory storage
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // Increased limit slightly for files (e.g., 10MB)
+    limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        // Accept common document types Gemini might handle (check Gemini docs for full list)
         const allowedTypes = [
             'application/pdf',
             'application/rtf', 'text/rtf',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-            'application/msword', // .doc (might be less reliable)
-            'text/plain' // .txt
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'text/plain'
         ];
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
@@ -36,8 +33,8 @@ const upload = multer({
     }
 });
 
-// ---  Helper Function to Parse Gemini Response (JSON Resume specific) ---
-function parseJsonResponseToSchema(responseText: string, schemaType: 'JsonResume'): JsonResumeSchema | null { // Made more specific
+// --- Helper Function to Parse Gemini Response ---
+function parseJsonResponseToSchema(responseText: string, schemaType: 'JsonResume'): JsonResumeSchema | null {
     const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
     const jsonMatch = responseText.match(jsonRegex);
 
@@ -46,14 +43,9 @@ function parseJsonResponseToSchema(responseText: string, schemaType: 'JsonResume
         console.log(`Attempting to parse JSON for ${schemaType} schema...`);
         try {
             const parsedObject = JSON.parse(extractedJsonString);
-
-            // Basic validation: check if it's an object and maybe has a 'basics' key as expected
             if (typeof parsedObject === 'object' && parsedObject !== null) {
                 console.log(`${schemaType} schema parsed successfully (basic check).`);
-                // NOTE: Add more thorough validation against the JsonResumeSchema interface here if needed
-                // This could involve checking types of nested properties, required fields etc.
-                // For now, we'll trust the AI + basic object check.
-                return parsedObject as JsonResumeSchema; // Cast to our interface
+                return parsedObject as JsonResumeSchema;
             } else {
                 console.error(`Parsed JSON is not a valid object for ${schemaType}. Parsed:`, parsedObject);
                 throw new Error(`AI response was not a valid object structure for ${schemaType}.`);
@@ -69,7 +61,6 @@ function parseJsonResponseToSchema(responseText: string, schemaType: 'JsonResume
     console.error(`Could not parse valid ${schemaType} JSON from Gemini response. Raw response:\n---\n`, responseText, "\n---");
     throw new Error(`AI failed to return the ${schemaType} data in the expected format.`);
 }
-
 
 // --- POST /api/cv/upload ---
 router.post(
@@ -89,12 +80,10 @@ router.post(
         try {
             console.log(`Processing CV file: ${req.file.originalname}, MIME Type: ${req.file.mimetype}`);
 
-            // 1. Prepare File Data Part (as before)
             const fileDataPart = {
                 inlineData: { data: req.file.buffer.toString('base64'), mimeType: req.file.mimetype }
             };
 
-            // 2. Construct MODIFIED Gemini Prompt (Targeting JSON Resume Schema)
             const prompt = `
                 Analyze the content of the attached CV file (${req.file.originalname}).
                 Your task is to extract the information and structure it precisely according to the JSON Resume Schema (details at https://jsonresume.org/schema/).
@@ -115,53 +104,47 @@ router.post(
                 Return ONLY a single, valid JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`) that strictly adheres to the JSON Resume Schema structure. Do not include any explanatory text before or after the JSON block.
             `;
 
-            // 3. Get user's Gemini API key and create model
             const userId = String(req.user._id);
             const apiKey = await getGeminiApiKey(userId);
             const model = getGeminiModel(apiKey);
-            
-            // Call Gemini API (as before)
+
             console.log("Sending CV parsing request to Gemini...");
-            const result = await model.generateContent([prompt, fileDataPart]); // Send prompt and file data
+            const result = await model.generateContent([prompt, fileDataPart]);
             const response = result.response;
             const responseText = response.text();
             console.log("Received CV parsing response from Gemini.");
 
-            // 4. Parse Gemini Response into JSON Resume Schema object
-            const cvJsonResume = parseJsonResponseToSchema(responseText, 'JsonResume'); // Use modified parser
+            const cvJsonResume = parseJsonResponseToSchema(responseText, 'JsonResume');
 
-            if (!cvJsonResume) { // Check if parsing returned null due to format errors
+            if (!cvJsonResume) {
                 throw new Error("Failed to parse Gemini response into valid JSON Resume structure.");
             }
 
-            // 5. Save JSON to User document and clear analysis cache (since CV changed)
             const updatedUser = await User.findByIdAndUpdate(
                 req.user._id,
-                { 
-                    $set: { cvJson: cvJsonResume }, // Save the schema-compliant JSON
-                    $unset: { cvAnalysisCache: "" } // Clear cache since CV changed
+                {
+                    $set: { cvJson: cvJsonResume },
+                    $unset: { cvAnalysisCache: "" }
                 },
                 { new: true }
-            ).select('-passwordHash -cvJson'); // Exclude password and potentially large CV from response
+            ).select('-passwordHash -cvJson');
 
             if (!updatedUser) { res.status(404).json({ message: "User not found after update." }); return; }
 
             console.log(`JSON Resume CV data saved for user ${req.user.email}`);
             res.status(200).json({
                 message: 'CV uploaded and parsed successfully (JSON Resume format).',
-                cvData: cvJsonResume // Send back the parsed data so frontend can update immediately
+                cvData: cvJsonResume
             });
 
         } catch (error: any) {
             console.error("CV Upload/Parsing Error:", error);
-            
-            // Preserve NotFoundError (e.g., missing API key) with its detailed message and status code
+
             if (error instanceof NotFoundError || (error?.statusCode === 404 && error?.isOperational)) {
                 res.status(404).json({ message: error.message });
                 return;
             }
-            
-            // Handle specific errors (file type, AI block, parsing fail)
+
             if (error instanceof Error && error.message.includes("Invalid file type")) {
                 res.status(400).json({ message: error.message });
                 return;
@@ -175,15 +158,13 @@ router.post(
                 res.status(400).json({ message: `Content processing blocked by AI: ${blockReason || 'Unknown reason'}` });
                 return;
             }
-            
-            // For other errors, preserve the original message if available
-            res.status(500).json({ 
-                message: error?.message || 'Failed to process CV. Unknown server error' 
+
+            res.status(500).json({
+                message: error?.message || 'Failed to process CV. Unknown server error'
             });
         }
     }
 );
-
 
 // Optional: GET route to retrieve the user's current CV JSON
 router.get('/', authMiddleware as RequestHandler, async (req: Request, res: Response) => {
@@ -192,11 +173,11 @@ router.get('/', authMiddleware as RequestHandler, async (req: Request, res: Resp
         return;
     }
     try {
-        // User might not have cvJson yet if they haven't uploaded
-        const user = await User.findById(req.user._id).select('cvJson cvAnalysisCache');
-        res.status(200).json({ 
+        const user = await User.findById(req.user._id).select('cvJson cvAnalysisCache selectedTemplate');
+        res.status(200).json({
             cvData: user?.cvJson || null,
-            analysisCache: user?.cvAnalysisCache || null
+            analysisCache: user?.cvAnalysisCache || null,
+            selectedTemplate: user?.selectedTemplate || 'modern-clean'
         });
     } catch (error) {
         console.error("Error fetching CV data:", error);
@@ -212,26 +193,31 @@ router.put('/', authMiddleware as RequestHandler, async (req: Request, res: Resp
     }
 
     try {
-        const cvData = req.body;
+        const { cvData, selectedTemplate } = req.body;
 
         if (!cvData || typeof cvData !== 'object') {
             res.status(400).json({ message: 'CV data is required in the request body.' });
             return;
         }
 
-        // Validate that it has at least a basics section (basic validation)
         if (!cvData.basics) {
             res.status(400).json({ message: 'CV data must include a basics section.' });
             return;
         }
 
-        // Update the user's CV JSON and clear analysis cache (since CV changed)
+        const updateData: any = {
+            $set: { cvJson: cvData as JsonResumeSchema },
+            $unset: { cvAnalysisCache: "" }
+        };
+
+        // Update selectedTemplate if provided
+        if (selectedTemplate && typeof selectedTemplate === 'string') {
+            updateData.$set.selectedTemplate = selectedTemplate;
+        }
+
         const updatedUser = await User.findByIdAndUpdate(
             req.user._id,
-            { 
-                $set: { cvJson: cvData as JsonResumeSchema },
-                $unset: { cvAnalysisCache: "" } // Clear cache since CV changed
-            },
+            updateData,
             { new: true }
         ).select('-passwordHash -cvJson');
 
@@ -243,11 +229,11 @@ router.put('/', authMiddleware as RequestHandler, async (req: Request, res: Resp
         console.log(`CV data updated for user ${req.user.email}`);
         res.status(200).json({
             message: 'CV updated successfully.',
-            cvData: cvData // Return the updated CV data
+            cvData: cvData
         });
     } catch (error: any) {
         console.error("Error updating CV data:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             message: 'Failed to update CV data.',
             error: error.message || 'Unknown server error'
         });
@@ -263,7 +249,7 @@ router.delete('/', authMiddleware as RequestHandler, async (req: Request, res: R
     try {
         const updatedUser = await User.findByIdAndUpdate(
             req.user._id,
-            { $unset: { cvJson: "" } }, // Remove the cvJson field
+            { $unset: { cvJson: "" } },
             { new: true }
         ).select('-passwordHash -cvJson');
 
@@ -288,7 +274,7 @@ router.post('/preview', authMiddleware as RequestHandler, async (req: Request, r
     }
 
     try {
-        const { cvData } = req.body;
+        const { cvData, template } = req.body;
 
         if (!cvData || typeof cvData !== 'object') {
             res.status(400).json({ message: 'CV data is required in the request body.' });
@@ -296,7 +282,10 @@ router.post('/preview', authMiddleware as RequestHandler, async (req: Request, r
         }
 
         // Generate PDF buffer
-        const pdfBuffer = await generateCvPdfBuffer(cvData as JsonResumeSchema);
+        const pdfBuffer = await generateCvPdfBuffer(
+            cvData as JsonResumeSchema,
+            (template as CVTemplate) || CVTemplate.HARVARD
+        );
 
         // Convert buffer to base64 string
         const base64Pdf = pdfBuffer.toString('base64');
@@ -307,12 +296,11 @@ router.post('/preview', authMiddleware as RequestHandler, async (req: Request, r
         });
     } catch (error: any) {
         console.error("Error generating CV preview:", error);
-        res.status(500).json({ 
-            message: 'Failed to generate CV preview.', 
-            error: error.message || 'Unknown server error' 
+        res.status(500).json({
+            message: 'Failed to generate CV preview.',
+            error: error.message || 'Unknown server error'
         });
     }
 });
-
 
 export default router;

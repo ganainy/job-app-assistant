@@ -103,7 +103,7 @@ export async function analyzeWithGemini(
         let prompt = `
 You are an expert ATS (Applicant Tracking System) analyzer. Your task is to analyze a CV/resume for ATS compatibility and match it against a job description if provided.
 
-**Comprehensive Analysis Requirements - Evaluate ALL 10 Key Metrics:**
+**Comprehensive Analysis Requirements - Evaluate ALL 11 Key Metrics:**
 
 1. **ATS Compatibility Score (0-100):**
    - Calculate overall ATS compatibility score (0-100)
@@ -168,6 +168,13 @@ You are an expert ATS (Applicant Tracking System) analyzer. Your task is to anal
     - Assess whether job titles are standard and clear
     - Provide score (0-100) and list non-standard headers found
 
+11. **Individual Section Scores:**
+    - Evaluate and score each major CV section individually (0-100) for ATS compatibility
+    - Score sections like: "Work Experience", "Education", "Skills", "Summary", "Contact Information", "Certifications", "Languages", "Projects"
+    - For each section, consider: completeness, keyword usage, formatting, ATS-friendliness, and relevance
+    - Provide sectionScores as an object with section names as keys and scores (0-100) as values
+    - Only include sections that exist in the CV
+
 **CV Content:**
 ${cvText}
 
@@ -176,9 +183,9 @@ ${cvJsonString}
 `;
 
         if (jobDescription) {
-            prompt += `\n\n**Job Description:**\n${jobDescription}\n\nAnalyze the CV specifically against this job description. Calculate the ATS compatibility score that shows how well the resume aligns with these job requirements. Focus on keyword matching (highlight matched keywords, identify missing keywords crucial for shortlisting), skill alignment, and overall fit. Evaluate all 10 metrics comprehensively.`;
+            prompt += `\n\n**Job Description:**\n${jobDescription}\n\nAnalyze the CV specifically against this job description. Calculate the ATS compatibility score that shows how well the resume aligns with these job requirements. Focus on keyword matching (highlight matched keywords, identify missing keywords crucial for shortlisting), skill alignment, and overall fit. Evaluate all 11 metrics comprehensively, including individual section scores for each major CV section.`;
         } else {
-            prompt += `\n\n**Note:** No job description provided. Perform comprehensive general ATS compatibility analysis evaluating all 10 key metrics:
+            prompt += `\n\n**Note:** No job description provided. Perform comprehensive general ATS compatibility analysis evaluating all 11 key metrics:
 - ATS Compatibility Score (general ATS compatibility)
 - Keyword Presence (industry-standard keywords)
 - Formatting Quality
@@ -189,6 +196,7 @@ ${cvJsonString}
 - Readability and Consistency
 - Absence of ATS-Blocking Elements
 - Use of Standard Job Titles and Section Headers
+- Individual Section Scores (score each major CV section separately)
 
 Provide detailed analysis for each metric to ensure the CV can pass through ATS systems smoothly.`;
         }
@@ -204,7 +212,7 @@ Provide detailed analysis for each metric to ensure the CV can pass through ATS 
   "missingSkills": <array of strings>,
   "formattingIssues": <array of strings>,
   "recommendations": <array of strings>,
-  "sectionScores": <object with section names as keys and scores 0-100 as values, optional>,
+  "sectionScores": <REQUIRED object with section names as keys and scores 0-100 as values. Must include scores for all major sections present in the CV (e.g., "Work Experience": 85, "Education": 90, "Skills": 75, "Summary": 80, "Contact Information": 95, etc.). Each score reflects ATS compatibility for that specific section.>,
   "skillMatchPercentage": <number 0-100, optional>,
   "gapAnalysis": <object with gap details, optional>,
   "sectionCompleteness": {

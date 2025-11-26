@@ -7,6 +7,7 @@ import { extractJobDataFromUrl, ExtractedJobData } from '../utils/aiExtractor';
 import mongoose from 'mongoose'; // Import mongoose for ObjectId type
 import { JsonResumeSchema } from '../types/jsonresume'; // Import if needed for validation
 import { validateRequest, ValidatedRequest } from '../middleware/validateRequest';
+import { getJobRecommendation } from '../services/jobRecommendationService';
 import {
   createJobBodySchema,
   updateJobBodySchema,
@@ -64,6 +65,15 @@ const createJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
     });
 
     const savedJob = await newJob.save();
+
+    if (savedJob.jobDescriptionText && savedJob.jobDescriptionText.trim().length > 0) {
+      const userId = req.user._id as mongoose.Types.ObjectId;
+      const jobId = savedJob._id as mongoose.Types.ObjectId;
+      getJobRecommendation(userId, jobId, true).catch(error => {
+        console.error(`Failed to generate recommendation for new job ${jobId}:`, error);
+      });
+    }
+
     res.status(201).json(savedJob);
   } catch (error) {
     console.error("Error creating job:", error);
@@ -76,6 +86,59 @@ const createJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   }
 };
 router.post('/', validateRequest({ body: createJobBodySchema }), createJobHandler);
+
+// GET /api/jobs/:id - Retrieve a single job application (ensure it belongs to user)
+// --- Get All Job Recommendations Endpoint ---
+// GET /api/job-applications/recommendations
+const getAllJobRecommendationsHandler: RequestHandler = async (req, res) => {
+  const user = req.user as { _id: mongoose.Types.ObjectId | string };
+  if (!user) {
+    res.status(401).json({ message: 'User not authenticated correctly.' });
+    return;
+  }
+
+  const userId = user._id;
+
+  try {
+    const { getAllJobRecommendations } = await import('../services/jobRecommendationService');
+    const recommendations = await getAllJobRecommendations(userId);
+
+    res.status(200).json(recommendations);
+  } catch (error: any) {
+    console.error(`Error fetching all recommendations for user ${userId}:`, error);
+    res.status(500).json({
+      message: 'Server error fetching recommendations.',
+      error: error.message || 'Unknown error'
+    });
+  }
+};
+router.get('/recommendations', getAllJobRecommendationsHandler);
+
+// --- Regenerate All Job Recommendations Endpoint ---
+// POST /api/job-applications/recommendations/regenerate
+const regenerateAllRecommendationsHandler: RequestHandler = async (req, res) => {
+  const user = req.user as { _id: mongoose.Types.ObjectId | string };
+  if (!user) {
+    res.status(401).json({ message: 'User not authenticated correctly.' });
+    return;
+  }
+
+  const userId = user._id;
+
+  try {
+    const { regenerateAllJobRecommendations } = await import('../services/jobRecommendationService');
+    const recommendations = await regenerateAllJobRecommendations(userId);
+
+    res.status(200).json(recommendations);
+  } catch (error: any) {
+    console.error(`Error regenerating all recommendations for user ${userId}:`, error);
+    res.status(500).json({
+      message: 'Server error regenerating recommendations.',
+      error: error.message || 'Unknown error'
+    });
+  }
+};
+router.post('/recommendations/regenerate', regenerateAllRecommendationsHandler);
 
 // GET /api/jobs/:id - Retrieve a single job application (ensure it belongs to user)
 const getJobByIdHandler: RequestHandler = async (req: ValidatedRequest, res) => {
@@ -261,12 +324,19 @@ const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, re
     const savedJob = await newJob.save();
     console.log(`Successfully created job ${savedJob._id} from URL ${url}`);
 
+    if (savedJob.jobDescriptionText && savedJob.jobDescriptionText.trim().length > 0) {
+      const jobId = savedJob._id as mongoose.Types.ObjectId;
+      getJobRecommendation(userId, jobId, true).catch(error => {
+        console.error(`Failed to generate recommendation for new job ${jobId}:`, error);
+      });
+    }
+
     // 4. Return the created job
     res.status(201).json(savedJob);
 
   } catch (error: any) {
     console.error(`Failed to create job from URL ${url}:`, error);
-    
+
     // Preserve the original error message and status code if it's an AppError
     if (error?.statusCode && error?.isOperational) {
       res.status(error.statusCode).json({
@@ -274,7 +344,7 @@ const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, re
       });
       return;
     }
-    
+
     // For other errors, provide more specific feedback
     res.status(500).json({
       message: error?.message || 'Failed to create job from URL. Unknown server error during URL processing.'
@@ -373,6 +443,34 @@ const updateJobDraftHandler: RequestHandler = async (req: ValidatedRequest, res)
 };
 // Add the new route
 router.put('/:id/draft', validateRequest({ params: objectIdParamSchema, body: updateDraftBodySchema }), updateJobDraftHandler);
+
+
+// --- Get Job Recommendation Endpoint ---
+// GET /api/job-applications/:id/recommendation
+const getJobRecommendationHandler: RequestHandler = async (req: ValidatedRequest, res) => {
+  const user = req.user as { _id: mongoose.Types.ObjectId | string };
+  if (!user) {
+    res.status(401).json({ message: 'User not authenticated correctly.' });
+    return;
+  }
+
+  const { id: jobId } = req.validated!.params!;
+  const userId = user._id;
+  const forceRefresh = req.query.forceRefresh === 'true';
+
+  try {
+    const recommendation = await getJobRecommendation(userId, jobId, forceRefresh);
+
+    res.status(200).json(recommendation);
+  } catch (error: any) {
+    console.error(`Error fetching recommendation for job ${jobId}:`, error);
+    res.status(500).json({
+      message: 'Server error fetching recommendation.',
+      error: error.message || 'Unknown error'
+    });
+  }
+};
+router.get('/:id/recommendation', validateRequest({ params: objectIdParamSchema }), getJobRecommendationHandler);
 
 
 export default router; // Export the configured router
