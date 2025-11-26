@@ -180,3 +180,16 @@ export const updateJobDraft = async (jobId: string, draftData: UpdateDraftPayloa
         throw { message: 'An unknown error occurred updating draft data.' };
     }
 };
+
+// Function to get all job applications with generated CVs
+export const getJobsWithCvs = async (): Promise<JobApplication[]> => {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/job-applications`);
+        // Filter to only return jobs that have generated CVs
+        const allJobs = response.data;
+        return allJobs.filter((job: JobApplication) => job.draftCvJson && Object.keys(job.draftCvJson).length > 0);
+    } catch (error) {
+        console.error("Error fetching jobs with CVs:", error);
+        throw error;
+    }
+};
