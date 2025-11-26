@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { uploadCV, getCurrentCv, updateCurrentCv, deleteCurrentCv, previewCv } from '../services/cvApi';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
 import CvPreviewModal from '../components/cv-editor/CvPreviewModal';
+import CvLivePreview from '../components/cv-editor/CvLivePreview';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import Toast from '../components/common/Toast';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
@@ -11,6 +12,7 @@ import { fetchAllSectionsAnalysis, fetchSectionAnalysis, SectionAnalysisResult }
 import { improveSection } from '../services/generatorApi';
 import { scanAts, getAtsScores, getLatestAts, AtsScores } from '../services/atsApi';
 import GeneralCvAtsPanel from '../components/ats/GeneralCvAtsPanel';
+import { getAllTemplates } from '../templates/config';
 
 const CVManagementPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -30,6 +32,8 @@ const CVManagementPage: React.FC = () => {
   const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('modern-clean');
+  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
 
   // Analysis state
   const [analyses, setAnalyses] = useState<Record<string, SectionAnalysisResult[]>>({});
@@ -541,7 +545,7 @@ const CVManagementPage: React.FC = () => {
 
     setIsGeneratingPreview(true);
     try {
-      const response = await previewCv(currentCvData);
+      const response = await previewCv(currentCvData, selectedTemplate);
       setPreviewPdfBase64(response.pdfBase64);
       setIsPreviewOpen(true);
     } catch (error: any) {
@@ -998,70 +1002,109 @@ const CVManagementPage: React.FC = () => {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2 lg:flex-shrink-0">
-                  <button
-                    onClick={handlePreviewCv}
-                    disabled={isGeneratingPreview}
-                    className="px-4 py-2.5 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
-                    title="Preview your CV as a PDF"
-                  >
-                    {isGeneratingPreview ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span className="hidden sm:inline">Generating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        <span className="hidden sm:inline">Preview</span>
-                        <span className="sm:hidden">Preview</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsReplacing(true);
-                      setSelectedFile(null);
-                    }}
-                    className="px-4 py-2.5 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
-                    title="Replace with a new CV file"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                    </svg>
-                    <span className="hidden sm:inline">Replace</span>
-                    <span className="sm:hidden">Replace</span>
-                  </button>
-                  <button
-                    onClick={handleDeleteCv}
-                    disabled={isDeleting}
-                    className="px-4 py-2.5 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
-                    title="Delete your CV (cannot be undone)"
-                  >
-                    {isDeleting ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        <span className="hidden sm:inline">Delete</span>
-                        <span className="sm:hidden">Delete</span>
-                      </>
-                    )}
-                  </button>
+                <div className="flex flex-wrap items-center gap-4 lg:flex-shrink-0">
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <button
+                      onClick={() => setViewMode('edit')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                        viewMode === 'edit'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                      }`}
+                      title="Edit mode"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setViewMode('split')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                        viewMode === 'split'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                      }`}
+                      title="Split view"
+                    >
+                      Split
+                    </button>
+                    <button
+                      onClick={() => setViewMode('preview')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                        viewMode === 'preview'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                      }`}
+                      title="Preview mode"
+                    >
+                      Preview
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handlePreviewCv}
+                      disabled={isGeneratingPreview}
+                      className="px-4 py-2.5 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
+                      title="Preview your CV as a PDF"
+                    >
+                      {isGeneratingPreview ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span className="hidden sm:inline">Generating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          <span className="hidden sm:inline">Preview</span>
+                          <span className="sm:hidden">Preview</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsReplacing(true);
+                        setSelectedFile(null);
+                      }}
+                      className="px-4 py-2.5 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
+                      title="Replace with a new CV file"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      <span className="hidden sm:inline">Replace</span>
+                      <span className="sm:hidden">Replace</span>
+                    </button>
+                    <button
+                      onClick={handleDeleteCv}
+                      disabled={isDeleting}
+                      className="px-4 py-2.5 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
+                      title="Delete your CV (cannot be undone)"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span className="hidden sm:inline">Deleting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span className="hidden sm:inline">Delete</span>
+                          <span className="sm:hidden">Delete</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1151,51 +1194,86 @@ const CVManagementPage: React.FC = () => {
                 <LoadingSkeleton lines={4} />
               </div>
             ) : currentCvData ? (
-              <div className="flex justify-center">
-                <div className="w-full max-w-[816px]">
-                  {/* Analysis Status Banner */}
-                  {isAnalyzing && (
-                    <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex items-start gap-3 shadow-sm">
-                      <svg
-                        className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                          Analyzing CV sections...
-                        </p>
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          AI is reviewing your work experience, education, and skills to provide improvement suggestions.
-                        </p>
+              <>
+                {viewMode === 'edit' && (
+                  <div className="flex justify-center">
+                    <div className="w-full max-w-[816px]">
+                      {/* Analysis Status Banner */}
+                      {isAnalyzing && (
+                        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex items-start gap-3 shadow-sm">
+                          <svg
+                            className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                              Analyzing CV sections...
+                            </p>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                              AI is reviewing your work experience, education, and skills to provide improvement suggestions.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {/* CV Editor */}
+                      <CvFormEditor
+                        data={currentCvData}
+                        onChange={handleCvChange}
+                        analyses={analyses}
+                        onImproveSection={handleImproveSection}
+                        improvingSections={improvingSections}
+                      />
+                    </div>
+                  </div>
+                )}
+                {viewMode === 'preview' && (
+                  <div className="w-full" style={{ minHeight: '800px' }}>
+                    <CvLivePreview
+                      data={currentCvData}
+                      templateId={selectedTemplate}
+                      onTemplateChange={setSelectedTemplate}
+                    />
+                  </div>
+                )}
+                {viewMode === 'split' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="w-full">
+                      <div className="sticky top-4">
+                        <CvFormEditor
+                          data={currentCvData}
+                          onChange={handleCvChange}
+                          analyses={analyses}
+                          onImproveSection={handleImproveSection}
+                          improvingSections={improvingSections}
+                        />
                       </div>
                     </div>
-                  )}
-                  {/* CV Editor */}
-                  <CvFormEditor
-                    data={currentCvData}
-                    onChange={handleCvChange}
-                    analyses={analyses}
-                    onImproveSection={handleImproveSection}
-                    improvingSections={improvingSections}
-                  />
-                </div>
-              </div>
+                    <div className="w-full" style={{ minHeight: '800px' }}>
+                      <CvLivePreview
+                        data={currentCvData}
+                        templateId={selectedTemplate}
+                        onTemplateChange={setSelectedTemplate}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-16 px-4">
                 <div className="mx-auto w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center mb-4">
