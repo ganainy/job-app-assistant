@@ -12,8 +12,10 @@ import {
 } from '../services/jobApi';
 import { getApiKeys } from '../services/settingsApi';
 import JobStatusBadge from '../components/jobs/JobStatusBadge';
+import JobRecommendationBadge from '../components/jobs/JobRecommendationBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import Toast from '../components/common/Toast';
+import { getAllJobRecommendations, JobRecommendation } from '../services/jobRecommendationApi';
 
 // Define type for the form data used in the Add/Edit modal
 type JobFormData = Partial<Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt' | 'generationStatus' | 'generatedCvFilename' | 'generatedCoverLetterFilename'>>;
@@ -65,6 +67,10 @@ const DashboardPage: React.FC = () => {
   // --- Pagination State ---
   const [currentPage, setCurrentPage] = useState<number>(1);
 
+  // --- Recommendations State ---
+  const [recommendations, setRecommendations] = useState<Record<string, JobRecommendation>>({});
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState<boolean>(false);
+
   // --- useEffect: Check API keys status ---
   useEffect(() => {
     const checkApiKeys = async () => {
@@ -100,6 +106,44 @@ const DashboardPage: React.FC = () => {
     };
     fetchJobs();
   }, []);
+
+  // --- useEffect: Fetch recommendations when jobs are loaded ---
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      if (jobs.length === 0) {
+        setRecommendations({});
+        return;
+      }
+      
+      setIsLoadingRecommendations(true);
+      try {
+        const fetchedRecommendations = await getAllJobRecommendations();
+        setRecommendations(fetchedRecommendations);
+      } catch (err: any) {
+        console.error("Failed to fetch recommendations:", err);
+        setRecommendations({});
+      } finally {
+        setIsLoadingRecommendations(false);
+      }
+    };
+    
+    if (!isLoading) {
+      fetchRecommendations();
+    }
+  }, [jobs, isLoading]);
+
+  // --- Function to refetch recommendations ---
+  const refetchRecommendations = async () => {
+    setIsLoadingRecommendations(true);
+    try {
+      const fetchedRecommendations = await getAllJobRecommendations();
+      setRecommendations(fetchedRecommendations);
+    } catch (err: any) {
+      console.error("Failed to refetch recommendations:", err);
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  };
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -236,6 +280,11 @@ const DashboardPage: React.FC = () => {
     try {
       await deleteJob(jobId);
       setJobs(prevJobs => prevJobs.filter(job => job._id !== jobId));
+      setRecommendations(prev => {
+        const updated = { ...prev };
+        delete updated[jobId];
+        return updated;
+      });
       setDeleteConfirmModal({ isOpen: false, jobId: null, jobTitle: '' });
       setToast({ message: 'Job application deleted successfully!', type: 'success' });
     } catch (err: any) {
@@ -298,6 +347,7 @@ const DashboardPage: React.FC = () => {
   const handleRowClick = (jobId: string) => {
     navigate(`/jobs/${jobId}/review`);
   };
+
 
   // --- Helper function to render sort indicators ---
   const renderSortArrow = (key: SortableJobKeys) => {
@@ -593,6 +643,7 @@ const DashboardPage: React.FC = () => {
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Job Title</th>
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Company</th>
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Status</th>
+                        <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Job Match Score</th>
                         <th
                           onClick={() => handleSort('createdAt')}
                           className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -617,6 +668,12 @@ const DashboardPage: React.FC = () => {
                           <td className="p-4 text-slate-600 dark:text-slate-400">{job.companyName}</td>
                           <td className="p-4">
                             <JobStatusBadge type="application" status={job.status} />
+                          </td>
+                          <td className="p-4">
+                            <JobRecommendationBadge 
+                              recommendation={recommendations[job._id] || null}
+                              isLoading={isLoadingRecommendations}
+                            />
                           </td>
                           <td className="p-4 text-slate-600 dark:text-slate-400">
                             {new Date(job.createdAt).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
