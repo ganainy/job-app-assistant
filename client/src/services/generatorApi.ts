@@ -154,7 +154,8 @@ export const getDownloadUrl = (filename: string): string => {
 // Function to improve a CV section
 export const improveSection = async (
     sectionName: string,
-    sectionData: any
+    sectionData: any,
+    customInstructions?: string
 ): Promise<any> => {
     const token = localStorage.getItem('authToken');
     if (!token) {
@@ -166,7 +167,8 @@ export const improveSection = async (
             `${API_BASE_URL}/generator/improve-section`,
             {
                 sectionName,
-                sectionData
+                sectionData,
+                customInstructions
             },
             {
                 headers: {

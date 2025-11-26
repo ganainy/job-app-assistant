@@ -195,7 +195,7 @@ export const getCvHtml = (resume: JsonResumeSchema): string => {
     // --- Summary ---
     const summaryHtml = basics.summary ? `
         <div class="section summary">
-            <h2>Summary</h2>
+            <h2>Professional Summary</h2>
             <p>${basics.summary}</p>
         </div>
     ` : '';
