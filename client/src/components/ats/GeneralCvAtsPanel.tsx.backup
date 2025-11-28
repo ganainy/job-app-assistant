@@ -9,7 +9,7 @@ interface GeneralCvAtsPanelProps {
     isLoading?: boolean;
 }
 
-type TabType = 'overview' | 'metrics' | 'recommendations';
+type TabType = 'overview' | 'format' | 'content' | 'keywords' | 'issues';
 
 interface CollapsibleSectionProps {
     title: string;
@@ -202,8 +202,10 @@ const GeneralCvAtsPanel: React.FC<GeneralCvAtsPanelProps> = ({ atsScores, analys
 
     const tabs = [
         { id: 'overview' as TabType, label: 'Overview' },
-        { id: 'metrics' as TabType, label: 'All Metrics', count: 10 },
-        { id: 'recommendations' as TabType, label: 'Recommendations', count: recommendations.length }
+        { id: 'format' as TabType, label: 'Format & Structure' },
+        { id: 'content' as TabType, label: 'Content Quality' },
+        { id: 'keywords' as TabType, label: 'Keywords', count: keywordsMatched.length + keywordsMissing.length },
+        { id: 'issues' as TabType, label: 'Issues', count: atsBlockingElements.length + recommendations.length }
     ];
 
     const score = atsScores?.score || 0;

@@ -13,7 +13,6 @@ import { scanAts, getAtsScores, getLatestAts, AtsScores } from '../services/atsA
 import GeneralCvAtsPanel from '../components/ats/GeneralCvAtsPanel';
 import { getAllTemplates } from '../templates/config';
 import { getJobsWithCvs, JobApplication, updateJob } from '../services/jobApi';
-import AnalysisDashboard from '../components/ats/AnalysisDashboard';
 import { getAtsForJob } from '../services/atsApi';
 
 const CVManagementPage: React.FC = () => {
@@ -1004,356 +1003,166 @@ const CVManagementPage: React.FC = () => {
             </div>
           )}
 
-          {/* CV Info Section - Show when CV exists and not replacing */}
-          {currentCvData && !isLoadingCv && !isReplacing && (
-            <div className="mb-8 p-8 border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-xl bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800 dark:to-gray-800/50 backdrop-blur-sm transition-all duration-300">
-              {/* Analysis Status Indicator */}
-              {isAnalyzing && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex items-center gap-3 shadow-sm">
-                  <svg
-                    className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  <div>
-                    <span className="text-sm font-semibold text-blue-800 dark:text-blue-300 block">
-                      Analyzing CV sections...
-                    </span>
-                    <span className="text-xs text-blue-600 dark:text-blue-400">
-                      AI is reviewing your CV for improvement suggestions
-                    </span>
-                  </div>
-                </div>
-              )}
 
-              <div className="flex flex-col gap-6">
-                {/* Header with CV Name and Analyze Button */}
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                  <div className="flex items-start gap-4 flex-1">
-                    <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 to-green-100 dark:from-emerald-900/40 dark:to-green-900/40 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0">
-                      <svg className="w-7 h-7 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
-                        {currentCvData.basics?.name || 'Your CV'}
-                      </h2>
-                      {currentCvData.basics?.label && (
-                        <p className="text-base text-gray-600 dark:text-gray-400 mb-3">
-                          {currentCvData.basics.label}
-                        </p>
-                      )}
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Left Column: CV Versions (4 cols) */}
+            <div className="lg:col-span-4 space-y-6">
+              {currentCvData && (
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    My CVs
+                  </h3>
+                  <div className="space-y-4">
+                    {/* Master CV Card */}
+                    <div
+                      onClick={() => setActiveCvId('master')}
+                      className={`w-full p-4 bg-white dark:bg-gray-800 border-2 rounded-xl shadow-sm hover:shadow-md cursor-pointer transition-all group ${activeCvId === 'master'
+                        ? 'border-blue-500 ring-2 ring-blue-500/20'
+                        : 'border-gray-100 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold rounded uppercase">Master</span>
+                        {activeCvId === 'master' && (
+                          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-gray-900 dark:text-gray-100 truncate">{currentCvData.basics?.name || 'My CV'}</h4>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Last updated: {lastSavedTime ? formatRelativeTime(lastSavedTime) : 'Recently'}</p>
+                        </div>
+                      </div>
 
-                      {/* Smart Status Badge - Shows only most relevant status */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {(() => {
-                          const status = getSmartStatus();
-                          if (!status) return null;
-
-                          const colorClasses = {
-                            amber: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300',
-                            blue: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
-                            red: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
-                            green: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
-                          };
-
-                          const iconComponents = {
-                            dot: <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></div>,
-                            spinner: (
-                              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                            ),
-                            error: (
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                            ),
-                            warning: (
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                              </svg>
-                            ),
-                            check: (
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
-                            ),
-                          };
-
-                          return (
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${colorClasses[status.color as keyof typeof colorClasses]}`}
-                              title={status.tooltip || undefined}
-                            >
-                              {iconComponents[status.icon as keyof typeof iconComponents]}
-                              {status.text}
-                            </span>
-                          );
-                        })()}
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsReplacing(true);
+                            setSelectedFile(null);
+                          }}
+                          className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                          Replace
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCv();
+                          }}
+                          disabled={isDeleting}
+                          className="flex-1 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        >
+                          {isDeleting ? (
+                            <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                          ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          )}
+                          Delete
+                        </button>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Refresh Analysis Button */}
-                  <button
-                    onClick={handleRunAnalysis}
-                    disabled={isAnalyzing || isScanningAts}
-                    className={`px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-200 flex items-center gap-2 ${isAnalysisOutdated
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white animate-pulse'
-                      : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
-                      } disabled:opacity-50 disabled:cursor-not-allowed disabled:animate-none hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none`}
-                  >
-                    {isAnalyzing || isScanningAts ? (
-                      <>
-                        <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>Analyzing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        <span>Refresh Analysis</span>
-                      </>
+                    {/* Job CV Cards */}
+                    {jobCvs.length > 0 && (
+                      <div className="pt-2">
+                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Optimized CVs</h4>
+                        <div className="space-y-3">
+                          {jobCvs.map((job) => (
+                            <div
+                              key={job._id}
+                              onClick={() => setActiveCvId(job._id)}
+                              className={`w-full p-3 bg-white dark:bg-gray-800 border-2 rounded-xl shadow-sm hover:shadow-md cursor-pointer transition-all group ${activeCvId === job._id
+                                ? 'border-purple-500 ring-2 ring-purple-500/20'
+                                : 'border-gray-100 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700'
+                                }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center text-purple-600 dark:text-purple-400">
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <h4 className="font-bold text-gray-900 dark:text-gray-100 truncate text-sm">{job.jobTitle}</h4>
+                                    {activeCvId === job._id && (
+                                      <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></div>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{job.companyName}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                  </button>
-                </div>
 
-                {/* Action Buttons Row */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  {/* Left side: View Mode Toggle */}
-                  <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700/50 p-1 rounded-lg">
-                    <button
-                      onClick={() => setViewMode('edit')}
-                      className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 ${viewMode === 'edit'
-                        ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                        }`}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => setViewMode('split')}
-                      className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 ${viewMode === 'split'
-                        ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                        }`}
-                    >
-                      Split
-                    </button>
-                    <button
-                      onClick={() => setViewMode('preview')}
-                      className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 ${viewMode === 'preview'
-                        ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                        }`}
-                    >
-                      Preview
-                    </button>
-                  </div>
-
-                  {/* Template Selector */}
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="template-select" className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                      Template:
-                    </label>
-                    <select
-                      id="template-select"
-                      value={selectedTemplate}
-                      onChange={(e) => handleTemplateChange(e.target.value)}
-                      className="px-3 py-2 text-xs sm:text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    >
-                      {getAllTemplates().map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Right side: Action Buttons */}
-                  <div className="flex items-center gap-2 sm:gap-3 sm:ml-auto">
-                    <button
-                      onClick={() => {
-                        setIsReplacing(true);
-                        setSelectedFile(null);
-                      }}
-                      className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gray-600 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-700 dark:hover:bg-gray-800 flex items-center justify-center gap-2 font-medium shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] text-sm"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      <span className="hidden sm:inline">Replace</span>
-                      <span className="sm:hidden">Replace CV</span>
-                    </button>
-                    <button
-                      onClick={handleDeleteCv}
-                      disabled={isDeleting}
-                      className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none text-sm"
-                    >
-                      {isDeleting ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          <span>Deleting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          <span>Delete</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* CV Versions Navigation */}
-          {currentCvData && (
-            <div className="mb-8">
-              <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">CV Versions</h3>
-              <div className="flex gap-4 overflow-x-auto pb-4 snap-x scrollbar-hide">
-                {/* Master CV Card */}
-                <div
-                  onClick={() => setActiveCvId('master')}
-                  className={`flex-shrink-0 w-64 p-4 bg-white dark:bg-gray-800 border-l-4 rounded-xl shadow-sm hover:shadow-md cursor-pointer transition-all snap-start group ${activeCvId === 'master'
-                    ? 'border-blue-500 ring-2 ring-blue-500/20'
-                    : 'border-transparent hover:border-blue-300'
-                    }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold rounded uppercase">Master</span>
-                    {activeCvId === 'master' && (
-                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                    )}
-                  </div>
-                  <h4 className="font-bold text-gray-900 dark:text-gray-100 truncate">{currentCvData.basics?.name || 'My CV'}</h4>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Primary Version</p>
-                </div>
-
-                {/* Job CV Cards */}
-                {jobCvs.map((job) => (
-                  <div
-                    key={job._id}
-                    onClick={() => setActiveCvId(job._id)}
-                    className={`flex-shrink-0 w-64 p-4 bg-white dark:bg-gray-800 border-l-4 rounded-xl shadow-sm hover:shadow-md cursor-pointer transition-all snap-start group ${activeCvId === job._id
-                      ? 'border-purple-500 ring-2 ring-purple-500/20'
-                      : 'border-transparent hover:border-purple-300'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`px-2 py-1 text-xs font-bold rounded uppercase ${job.status === 'Applied'
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                        : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                        }`}>
-                        {job.status}
-                      </span>
-                      {activeCvId === job._id && (
-                        <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
-                      )}
-                    </div>
-                    <h4 className="font-bold text-gray-900 dark:text-gray-100 truncate">{job.jobTitle}</h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{job.companyName}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ATS Analysis Panel - Show when CV exists and not replacing */}
-          {currentCvData && !isLoadingCv && !isReplacing && (
-            <div className="mb-8 border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-xl bg-white dark:bg-gray-800 overflow-hidden transition-all duration-300">
-              <button
-                onClick={() => setIsAtsPanelOpen(!isAtsPanelOpen)}
-                className="w-full p-6 sm:p-8 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-colors group"
-              >
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 rounded-2xl flex items-center justify-center shadow-lg">
-                    <svg className="w-7 h-7 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 text-left">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">Analysis & ATS Report</h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {atsScores ? 'Comprehensive review of your CV health and ATS compatibility' : 'Get insights on your CV\'s health and ATS compatibility'}
-                    </p>
-                  </div>
-                  {atsScores && (
-                    <div className="flex items-center gap-2">
-                      <span className="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm font-bold">
-                        Score: {atsScores.score !== null && atsScores.score !== undefined ? `${Math.round(atsScores.score)}%` : 'N/A'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  {!atsScores && !isScanningAts && !isUploading && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRunAnalysis();
-                      }}
-                      className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg flex items-center gap-2 font-medium shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02]"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="hidden sm:inline">Analyze</span>
-                    </button>
-                  )}
-                  <svg
-                    className={`w-6 h-6 text-gray-400 dark:text-gray-500 transition-transform duration-300 group-hover:text-gray-600 dark:group-hover:text-gray-300 ${isAtsPanelOpen ? 'transform rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </button>
-              {isAtsPanelOpen && (
-                <div className="border-t border-gray-200 dark:border-gray-700 bg-gradient-to-br from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-800/50">
-                  <AnalysisDashboard
-                    atsScores={atsScores}
-                    analyses={analyses}
-                    isLoading={isScanningAts || isAnalyzing}
-                    onRefresh={handleRunAnalysis}
-                  />
-                  <div className="border-t border-gray-200 dark:border-gray-700 p-6 sm:p-8">
-                    <GeneralCvAtsPanel atsScores={atsScores} isLoading={isScanningAts} />
                   </div>
                 </div>
               )}
             </div>
-          )}
+
+            {/* Right Column: ATS Analysis (8 cols) */}
+            <div className="lg:col-span-8">
+              {currentCvData && !isLoadingCv && !isReplacing && (
+                <div className="h-full border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-xl bg-white dark:bg-gray-800 overflow-hidden transition-all duration-300 flex flex-col">
+                  <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-900/30">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 rounded-xl flex items-center justify-center shadow-sm">
+                        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Analysis & ATS Report</h2>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Real-time insights</p>
+                      </div>
+                    </div>
+                    {isAnalysisOutdated && !atsScores && (
+                      <button
+                        onClick={handleRunAnalysis}
+                        disabled={isAnalyzing || isScanningAts}
+                        className="px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="p-6 flex-1 overflow-y-auto max-h-[600px] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                    <GeneralCvAtsPanel
+                      atsScores={atsScores}
+                      analyses={analyses}
+                      isLoading={isScanningAts || isAnalyzing}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Editor Section */}
           <div id="master-cv-editor" className="mb-8 p-8 border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-xl bg-white dark:bg-gray-800 transition-all duration-300">
@@ -1372,6 +1181,41 @@ const CVManagementPage: React.FC = () => {
                     ? 'Review and edit your master CV data. Changes are auto-saved.'
                     : `Tailoring CV for ${activeJob?.companyName}. Changes are saved to this job application.`}
                 </p>
+              </div>
+
+              {/* Editor Controls */}
+              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+                {/* View Mode Toggle */}
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700/50 p-1 rounded-lg">
+                  <button
+                    onClick={() => setViewMode('edit')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${viewMode === 'edit'
+                      ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setViewMode('split')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${viewMode === 'split'
+                      ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                  >
+                    Split
+                  </button>
+                  <button
+                    onClick={() => setViewMode('preview')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${viewMode === 'preview'
+                      ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                  >
+                    Preview
+                  </button>
+                </div>
+
               </div>
             </div>
 
@@ -1559,12 +1403,27 @@ const CVManagementPage: React.FC = () => {
                 <button
                   onClick={handleRunAnalysis}
                   disabled={isAnalyzing || isScanningAts}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all transform hover:scale-105"
+                  className={`flex items-center gap-2 px-5 py-3 rounded-full shadow-xl transition-all transform hover:scale-105 disabled:transform-none disabled:opacity-50 disabled:cursor-not-allowed ${isAnalysisOutdated
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white animate-pulse'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
+                    }`}
                 >
-                  <span className="text-sm font-medium">Refresh Analysis</span>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  {isAnalyzing || isScanningAts ? (
+                    <>
+                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span className="text-sm font-semibold">Analyzing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span className="text-sm font-semibold">{isAnalysisOutdated ? 'Analysis Outdated - Refresh' : 'Refresh Analysis'}</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
