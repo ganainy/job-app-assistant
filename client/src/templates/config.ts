@@ -13,6 +13,7 @@ import EngineeringResume from './EngineeringResume';
 import ModernA4Resume from './ModernA4Resume';
 import ModernTwoColumnResume from './ModernTwoColumnResume';
 import SoftwareEngineerResume from './SoftwareEngineerResume';
+import GermanLatexResume from './GermanLatexResume';
 
 export interface TemplateConfig {
   id: string;
@@ -114,6 +115,13 @@ export const TEMPLATES: Record<string, TemplateConfig> = {
     description: 'Optimized for software engineers',
     category: 'professional',
     component: SoftwareEngineerResume,
+  },
+  'german-latex': {
+    id: 'german-latex',
+    name: 'LaTeX',
+    description: 'Professional LaTeX-style CV with clean formatting',
+    category: 'professional',
+    component: GermanLatexResume,
   },
 };
 

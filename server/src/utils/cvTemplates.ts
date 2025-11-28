@@ -4,7 +4,8 @@ export enum CVTemplate {
     CLASSIC = 'classic',
     HARVARD = 'harvard',
     MODERN_ATS = 'modern_ats',
-    MINIMAL = 'minimal'
+    MINIMAL = 'minimal',
+    GERMAN_LATEX = 'german_latex'
 }
 
 // --- Helper: Date Formatter ---
@@ -458,6 +459,257 @@ const getMinimalistTemplate = (resume: JsonResumeSchema): string => {
     `;
 };
 
+// --- Template: German LaTeX (Professional German-style with LaTeX formatting) ---
+const getGermanLatexTemplate = (resume: JsonResumeSchema, language: 'en' | 'de' = 'de'): string => {
+    const basics = resume.basics || { name: "Applicant", profiles: [] };
+    const location = basics.location || {};
+
+    const t = {
+        en: {
+            professionalProfile: 'Professional Profile',
+            relevantExperience: 'Relevant IT Experience',
+            education: 'Education',
+            projects: 'Projects',
+            technicalSkills: 'Technical Skills',
+            languages: 'Languages',
+            grade: 'Grade',
+            motherTongue: 'Mother tongue',
+        },
+        de: {
+            professionalProfile: 'Berufliches Profil',
+            relevantExperience: 'Relevante IT-Erfahrung',
+            education: 'Ausbildung',
+            projects: 'Projekte',
+            technicalSkills: 'Technische Fähigkeiten',
+            languages: 'Sprachen',
+            grade: 'Note',
+            motherTongue: 'Muttersprache',
+        },
+    };
+
+    const lang = t[language];
+
+    const styles = `
+        body {
+            font-family: "Times New Roman", Times, serif;
+            font-size: 11pt;
+            line-height: 1.4;
+            color: #000;
+            margin: 40px;
+            background: white;
+        }
+        h1 {
+            font-size: 18pt;
+            font-weight: bold;
+            margin: 0 0 2px 0;
+        }
+        h2 {
+            font-size: 11pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid #000;
+            margin-bottom: 8px;
+            padding-bottom: 2px;
+            margin-top: 15px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            align-items: flex-start;
+        }
+        .header-left {
+            flex: 1;
+        }
+        .header-right {
+            text-align: right;
+            font-size: 9pt;
+            line-height: 1.4;
+        }
+        .location, .education-summary {
+            font-size: 10pt;
+            margin: 2px 0;
+        }
+        section {
+            margin-bottom: 15px;
+        }
+        ul {
+            margin: 0;
+            padding-left: 20px;
+            list-style-type: disc;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .item-content {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        .item-right {
+            text-align: right;
+            font-style: italic;
+            font-size: 9pt;
+        }
+        .company {
+            font-style: italic;
+            font-size: 9pt;
+        }
+        .em-dash-list {
+            font-size: 10pt;
+            margin-top: 4px;
+        }
+        .em-dash-list div {
+            margin-bottom: 2px;
+        }
+        p {
+            margin: 0;
+            text-align: justify;
+            font-size: 10pt;
+        }
+        a {
+            color: #000;
+            text-decoration: none;
+        }
+    `;
+
+    // Header
+    const eduSummary = resume.education && resume.education[0]
+        ? `${resume.education[0].studyType || resume.education[0].degree} ${resume.education[0].area ? `in ${resume.education[0].area}` : ''}`
+        + (resume.education[1] ? ` und ${resume.education[1].studyType || resume.education[1].degree} ${resume.education[1].area ? `in ${resume.education[1].area}` : ''}` : '')
+        : '';
+
+    const header = `
+        <div class="header">
+            <div class="header-left">
+                <h1>${basics.name}</h1>
+                <p class="location">${location.city ? `${location.city}, ` : ''}${location.region || ''}</p>
+                ${eduSummary ? `<p class="education-summary">${eduSummary}</p>` : ''}
+            </div>
+            <div class="header-right">
+                ${basics.phone ? `<p>${basics.phone}</p>` : ''}
+                ${basics.email ? `<p><a href="mailto:${basics.email}">${basics.email}</a></p>` : ''}
+                ${basics.url ? `<p><a href="${basics.url}" target="_blank">Portfolio</a></p>` : ''}
+                ${basics.profiles?.find(p => p.network?.toLowerCase().includes('linkedin')) ? `<p><a href="${basics.profiles.find(p => p.network?.toLowerCase().includes('linkedin'))?.url}" target="_blank">LinkedIn</a></p>` : ''}
+            </div>
+        </div>
+    `;
+
+    // Professional Profile
+    const summary = basics.summary ? `
+        <section>
+            <h2>${lang.professionalProfile}</h2>
+            <p>${basics.summary}</p>
+        </section>
+    ` : '';
+
+    // Experience
+    const work = resume.work?.length ? `
+        <section>
+            <h2>${lang.relevantExperience}</h2>
+            <ul>
+                ${resume.work.map(job => `
+                    <li>
+                        <div class="item-content">
+                            <div>
+                                <strong>${job.position}</strong>
+                                <div class="company">${job.company}</div>
+                            </div>
+                            <div class="item-right">
+                                <div>${formatDate(job.startDate)} – ${formatDate(job.endDate) || (language === 'de' ? 'heute' : 'present')}</div>
+                                ${job.location ? `<div>${job.location}</div>` : ''}
+                            </div>
+                        </div>
+                        ${job.highlights?.length ? `<div class="em-dash-list">${job.highlights.map(h => `<div>– ${h}</div>`).join('')}</div>` : (job.summary ? `<div class="em-dash-list">– ${job.summary}</div>` : '')}
+                    </li>
+                `).join('')}
+            </ul>
+        </section>
+    ` : '';
+
+    // Education
+    const education = resume.education?.length ? `
+        <section>
+            <h2>${lang.education}</h2>
+            <ul>
+                ${resume.education.map(edu => `
+                    <li>
+                        <div class="item-content">
+                            <div>
+                                <strong>${edu.institution}</strong>
+                                <div class="company">${edu.studyType || edu.degree} ${edu.area ? `in ${edu.area}` : ''}${edu.score ? ` (Note ${edu.score})` : ''}</div>
+                            </div>
+                            <div class="item-right">
+                                ${formatDate(edu.startDate)} – ${formatDate(edu.endDate) || (language === 'de' ? 'heute' : 'present')}
+                            </div>
+                        </div>
+                    </li>
+                `).join('')}
+            </ul>
+        </section>
+    ` : '';
+
+    // Projects
+    const projects = resume.projects?.length ? `
+        <section>
+            <h2>${lang.projects}</h2>
+            <ul>
+                ${resume.projects.map(project => `
+                    <li>
+                        <strong>${project.name}</strong>
+                        ${project.description ? `<div class="company" style="margin-top: 2px;">${project.description}</div>` : ''}
+                        ${project.highlights?.length ? `<div class="em-dash-list">${project.highlights.map(h => `<div>–${h}</div>`).join('')}</div>` : ''}
+                    </li>
+                `).join('')}
+            </ul>
+        </section>
+    ` : '';
+
+    // Skills
+    const skills = resume.skills?.length ? `
+        <section>
+            <h2>${lang.technicalSkills}</h2>
+            <ul>
+                ${resume.skills.map(skill => `
+                    <li style="font-size: 10pt;"><strong>${skill.name}:</strong> ${skill.keywords?.join(', ') || ''}</li>
+                `).join('')}
+            </ul>
+        </section>
+    ` : '';
+
+    // Languages
+    const languages = resume.languages?.length ? `
+        <section>
+            <h2>${lang.languages}</h2>
+            <ul>
+                ${resume.languages.map(langItem => `
+                    <li style="font-size: 10pt;"><strong>${langItem.language}:</strong> ${langItem.fluency}</li>
+                `).join('')}
+            </ul>
+        </section>
+    ` : '';
+
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>${styles}</style>
+        </head>
+        <body>
+            ${header}
+            ${summary}
+            ${work}
+            ${education}
+            ${projects}
+            ${skills}
+            ${languages}
+        </body>
+        </html>
+    `;
+};
+
 // --- Main Export ---
 export const getCvTemplateHtml = (resume: JsonResumeSchema, template: CVTemplate = CVTemplate.CLASSIC): string => {
     switch (template) {
@@ -467,6 +719,8 @@ export const getCvTemplateHtml = (resume: JsonResumeSchema, template: CVTemplate
             return getModernAtsTemplate(resume);
         case CVTemplate.MINIMAL:
             return getMinimalistTemplate(resume);
+        case CVTemplate.GERMAN_LATEX:
+            return getGermanLatexTemplate(resume);
         case CVTemplate.CLASSIC:
         default:
             // Fallback to Harvard for now as "Classic" replacement or import original
