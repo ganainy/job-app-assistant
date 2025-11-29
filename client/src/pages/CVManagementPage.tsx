@@ -954,53 +954,55 @@ const CVManagementPage: React.FC = () => {
               </form>
 
               {/* Upload Error Display */}
-              {uploadError && (
-                <div className={`mt-4 p-4 rounded-lg border ${isApiKeyError(uploadError)
-                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
-                  : 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-800'
-                  }`}>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-0.5">
-                      {isApiKeyError(uploadError) ? (
-                        <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`text-sm font-semibold mb-1 ${isApiKeyError(uploadError)
-                        ? 'text-amber-800 dark:text-amber-300'
-                        : 'text-red-800 dark:text-red-300'
-                        }`}>
-                        {isApiKeyError(uploadError) ? 'API Key Required' : 'Upload Error'}
-                      </h3>
-                      <p className={`text-sm mb-3 ${isApiKeyError(uploadError)
-                        ? 'text-amber-700 dark:text-amber-400'
-                        : 'text-red-700 dark:text-red-400'
-                        }`}>
-                        {uploadError}
-                      </p>
-                      {isApiKeyError(uploadError) && (
-                        <Link
-                          to="/settings"
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-amber-600 hover:bg-amber-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              {
+                uploadError && (
+                  <div className={`mt-4 p-4 rounded-lg border ${isApiKeyError(uploadError)
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                    : 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-800'
+                    }`}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 mt-0.5">
+                        {isApiKeyError(uploadError) ? (
+                          <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                           </svg>
-                          Go to Settings
-                        </Link>
-                      )}
+                        ) : (
+                          <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`text-sm font-semibold mb-1 ${isApiKeyError(uploadError)
+                          ? 'text-amber-800 dark:text-amber-300'
+                          : 'text-red-800 dark:text-red-300'
+                          }`}>
+                          {isApiKeyError(uploadError) ? 'API Key Required' : 'Upload Error'}
+                        </h3>
+                        <p className={`text-sm mb-3 ${isApiKeyError(uploadError)
+                          ? 'text-amber-700 dark:text-amber-400'
+                          : 'text-red-700 dark:text-red-400'
+                          }`}>
+                          {uploadError}
+                        </p>
+                        {isApiKeyError(uploadError) && (
+                          <Link
+                            to="/settings"
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-amber-600 hover:bg-amber-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Go to Settings
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )
+              }
+            </div >
           )}
 
 
@@ -1114,16 +1116,16 @@ const CVManagementPage: React.FC = () => {
                             </div>
                           ))}
                         </div>
-                      </div>
+                      </div >
                     )}
 
-                  </div>
-                </div>
+                  </div >
+                </div >
               )}
-            </div>
+            </div >
 
             {/* Right Column: ATS Analysis (8 cols) */}
-            <div className="lg:col-span-8">
+            < div className="lg:col-span-8" >
               {currentCvData && !isLoadingCv && !isReplacing && (
                 <div className="h-full border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-xl bg-white dark:bg-gray-800 overflow-hidden transition-all duration-300 flex flex-col">
                   <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-900/30">
@@ -1161,11 +1163,11 @@ const CVManagementPage: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
+            </div >
+          </div >
 
           {/* Editor Section */}
-          <div id="master-cv-editor" className="mb-8 p-8 border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-xl bg-white dark:bg-gray-800 transition-all duration-300">
+          < div id="master-cv-editor" className="mb-8 p-8 border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-xl bg-white dark:bg-gray-800 transition-all duration-300" >
             <div className="flex items-center gap-4 mb-6">
               <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 to-green-100 dark:from-emerald-900/40 dark:to-green-900/40 rounded-2xl flex items-center justify-center shadow-lg">
                 <svg className="w-7 h-7 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1219,74 +1221,52 @@ const CVManagementPage: React.FC = () => {
               </div>
             </div>
 
-            {isLoadingCv ? (
-              <div className="space-y-6 py-8">
-                <LoadingSkeleton lines={4} />
-                <LoadingSkeleton lines={4} />
-                <LoadingSkeleton lines={4} />
-              </div>
-            ) : activeCvData ? (
-              <>
-                {viewMode === 'edit' && (
-                  <div className="flex justify-center">
-                    <div className="w-full max-w-[816px]">
-                      {/* Analysis Status Banner */}
-                      {isAnalyzing && (
-                        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex items-start gap-3 shadow-sm">
-                          <svg
-                            className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            ></circle>
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            ></path>
-                          </svg>
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                              Analyzing CV sections...
-                            </p>
-                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                              AI is reviewing your work experience, education, and skills to provide improvement suggestions.
-                            </p>
+            {
+              isLoadingCv ? (
+                <div className="space-y-6 py-8">
+                  <LoadingSkeleton lines={4} />
+                  <LoadingSkeleton lines={4} />
+                  <LoadingSkeleton lines={4} />
+                </div>
+              ) : activeCvData ? (
+                <>
+                  {viewMode === 'edit' && (
+                    <div className="flex justify-center">
+                      <div className="w-full max-w-[816px]">
+                        {/* Analysis Status Banner */}
+                        {isAnalyzing && (
+                          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex items-start gap-3 shadow-sm">
+                            <svg
+                              className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                                Analyzing CV sections...
+                              </p>
+                              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                AI is reviewing your work experience, education, and skills to provide improvement suggestions.
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {/* CV Editor */}
-                      <CvFormEditor
-                        data={activeCvData}
-                        onChange={handleCvChange}
-                        analyses={analyses}
-                        onImproveSection={handleImproveSection}
-                        improvingSections={improvingSections}
-                      />
-                    </div>
-                  </div>
-                )}
-                {viewMode === 'preview' && (
-                  <div className="w-full" style={{ minHeight: '800px' }}>
-                    <CvLivePreview
-                      data={activeCvData}
-                      templateId={selectedTemplate}
-                      onTemplateChange={handleTemplateChange}
-                    />
-                  </div>
-                )}
-                {viewMode === 'split' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="w-full">
-                      <div className="sticky top-4">
+                        )}
+                        {/* CV Editor */}
                         <CvFormEditor
                           data={activeCvData}
                           onChange={handleCvChange}
@@ -1296,6 +1276,8 @@ const CVManagementPage: React.FC = () => {
                         />
                       </div>
                     </div>
+                  )}
+                  {viewMode === 'preview' && (
                     <div className="w-full" style={{ minHeight: '800px' }}>
                       <CvLivePreview
                         data={activeCvData}
@@ -1303,143 +1285,171 @@ const CVManagementPage: React.FC = () => {
                         onTemplateChange={handleTemplateChange}
                       />
                     </div>
+                  )}
+                  {viewMode === 'split' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="w-full">
+                        <div className="sticky top-4">
+                          <CvFormEditor
+                            data={activeCvData}
+                            onChange={handleCvChange}
+                            analyses={analyses}
+                            onImproveSection={handleImproveSection}
+                            improvingSections={improvingSections}
+                          />
+                        </div>
+                      </div>
+                      <div className="w-full" style={{ minHeight: '800px' }}>
+                        <CvLivePreview
+                          data={activeCvData}
+                          templateId={selectedTemplate}
+                          onTemplateChange={handleTemplateChange}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-16 px-4">
+                  <div className="mx-auto w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-10 h-10 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
                   </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-16 px-4">
-                <div className="mx-auto w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-10 h-10 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">No CV data found</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                    Upload your CV above to get started. We'll use AI to parse it and make it editable.
+                  </p>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span>AI-powered parsing</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span>Easy editing</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span>ATS optimization</span>
+                    </div>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">No CV data found</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                  Upload your CV above to get started. We'll use AI to parse it and make it editable.
-                </p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span>AI-powered parsing</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span>Easy editing</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span>ATS optimization</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+              )
+            }
+          </div >
 
           {/* Sticky Save Button */}
-          {activeCvData && hasUnsavedChanges && (
-            <div className="fixed bottom-8 right-8 z-50 animate-slide-up">
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-5 flex items-center gap-4 min-w-[320px] backdrop-blur-sm bg-white/95 dark:bg-gray-800/95">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse shadow-lg shadow-amber-500/50"></div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Unsaved changes</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Press Ctrl+S or click to save</p>
+          {
+            activeCvData && hasUnsavedChanges && (
+              <div className="fixed bottom-8 right-8 z-50 animate-slide-up">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-5 flex items-center gap-4 min-w-[320px] backdrop-blur-sm bg-white/95 dark:bg-gray-800/95">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse shadow-lg shadow-amber-500/50"></div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Unsaved changes</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Press Ctrl+S or click to save</p>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => handleSaveCv(false)}
+                    disabled={isSaving || isUploading}
+                    className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
+                  >
+                    {isSaving ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Save</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleSaveCv(false)}
-                  disabled={isSaving || isUploading}
-                  className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
-                >
-                  {isSaving ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span>Save</span>
-                    </>
-                  )}
-                </button>
               </div>
-            </div>
-          )}
+            )
+          }
 
 
 
           {/* Quick Actions FAB */}
-          {activeCvData && (
-            <div className="fixed bottom-8 right-8 z-40 flex flex-col items-end gap-3">
-              {/* FAB Menu Items */}
-              <div className="flex flex-col items-end gap-3 transition-all duration-300 origin-bottom-right">
-                {/* Save Action */}
-                {hasUnsavedChanges && (
-                  <button
-                    onClick={() => handleSaveCv(false)}
-                    disabled={isSaving}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-full shadow-lg hover:bg-emerald-700 transition-all transform hover:scale-105"
-                  >
-                    <span className="text-sm font-medium">Save Changes</span>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                    </svg>
-                  </button>
-                )}
-
-                {/* Analyze Action */}
-                <button
-                  onClick={handleRunAnalysis}
-                  disabled={isAnalyzing || isScanningAts}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-full shadow-xl transition-all transform hover:scale-105 disabled:transform-none disabled:opacity-50 disabled:cursor-not-allowed ${isAnalysisOutdated
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white animate-pulse'
-                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
-                    }`}
-                >
-                  {isAnalyzing || isScanningAts ? (
-                    <>
-                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span className="text-sm font-semibold">Analyzing...</span>
-                    </>
-                  ) : (
-                    <>
+          {
+            activeCvData && (
+              <div className="fixed bottom-8 right-8 z-40 flex flex-col items-end gap-3">
+                {/* FAB Menu Items */}
+                <div className="flex flex-col items-end gap-3 transition-all duration-300 origin-bottom-right">
+                  {/* Save Action */}
+                  {hasUnsavedChanges && (
+                    <button
+                      onClick={() => handleSaveCv(false)}
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-full shadow-lg hover:bg-emerald-700 transition-all transform hover:scale-105"
+                    >
+                      <span className="text-sm font-medium">Save Changes</span>
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                       </svg>
-                      <span className="text-sm font-semibold">{isAnalysisOutdated ? 'Analysis Outdated - Refresh' : 'Refresh Analysis'}</span>
-                    </>
+                    </button>
                   )}
-                </button>
+
+                  {/* Analyze Action */}
+                  <button
+                    onClick={handleRunAnalysis}
+                    disabled={isAnalyzing || isScanningAts}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-full shadow-xl transition-all transform hover:scale-105 disabled:transform-none disabled:opacity-50 disabled:cursor-not-allowed ${isAnalysisOutdated
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white animate-pulse'
+                      : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
+                      }`}
+                  >
+                    {isAnalyzing || isScanningAts ? (
+                      <>
+                        <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-sm font-semibold">Analyzing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span className="text-sm font-semibold">{isAnalysisOutdated ? 'Analysis Outdated - Refresh' : 'Refresh Analysis'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          }
 
           {/* Toast Notification */}
-          {toast && (
-            <Toast
-              message={toast.message}
-              type={toast.type}
-              onClose={() => setToast(null)}
-            />
-          )}
-        </div>
-      </div>
-    </div>
+          {
+            toast && (
+              <Toast
+                message={toast.message}
+                type={toast.type}
+                onClose={() => setToast(null)}
+              />
+            )
+          }
+        </div >
+      </div >
+    </div >
   );
 };
 

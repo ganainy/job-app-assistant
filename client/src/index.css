@@ -7,13 +7,13 @@
   html {
     scroll-behavior: smooth;
   }
-  
+
   html,
   body,
   #root {
     font-family: 'Roboto', sans-serif;
   }
-  
+
   .material-symbols-outlined {
     font-variation-settings:
       'FILL' 0,
@@ -24,16 +24,17 @@
 }
 
 @keyframes slide-in {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .animate-slide-in {
-    animation: slide-in 0.3s ease-out;
+  animation: slide-in 0.3s ease-out;
 }
