@@ -24,6 +24,8 @@ import autoJobRoutes from './routes/autoJobRoutes';
 // Correct the import for the default export
 import protect from './middleware/authMiddleware'; // Import default export and alias it as 'protect'
 import { errorHandler } from './middleware/errorHandler';
+// Import providers to ensure they register themselves
+import './providers';
 
 const app: Express = express();
 const port = process.env.PORT || 5001;

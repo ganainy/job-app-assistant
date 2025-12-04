@@ -1,9 +1,8 @@
 // server/src/utils/aiExtractor.ts
 import axios from 'axios';
 // Correct the import to use a named import
-import { getGeminiModel } from './geminiClient';
+import { generateContent } from './aiService';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
-import { getGeminiApiKey } from './apiKeyHelpers';
 import { cleanHtmlForAi } from './htmlCleaner';
 import { NotFoundError } from './errors/AppError';
 
@@ -143,14 +142,9 @@ async function extractFieldsWithGemini(htmlContent: string, url: string, userId:
     `;
 
     try {
-        // Get user's Gemini API key
-        const apiKey = await getGeminiApiKey(userId);
-        const model = getGeminiModel(apiKey);
-        
-        const result = await model.generateContent(prompt);
-        const response = result.response;
-        const responseText = response.text();
-        console.log("Received field extraction response from Gemini.");
+        const result = await generateContent(userId, prompt);
+        const responseText = result.text;
+        console.log("Received field extraction response from AI.");
         return parseExtractionResponse(responseText); // Parse and validate structure
 
     } catch (error: any) {

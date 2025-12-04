@@ -164,14 +164,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
             await profile.save();
         }
 
-        const geminiApiKeyEncrypted = profile.integrations?.gemini?.accessToken || process.env.GEMINI_API_KEY;
-        const geminiApiKey = geminiApiKeyEncrypted && geminiApiKeyEncrypted !== process.env.GEMINI_API_KEY
-            ? decrypt(geminiApiKeyEncrypted)
-            : geminiApiKeyEncrypted;
-
-        if (!geminiApiKey) {
-            throw new Error('Gemini API key not configured');
-        }
+        // AI provider will be retrieved by aiService when needed
 
         const apifyTokenEncrypted = profile.integrations?.apify?.accessToken;
         const apifyToken = apifyTokenEncrypted ? (decrypt(apifyTokenEncrypted) ?? undefined) : undefined;
@@ -286,7 +279,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         console.log(`\n→ Retrieving and structuring resume...`);
 
         const resumeText = await getUserResumeText(userId);
-        const structuredResume = await getOrStructureResume(userId, resumeText, geminiApiKey);
+        const structuredResume = await getOrStructureResume(userId, resumeText);
         console.log(`✓ Resume structured`);
         await updateProgress('Structure Resume', 'completed', 3, 'Resume structured');
 
@@ -377,7 +370,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                 const analysis = await analyzeJobAndCompany(
                     job.jobDescriptionText,
                     job.companyName,
-                    geminiApiKey,
+                    userId,
                     structuredData // Pass structured data from scraper
                 );
 
@@ -465,7 +458,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                     resumeText,
                     structuredResume,
                     job.jobDescriptionText,
-                    geminiApiKey
+                    userId
                 );
 
                 const coverLetterResult = await generateCoverLetterWithSkillMatch(
@@ -477,7 +470,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                         jobDescription: job.jobDescriptionText,
                         extractedData: analysis.job.extractedData
                     },
-                    geminiApiKey
+                    userId
                 );
 
                 // Map generated content to draft fields (unified structure)

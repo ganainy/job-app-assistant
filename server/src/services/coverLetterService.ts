@@ -1,8 +1,6 @@
 // server/src/services/coverLetterService.ts
-import { getGeminiModel } from '../utils/geminiClient';
-import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 import { JsonResumeSchema } from '../types/jsonresume';
-import { GoogleGenerativeAIError } from '@google/generative-ai';
+import { generateContent } from '../utils/aiService';
 
 /**
  * Generates a cover letter using Gemini API based on CV data and job description
@@ -92,17 +90,8 @@ Write a professional cover letter in ${languageName} following these guidelines:
     try {
         console.log(`Generating ${languageName} cover letter for ${jobTitle} at ${companyName}...`);
         
-        const apiKey = await getGeminiApiKey(userId);
-        const model = getGeminiModel(apiKey);
-        const result = await model.generateContent(prompt);
-        const response = result.response;
-        
-        if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content) {
-            const blockReason = response?.promptFeedback?.blockReason;
-            throw new Error(`AI content generation failed or was blocked: ${blockReason || 'No content generated'}`);
-        }
-
-        const coverLetterText = response.text().trim();
+        const result = await generateContent(userId, prompt);
+        const coverLetterText = result.text.trim();
         
         // Basic validation
         if (!coverLetterText || coverLetterText.length < 100) {
@@ -114,10 +103,6 @@ Write a professional cover letter in ${languageName} following these guidelines:
 
     } catch (error: any) {
         console.error('Error generating cover letter:', error);
-        
-        if (error instanceof GoogleGenerativeAIError) {
-            throw new Error(`Gemini API Error: ${error.message}`);
-        }
         
         if (error.message) {
             throw error;

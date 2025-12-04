@@ -42,13 +42,8 @@ export const triggerWorkflow = async (req: Request, res: Response) => {
             });
         }
 
-        // Check for Gemini API key
-        const geminiApiKey = profile.integrations?.gemini?.accessToken || process.env.GEMINI_API_KEY;
-        if (!geminiApiKey) {
-            return res.status(400).json({
-                message: 'Please configure your Gemini API key in the Integrations settings page.'
-            });
-        }
+        // AI provider will be checked by aiService when needed
+        // No need to check here as aiService handles provider selection and fallback
 
         // Run workflow
         console.log(`Manual trigger: Running auto-job workflow for user ${userId}`);

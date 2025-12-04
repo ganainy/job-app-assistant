@@ -1,9 +1,8 @@
 // server/src/utils/scraper.ts
 import axios from 'axios';
 // Correct the import to use a named import
-import { getGeminiModel } from './geminiClient'; // Need Gemini client here
+import { generateContent } from './aiService';
 import { GoogleGenerativeAIError } from '@google/generative-ai'; // Import error type
-import { getGeminiApiKey } from './apiKeyHelpers';
 import { cleanHtmlForAi } from './htmlCleaner';
 
 // Keep fetchHtml function (modified slightly for clarity)
@@ -55,13 +54,8 @@ async function extractDescriptionWithGemini(htmlContent: string, url: string, us
     `;
 
     try {
-        // Get user's Gemini API key
-        const apiKey = await getGeminiApiKey(userId);
-        const model = getGeminiModel(apiKey);
-        
-        const result = await model.generateContent(prompt);
-        const response = result.response;
-        const extractedText = response.text()?.trim(); // Get text and trim whitespace
+        const result = await generateContent(userId, prompt);
+        const extractedText = result.text?.trim(); // Get text and trim whitespace
 
         if (extractedText && extractedText !== "NO_DESCRIPTION_FOUND" && extractedText.length > 50) { // Check if meaningful text was found
             console.log(`Gemini extracted description (length: ${extractedText.length})`);

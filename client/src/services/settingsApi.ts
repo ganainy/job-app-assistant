@@ -17,6 +17,24 @@ export interface ApiKeys {
     accessToken: string | null;
     enabled: boolean;
   };
+  aiProviders?: {
+    defaultProvider?: 'gemini' | 'openrouter' | 'ollama';
+    defaultModel?: string;
+    providers: {
+      gemini?: {
+        accessToken: string | null;
+        enabled: boolean;
+      };
+      openrouter?: {
+        accessToken: string | null;
+        enabled: boolean;
+      };
+      ollama?: {
+        baseUrl: string;
+        enabled: boolean;
+      };
+    };
+  };
 }
 
 export interface UpdateApiKeysRequest {
@@ -27,6 +45,24 @@ export interface UpdateApiKeysRequest {
   apify?: {
     accessToken: string | null;
     enabled?: boolean;
+  };
+  aiProviders?: {
+    defaultProvider?: 'gemini' | 'openrouter' | 'ollama';
+    defaultModel?: string;
+    providers?: {
+      gemini?: {
+        accessToken: string | null;
+        enabled?: boolean;
+      };
+      openrouter?: {
+        accessToken: string | null;
+        enabled?: boolean;
+      };
+      ollama?: {
+        baseUrl: string | null;
+        enabled?: boolean;
+      };
+    };
   };
 }
 
@@ -78,7 +114,7 @@ export const updateApiKeys = async (keys: UpdateApiKeysRequest): Promise<ApiKeys
 /**
  * Delete a specific API key
  */
-export const deleteApiKey = async (service: 'gemini' | 'apify'): Promise<void> => {
+export const deleteApiKey = async (service: 'gemini' | 'apify' | 'openrouter' | 'ollama'): Promise<void> => {
   const token = getAuthToken();
   if (!token) {
     throw new Error('No authentication token found.');
@@ -93,6 +129,28 @@ export const deleteApiKey = async (service: 'gemini' | 'apify'): Promise<void> =
   } catch (error: any) {
     console.error('Error deleting API key:', error.response?.data || error.message);
     throw new Error(error.response?.data?.message || 'Failed to delete API key');
+  }
+};
+
+/**
+ * Get available models for a provider
+ */
+export const getProviderModels = async (provider: 'gemini' | 'openrouter' | 'ollama'): Promise<string[]> => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('No authentication token found.');
+  }
+
+  try {
+    const response = await axios.get<{ models: string[] }>(`${API_BASE_URL}/settings/models/${provider}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return response.data.models;
+  } catch (error: any) {
+    console.error('Error fetching provider models:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Failed to fetch provider models');
   }
 };
 

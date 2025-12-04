@@ -4,9 +4,8 @@ import * as path from 'path';
 import authMiddleware from '../middleware/authMiddleware';
 import JobApplication from '../models/JobApplication';
 import User, { IUser } from '../models/User'; // Import IUser interface
-import { getGeminiModel } from '../utils/geminiClient';
+import { generateContent } from '../utils/aiService';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
-import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 import { JsonResumeSchema } from '../types/jsonresume';
 import mongoose from 'mongoose';
 import { generateCvPdfFromJsonResume, generateCoverLetterPdf } from '../utils/pdfGenerator'; // Import PDF generators
@@ -199,19 +198,14 @@ const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, r
             \`\`\`
         `;
 
-        // 3. Get user's Gemini API key and create model
-        const apiKey = await getGeminiApiKey(userId);
-        const model = getGeminiModel(apiKey);
-        
-        // Call Gemini API (as before)
+        // 3. Generate documents using AI service
         console.log(`Generating ${languageName} draft documents for job ${jobId}...`);
         // Set generation status to pending immediately
         await JobApplication.updateOne({ _id: jobId, userId: userId }, { $set: { generationStatus: 'pending_generation' } }); // Indicate processing started
 
-        const result = await model.generateContent(prompt);
-        const response = result.response;
-        const responseText = response.text();
-        console.log("Received generation response from Gemini.");
+        const result = await generateContent(userId, prompt);
+        const responseText = result.text;
+        console.log("Received generation response from AI.");
 
         // 4. Parse and Validate Gemini Response (using parseGenerationResponse)
         // This function ALREADY handles extracting from ```json block

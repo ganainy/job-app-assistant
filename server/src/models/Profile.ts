@@ -82,6 +82,24 @@ export interface IProfile extends Document {
       avoidDuplicates?: boolean; // Skip already scraped jobs
       schedule?: string; // cron expression
     };
+    aiProviderSettings?: {
+      defaultProvider?: 'gemini' | 'openrouter' | 'ollama';
+      defaultModel?: string;
+      providers?: {
+        gemini?: {
+          accessToken?: string;
+          enabled?: boolean;
+        };
+        openrouter?: {
+          accessToken?: string;
+          enabled?: boolean;
+        };
+        ollama?: {
+          baseUrl?: string;
+          enabled?: boolean;
+        };
+      };
+    };
   isPublished?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -269,6 +287,41 @@ const ProfileSchema: Schema = new Schema(
       schedule: {
         type: String,
         default: '0 9 * * *', // Daily at 9 AM
+      },
+    },
+    aiProviderSettings: {
+      defaultProvider: {
+        type: String,
+        enum: ['gemini', 'openrouter', 'ollama'],
+      },
+      defaultModel: {
+        type: String,
+      },
+      providers: {
+        gemini: {
+          accessToken: String,
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+        },
+        openrouter: {
+          accessToken: String,
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+        },
+        ollama: {
+          baseUrl: {
+            type: String,
+            default: 'http://localhost:11434',
+          },
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+        },
       },
     },
     isPublished: {

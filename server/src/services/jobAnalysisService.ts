@@ -1,5 +1,5 @@
 // server/src/services/jobAnalysisService.ts
-import { getGeminiModel } from '../utils/geminiClient';
+import { generateContent, generateStructuredResponse } from '../utils/aiService';
 
 /**
  * Result of job posting analysis
@@ -89,7 +89,7 @@ const extractFromStructuredData = (
 const extractYearsExperience = async (
     jobDescription: string,
     experienceLevel: string | undefined,
-    geminiApiKey: string
+    userId: string
 ): Promise<number | undefined> => {
     // Try to infer from experience_level first
     if (experienceLevel) {
@@ -104,7 +104,6 @@ const extractYearsExperience = async (
     }
 
     // If we can't infer, use AI to extract from description
-    const gemini = getGeminiModel(geminiApiKey);
     const prompt = `Extract the number of years of experience required from this job description. Return ONLY a number, or null if not specified.
 
 Job Description:
@@ -113,8 +112,8 @@ ${jobDescription.substring(0, 2000)}
 Return format: Just the number (e.g., "3" or "null")`;
 
     try {
-        const result = await gemini.generateContent(prompt);
-        const responseText = result.response.text().trim();
+        const result = await generateContent(userId, prompt);
+        const responseText = result.text.trim();
         const years = parseInt(responseText);
         return isNaN(years) ? undefined : years;
     } catch (error) {
@@ -128,7 +127,7 @@ Return format: Just the number (e.g., "3" or "null")`;
  */
 export const analyzeJobPosting = async (
     jobDescription: string,
-    geminiApiKey: string,
+    userId: string,
     structuredData?: LinkedInStructuredData
 ): Promise<JobAnalysisResult> => {
     // If we have structured data, use it (much faster, no AI call needed)
@@ -139,7 +138,7 @@ export const analyzeJobPosting = async (
         const yearsExperience = await extractYearsExperience(
             jobDescription,
             structuredData.experience_level,
-            geminiApiKey
+            userId
         );
 
         return {
@@ -154,8 +153,6 @@ export const analyzeJobPosting = async (
     }
 
     // Fallback: Use AI for full extraction (original behavior)
-    const gemini = getGeminiModel(geminiApiKey);
-
     const prompt = `You are a job application assistant analyzing a job posting.
 
 Extract the following information from this job description:
@@ -179,19 +176,7 @@ Return ONLY a JSON object with these fields. Use null for fields not found. Form
   }
 }`;
 
-    const result = await gemini.generateContent(prompt);
-    const responseText = result.response.text();
-
-    // Clean up response
-    let jsonText = responseText.trim();
-    if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-
-    const parsed = JSON.parse(jsonText);
-    return parsed;
+    return await generateStructuredResponse<JobAnalysisResult>(userId, prompt);
 };
 
 /**
@@ -199,14 +184,12 @@ Return ONLY a JSON object with these fields. Use null for fields not found. Form
  */
 export const analyzeCompany = async (
     companyName: string,
-    geminiApiKey: string,
+    userId: string,
     companyDescription?: string
 ): Promise<CompanyAnalysisResult> => {
     // If we have company description from scraper, use AI to extract insights from it
     // This is more accurate than general research
     if (companyDescription && companyDescription.length > 50) {
-        const gemini = getGeminiModel(geminiApiKey);
-
         const prompt = `You are a job application assistant analyzing a company description.
 
 Extract the following from this company description:
@@ -226,19 +209,7 @@ Return ONLY a JSON object with these fields. Format:
 }`;
 
         try {
-            const result = await gemini.generateContent(prompt);
-            const responseText = result.response.text();
-
-            // Clean up response
-            let jsonText = responseText.trim();
-            if (jsonText.startsWith('```json')) {
-                jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-            } else if (jsonText.startsWith('```')) {
-                jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-            }
-
-            const parsed = JSON.parse(jsonText);
-            return parsed;
+            return await generateStructuredResponse<CompanyAnalysisResult>(userId, prompt);
         } catch (error) {
             console.error('Error analyzing company from description, falling back to general research:', error);
             // Fall through to general research
@@ -246,8 +217,6 @@ Return ONLY a JSON object with these fields. Format:
     }
 
     // Fallback: General company research (original behavior)
-    const gemini = getGeminiModel(geminiApiKey);
-
     const prompt = `You are a job application assistant researching a company.
 
 Research "${companyName}" and provide:
@@ -262,19 +231,7 @@ Return ONLY a JSON object with these fields. If information is not readily avail
   "businessModel": "..."
 }`;
 
-    const result = await gemini.generateContent(prompt);
-    const responseText = result.response.text();
-
-    // Clean up response
-    let jsonText = responseText.trim();
-    if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-
-    const parsed = JSON.parse(jsonText);
-    return parsed;
+    return await generateStructuredResponse<CompanyAnalysisResult>(userId, prompt);
 };
 
 /**
@@ -284,13 +241,13 @@ Return ONLY a JSON object with these fields. If information is not readily avail
 export const analyzeJobAndCompany = async (
     jobDescription: string,
     companyName: string,
-    geminiApiKey: string,
+    userId: string,
     structuredData?: LinkedInStructuredData
 ): Promise<{ job: JobAnalysisResult; company: CompanyAnalysisResult }> => {
     // Use structured data to avoid most AI calls
     const [jobResult, companyResult] = await Promise.all([
-        analyzeJobPosting(jobDescription, geminiApiKey, structuredData),
-        analyzeCompany(companyName, geminiApiKey, structuredData?.company_description)
+        analyzeJobPosting(jobDescription, userId, structuredData),
+        analyzeCompany(companyName, userId, structuredData?.company_description)
     ]);
 
     return {
