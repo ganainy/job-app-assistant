@@ -48,9 +48,9 @@ export const initializeScheduler = () => {
                 if (hour === 9) {
                     console.log(`\n→ Running workflow for user: ${userId}`);
                     try {
-                        const stats = await runAutoJobWorkflow(userId);
-                        console.log(`✓ Workflow completed for user ${userId}`);
-                        console.log(`  Stats: ${stats.generated} generated / ${stats.relevant} relevant / ${stats.jobsFound} found`);
+                        const runId = await runAutoJobWorkflow(userId);
+                        console.log(`✓ Workflow started for user ${userId}`);
+                        console.log(`  Run ID: ${runId}`);
                     } catch (error: any) {
                         console.error(`✗ Workflow failed for user ${userId}:`, error.message);
                     }
@@ -83,9 +83,9 @@ export const runForAllEnabledUsers = async () => {
             console.log(`----- User: ${userId} -----`);
 
             try {
-                const stats = await runAutoJobWorkflow(userId);
-                console.log(`✓ Completed for user ${userId}`);
-                console.log(`  Generated: ${stats.generated}, Relevant: ${stats.relevant}, Total: ${stats.jobsFound}\n`);
+                const runId = await runAutoJobWorkflow(userId);
+                console.log(`✓ Started for user ${userId}`);
+                console.log(`  Run ID: ${runId}\n`);
             } catch (error: any) {
                 console.error(`✗ Failed for user ${userId}:`, error.message, '\n');
             }

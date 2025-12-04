@@ -3,13 +3,10 @@ import { Request, Response } from 'express';
 import AutoJob from '../models/AutoJob';
 import JobApplication from '../models/JobApplication';
 import Profile from '../models/Profile';
+import WorkflowRun from '../models/WorkflowRun';
 import { runAutoJobWorkflow } from '../services/autoJobWorkflow';
 import mongoose from 'mongoose';
 
-/**
- * Trigger the auto-job workflow manually
- * POST /api/auto-jobs/trigger
- */
 /**
  * Trigger the auto-job workflow manually
  * POST /api/auto-jobs/trigger
@@ -54,11 +51,11 @@ export const triggerWorkflow = async (req: Request, res: Response) => {
 
         // Run workflow
         console.log(`Manual trigger: Running auto-job workflow for user ${userId}`);
-        const stats = await runAutoJobWorkflow(userId, true);
+        const runId = await runAutoJobWorkflow(userId, true);
 
         res.json({
-            message: 'Workflow completed successfully',
-            stats
+            message: 'Workflow started successfully',
+            runId
         });
     } catch (error: any) {
         console.error('Error triggering workflow:', error);
@@ -70,6 +67,31 @@ export const triggerWorkflow = async (req: Request, res: Response) => {
         res.status(statusCode).json({
             message: errorMessage
         });
+    }
+};
+
+/**
+ * Get workflow run status
+ * GET /api/auto-jobs/runs/:runId
+ */
+export const getWorkflowStatus = async (req: Request, res: Response) => {
+    try {
+        const userId = (req.user as any)._id.toString();
+        const { runId } = req.params;
+
+        const run = await WorkflowRun.findOne({
+            _id: new mongoose.Types.ObjectId(runId),
+            userId: new mongoose.Types.ObjectId(userId)
+        });
+
+        if (!run) {
+            return res.status(404).json({ message: 'Workflow run not found' });
+        }
+
+        res.json(run);
+    } catch (error: any) {
+        console.error('Error fetching workflow status:', error);
+        res.status(500).json({ message: 'Failed to fetch workflow status' });
     }
 };
 

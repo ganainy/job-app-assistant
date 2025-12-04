@@ -151,7 +151,7 @@ export const generateCoverLetterWithSkillMatch = async (
         extractedData?: any;
     },
     geminiApiKey: string
-): Promise<{ coverLetter: string; skillMatchScore: number }> => {
+): Promise<{ coverLetter: string; skillMatchScore: number; skillMatchReason: string }> => {
     const gemini = getGeminiModel(geminiApiKey);
 
     const prompt = `You are a cover letter writing assistant.
@@ -182,10 +182,13 @@ Tasks:
    - 2: Partial match, meets some requirements
    - 1: Weak match, limited alignment
 
+3. Provide a brief reason for the score (1-2 sentences).
+
 Return a JSON object:
 {
   "coverLetter": "Dear Hiring Manager,\n\n...",
-  "skillMatchScore": 4
+  "skillMatchScore": 4,
+  "skillMatchReason": "Candidate has strong React experience but lacks Python knowledge."
 }`;
 
     const result = await gemini.generateContent(prompt);
@@ -199,9 +202,19 @@ Return a JSON object:
         jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
 
-    const parsed = JSON.parse(jsonText);
-    return {
-        coverLetter: parsed.coverLetter,
-        skillMatchScore: Math.min(Math.max(parsed.skillMatchScore, 1), 5) // Ensure 1-5 range
-    };
+    try {
+        const parsed = JSON.parse(jsonText);
+        return {
+            coverLetter: parsed.coverLetter || '',
+            skillMatchScore: Math.min(Math.max(parsed.skillMatchScore || 3, 1), 5), // Ensure 1-5 range
+            skillMatchReason: parsed.skillMatchReason || 'No reason provided'
+        };
+    } catch (error) {
+        console.error('Error parsing cover letter response:', error);
+        return {
+            coverLetter: responseText, // Fallback to raw text if JSON parse fails
+            skillMatchScore: 3,
+            skillMatchReason: 'Error parsing AI response'
+        };
+    }
 };

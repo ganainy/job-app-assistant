@@ -7,11 +7,13 @@ import {
     getSettings,
     updateSettings,
     triggerWorkflow,
+    getWorkflowStatus,
     promoteAutoJob,
     deleteAutoJob,
     AutoJob,
     WorkflowStats,
-    AutoJobSettings
+    AutoJobSettings,
+    WorkflowRun
 } from '../services/autoJobApi';
 import Toast from '../components/common/Toast';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
@@ -26,6 +28,11 @@ const AutoJobsPage: React.FC = () => {
     const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+    // Workflow Progress State
+    const [currentRunId, setCurrentRunId] = useState<string | null>(localStorage.getItem('autoJobRunId'));
+    const [workflowProgress, setWorkflowProgress] = useState<WorkflowRun | null>(null);
+    const [showProgressModal, setShowProgressModal] = useState(false);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -70,6 +77,37 @@ const AutoJobsPage: React.FC = () => {
         fetchData();
     }, [currentPage, filterRelevance, filterStatus]);
 
+    // Polling for workflow progress
+    useEffect(() => {
+        if (!currentRunId) return;
+
+        setShowProgressModal(true);
+        const interval = setInterval(async () => {
+            try {
+                const status = await getWorkflowStatus(currentRunId);
+                setWorkflowProgress(status);
+
+                if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
+                    clearInterval(interval);
+                    localStorage.removeItem('autoJobRunId');
+                    setCurrentRunId(null);
+
+                    if (status.status === 'completed') {
+                        showToast(`Workflow complete! ${status.stats.generated} jobs generated`, 'success');
+                        fetchData(); // Refresh data
+                    } else if (status.status === 'failed') {
+                        showToast(`Workflow failed: ${status.errorMessage}`, 'error');
+                    }
+                }
+            } catch (err) {
+                console.error('Error polling workflow status:', err);
+                // Don't clear interval immediately on error, might be temporary network issue
+            }
+        }, 2000);
+
+        return () => clearInterval(interval);
+    }, [currentRunId]);
+
     // Toast helper
     const showToast = (message: string, type: 'success' | 'error') => {
         setToast({ message, type });
@@ -81,8 +119,9 @@ const AutoJobsPage: React.FC = () => {
         try {
             setIsTriggering(true);
             const result = await triggerWorkflow();
-            showToast(`Workflow complete! ${result.stats.generated} jobs generated from ${result.stats.jobsFound} found`, 'success');
-            fetchData(); // Refresh data
+            setCurrentRunId(result.runId);
+            localStorage.setItem('autoJobRunId', result.runId);
+            setShowProgressModal(true);
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to trigger workflow', 'error');
         } finally {
@@ -456,6 +495,124 @@ const AutoJobsPage: React.FC = () => {
                     type={toast.type}
                     onClose={() => setToast(null)}
                 />
+            )}
+            {/* Progress Modal */}
+            {showProgressModal && workflowProgress && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8 max-w-2xl w-full mx-4 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gray-200 dark:bg-gray-700">
+                            <div
+                                className="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500 ease-out"
+                                style={{ width: `${workflowProgress.progress.percentage}%` }}
+                            />
+                        </div>
+
+                        <div className="mb-8 text-center">
+                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                                {workflowProgress.status === 'completed' ? 'Workflow Complete!' :
+                                    workflowProgress.status === 'failed' ? 'Workflow Failed' :
+                                        'Running Auto Jobs...'}
+                            </h2>
+                            <p className="text-gray-600 dark:text-gray-400">
+                                {workflowProgress.progress.currentStep}
+                            </p>
+                        </div>
+
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-4 gap-4 mb-8">
+                            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center">
+                                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                    {workflowProgress.stats.jobsFound}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-1">Found</div>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center">
+                                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                                    {workflowProgress.stats.analyzed}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-1">Analyzed</div>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center">
+                                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                    {workflowProgress.stats.relevant}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-1">Relevant</div>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center">
+                                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                                    {workflowProgress.stats.generated}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-1">Generated</div>
+                            </div>
+                        </div>
+
+                        {/* Steps List */}
+                        <div className="space-y-3 mb-8">
+                            {workflowProgress.steps.map((step, index) => (
+                                <div key={index} className="flex items-center">
+                                    <div className={`
+                                        w-8 h-8 rounded-full flex items-center justify-center mr-4 flex-shrink-0
+                                        ${step.status === 'completed' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                                            step.status === 'running' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 animate-pulse' :
+                                                step.status === 'failed' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                                    'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'}
+                                    `}>
+                                        {step.status === 'completed' ? (
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        ) : step.status === 'failed' ? (
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        ) : (
+                                            <span className="text-sm font-bold">{index + 1}</span>
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className={`font-medium ${step.status === 'completed' ? 'text-gray-900 dark:text-white' :
+                                                    step.status === 'running' ? 'text-blue-600 dark:text-blue-400' :
+                                                        'text-gray-500 dark:text-gray-400'
+                                                }`}>
+                                                {step.name}
+                                            </span>
+                                            {step.status === 'running' && (
+                                                <span className="text-xs text-blue-500 animate-pulse">Processing...</span>
+                                            )}
+                                        </div>
+                                        {step.message && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-md">
+                                                {step.message}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Actions */}
+                        {(workflowProgress.status === 'completed' || workflowProgress.status === 'failed') && (
+                            <div className="flex justify-center">
+                                <button
+                                    onClick={() => {
+                                        setShowProgressModal(false);
+                                        setWorkflowProgress(null);
+                                    }}
+                                    className="px-6 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        )}
+
+                        {workflowProgress.status === 'running' && (
+                            <div className="text-center text-xs text-gray-400 mt-4">
+                                You can safely navigate away. The workflow will continue in the background.
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
         </div>
     );

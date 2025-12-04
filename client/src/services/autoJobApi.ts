@@ -67,8 +67,25 @@ export interface AutoJobSettings {
     maxJobs?: number;
 }
 
-export interface TriggerWorkflowResponse {
-    message: string;
+export interface WorkflowRun {
+    _id: string;
+    userId: string;
+    status: 'running' | 'completed' | 'failed' | 'cancelled';
+    progress: {
+        currentStep: string;
+        currentStepIndex: number;
+        totalSteps: number;
+        percentage: number;
+    };
+    steps: Array<{
+        name: string;
+        status: 'pending' | 'running' | 'completed' | 'failed';
+        startedAt?: string;
+        completedAt?: string;
+        message?: string;
+        count?: number;
+        total?: number;
+    }>;
     stats: {
         jobsFound: number;
         newJobs: number;
@@ -79,6 +96,15 @@ export interface TriggerWorkflowResponse {
         generated: number;
         errors: number;
     };
+    errorMessage?: string;
+    startedAt: string;
+    completedAt?: string;
+    isManual: boolean;
+}
+
+export interface TriggerWorkflowResponse {
+    message: string;
+    runId: string;
 }
 
 /**
@@ -86,6 +112,14 @@ export interface TriggerWorkflowResponse {
  */
 export const triggerWorkflow = async (): Promise<TriggerWorkflowResponse> => {
     const response = await axios.post<TriggerWorkflowResponse>(`${API_BASE_URL}/auto-jobs/trigger`);
+    return response.data;
+};
+
+/**
+ * Get workflow run status
+ */
+export const getWorkflowStatus = async (runId: string): Promise<WorkflowRun> => {
+    const response = await axios.get<WorkflowRun>(`${API_BASE_URL}/auto-jobs/runs/${runId}`);
     return response.data;
 };
 
