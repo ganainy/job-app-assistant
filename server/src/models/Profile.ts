@@ -71,12 +71,17 @@ export interface IProfile extends Document {
     showLinkedInSkills?: boolean;
     showLinkedInLanguages?: boolean;
   };
-  autoJobSettings?: {
-    enabled?: boolean;
-    linkedInSearchUrl?: string;
-    schedule?: string; // cron expression
-    maxJobs?: number; // Maximum number of jobs to retrieve (1-100)
-  };
+    autoJobSettings?: {
+      enabled?: boolean;
+      keywords?: string; // Job search keywords (max 200 chars)
+      location?: string; // Job search location (max 100 chars)
+      jobType?: string[]; // Job types: "full-time", "part-time", "contract", "internship"
+      experienceLevel?: string[]; // Experience levels: "entry level", "associate", "mid-senior level", "director", "internship"
+      datePosted?: string; // Date filter: "any time", "past 24 hours", "past week", "past month"
+      maxJobs?: number; // Maximum number of jobs to retrieve (20-1000, default 100)
+      avoidDuplicates?: boolean; // Skip already scraped jobs
+      schedule?: string; // cron expression
+    };
   isPublished?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -226,19 +231,44 @@ const ProfileSchema: Schema = new Schema(
         type: Boolean,
         default: false,
       },
-      linkedInSearchUrl: {
+      keywords: {
         type: String,
         default: '',
+        maxlength: 200,
+      },
+      location: {
+        type: String,
+        default: '',
+        maxlength: 100,
+      },
+      jobType: {
+        type: [String],
+        default: [],
+        enum: ['full-time', 'part-time', 'contract', 'internship'],
+      },
+      experienceLevel: {
+        type: [String],
+        default: [],
+        enum: ['entry level', 'associate', 'mid-senior level', 'director', 'internship'],
+      },
+      datePosted: {
+        type: String,
+        default: 'any time',
+        enum: ['any time', 'past 24 hours', 'past week', 'past month'],
+      },
+      maxJobs: {
+        type: Number,
+        default: 100,
+        min: 20,
+        max: 1000,
+      },
+      avoidDuplicates: {
+        type: Boolean,
+        default: false,
       },
       schedule: {
         type: String,
         default: '0 9 * * *', // Daily at 9 AM
-      },
-      maxJobs: {
-        type: Number,
-        default: 50,
-        min: 20,
-        max: 100
       },
     },
     isPublished: {

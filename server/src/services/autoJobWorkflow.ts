@@ -1,9 +1,9 @@
 // server/src/services/autoJobWorkflow.ts
-import AutoJob, { IAutoJob } from '../models/AutoJob';
+import JobApplication from '../models/JobApplication';
 import Profile from '../models/Profile';
 import User from '../models/User';
 import WorkflowRun from '../models/WorkflowRun';
-import { retrieveJobs, extractJobId } from './jobAcquisitionService';
+import { retrieveJobs, extractJobId, JobSearchOptions } from './jobAcquisitionService';
 import { analyzeJobAndCompany } from './jobAnalysisService';
 import { getOrStructureResume } from './resumeCacheService';
 import { checkRelevance } from './jobRelevanceService';
@@ -156,7 +156,8 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
                     enabled: false,
-                    linkedInSearchUrl: '',
+                    keywords: '',
+                    location: '',
                     schedule: '0 9 * * *'
                 }
             });
@@ -186,12 +187,19 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
             return;
         }
 
-        const linkedInSearchUrl = autoJobSettings.linkedInSearchUrl;
-        if (!linkedInSearchUrl) {
-            throw new Error('LinkedIn search URL not configured');
+        const keywords = autoJobSettings.keywords || '';
+        const location = autoJobSettings.location || '';
+        
+        // Require keywords or location
+        if (!keywords && !location) {
+            throw new Error('Keywords or location must be configured');
         }
 
-        const maxJobs = autoJobSettings.maxJobs || 50;
+        if (!apifyToken) {
+            throw new Error('Apify API token is not configured');
+        }
+
+        const maxJobs = autoJobSettings.maxJobs || 100;
         await updateProgress('Initialize', 'completed', 0, 'Settings loaded');
 
         // Check for cancellation before retrieving jobs
@@ -201,11 +209,33 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         }
 
         // Step 2: Retrieve Jobs
-        await updateProgress('Retrieve Jobs', 'running', 1, `Retrieving jobs from: ${linkedInSearchUrl}`);
-        console.log(`→ Retrieving jobs from: ${linkedInSearchUrl}`);
+        const searchDescription = location && keywords 
+            ? `keywords: "${keywords}", location: "${location}"`
+            : keywords 
+                ? `keywords: "${keywords}"`
+                : `location: "${location}"`;
+        await updateProgress('Retrieve Jobs', 'running', 1, `Retrieving jobs - ${searchDescription}`);
+        console.log(`→ Retrieving jobs - ${searchDescription}`);
         console.log(`→ Requesting ${maxJobs} jobs`);
 
-        const rawJobs = await retrieveJobs(linkedInSearchUrl, apifyToken, maxJobs);
+        // Build job search options
+        // Map invalid "past hour" to valid "past 24 hours"
+        let datePosted = autoJobSettings.datePosted || 'any time';
+        if (datePosted === 'past hour') {
+            datePosted = 'past 24 hours';
+        }
+        
+        const jobSearchOptions = {
+            keywords: keywords || undefined,
+            location: location || undefined,
+            jobType: autoJobSettings.jobType && autoJobSettings.jobType.length > 0 ? autoJobSettings.jobType : undefined,
+            experienceLevel: autoJobSettings.experienceLevel && autoJobSettings.experienceLevel.length > 0 ? autoJobSettings.experienceLevel : undefined,
+            datePosted: datePosted,
+            maxJobs: maxJobs,
+            avoidDuplicates: autoJobSettings.avoidDuplicates || false
+        };
+
+        const rawJobs = await retrieveJobs(apifyToken, jobSearchOptions);
         stats.jobsFound = rawJobs.length;
         console.log(`✓ Found ${stats.jobsFound} jobs`);
         await updateProgress('Retrieve Jobs', 'completed', 1, `Found ${stats.jobsFound} jobs`);
@@ -223,7 +253,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
 
         const newJobs = [];
         for (const job of rawJobs) {
-            const exists = await AutoJob.findOne({
+            const exists = await JobApplication.findOne({
                 userId: new mongoose.Types.ObjectId(userId),
                 jobId: job.jobId
             });
@@ -293,25 +323,32 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
             });
 
             try {
-                // Create AutoJob entry
-                const autoJob = new AutoJob({
+                // Create JobApplication entry (unified model)
+                const jobApplication = new JobApplication({
                     userId: new mongoose.Types.ObjectId(userId),
+                    workflowRunId: new mongoose.Types.ObjectId(runId),
                     jobId: job.jobId,
                     jobTitle: job.jobTitle,
                     companyName: job.companyName,
                     jobUrl: job.jobUrl,
                     jobDescriptionText: job.jobDescriptionText,
+                    status: 'Not Applied', // Default status for auto jobs
+                    isAutoJob: true,
+                    showInDashboard: false, // Auto jobs hidden from dashboard by default
                     processingStatus: 'pending',
                     discoveredAt: new Date()
                 });
-                await autoJob.save();
+                await jobApplication.save();
+                
+                // Update stats immediately after creating job
+                await WorkflowRun.findByIdAndUpdate(runId, { stats });
 
                 // Skip if no description
                 if (!job.jobDescriptionText || job.jobDescriptionText.length < 50) {
                     console.log(`  ✗ Skipping: Job description empty or too short`);
-                    autoJob.processingStatus = 'error';
-                    autoJob.errorMessage = 'Job description missing from source';
-                    await autoJob.save();
+                    jobApplication.processingStatus = 'error';
+                    jobApplication.errorMessage = 'Job description missing from source';
+                    await jobApplication.save();
                     stats.errors++;
                     continue;
                 }
@@ -344,11 +381,11 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                     structuredData // Pass structured data from scraper
                 );
 
-                autoJob.extractedData = analysis.job.extractedData;
-                autoJob.companyInsights = analysis.company;
-                autoJob.processingStatus = 'analyzed';
-                autoJob.processedAt = new Date();
-                await autoJob.save();
+                jobApplication.extractedData = analysis.job.extractedData;
+                jobApplication.companyInsights = analysis.company;
+                jobApplication.processingStatus = 'analyzed';
+                jobApplication.processedAt = new Date();
+                await jobApplication.save();
                 stats.analyzed++;
 
                 // Check for cancellation before relevance check
@@ -378,21 +415,36 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                     50 // Threshold: >=50% match is considered relevant (same as dashboard "consider applying")
                 );
 
-                autoJob.isRelevant = relevanceCheck.isRelevant;
-                autoJob.relevanceReason = relevanceCheck.reason;
+                // Build recommendation object (unified with dashboard)
+                const recommendation = {
+                    score: relevanceCheck.score ?? null,
+                    shouldApply: relevanceCheck.isRelevant, // >= 50% is considered relevant
+                    reason: relevanceCheck.reason,
+                    cachedAt: new Date()
+                };
+
+                jobApplication.recommendation = recommendation;
 
                 if (!relevanceCheck.isRelevant) {
-                    autoJob.processingStatus = 'not_relevant';
-                    await autoJob.save();
+                    jobApplication.processingStatus = 'not_relevant';
+                    await jobApplication.save();
                     stats.notRelevant++;
+                    
+                    // Update stats immediately after relevance check
+                    await WorkflowRun.findByIdAndUpdate(runId, { stats });
+                    
                     console.log(`  ✗ Not relevant: ${relevanceCheck.reason}`);
                     continue;
                 }
 
-                autoJob.processingStatus = 'relevant';
-                await autoJob.save();
+                jobApplication.processingStatus = 'relevant';
+                await jobApplication.save();
                 stats.relevant++;
-                console.log(`  ✓ Relevant: ${relevanceCheck.reason}`);
+                
+                // Update stats immediately after relevance check
+                await WorkflowRun.findByIdAndUpdate(runId, { stats });
+                
+                console.log(`  ✓ Relevant: ${relevanceCheck.reason} (${relevanceCheck.score ?? 'N/A'}% match)`);
 
                 // Check for cancellation before content generation
                 if (await checkCancellation()) {
@@ -428,19 +480,30 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                     geminiApiKey
                 );
 
-                autoJob.customizedResumeHtml = customizedResume;
-                autoJob.coverLetterText = coverLetterResult.coverLetter;
-                autoJob.skillMatchScore = coverLetterResult.skillMatchScore;
-                autoJob.skillMatchReason = coverLetterResult.skillMatchReason;
-                autoJob.processingStatus = 'generated';
-                await autoJob.save();
+                // Map generated content to draft fields (unified structure)
+                // draftCvJson is Mixed type, so we can store the HTML structure
+                jobApplication.draftCvJson = customizedResume ? { html: customizedResume } as any : undefined;
+                jobApplication.draftCoverLetterText = coverLetterResult.coverLetter;
+                jobApplication.generationStatus = (customizedResume || coverLetterResult.coverLetter) ? 'draft_ready' : 'none';
+                // Recommendation already set during relevance check, no need to update
+                jobApplication.processingStatus = 'generated';
+                await jobApplication.save();
                 stats.generated++;
+                
+                // Update stats immediately after content generation
+                await WorkflowRun.findByIdAndUpdate(runId, { stats });
+                
                 console.log(`  ✓ Generated resume and cover letter`);
-                console.log(`  Skill Match: ${coverLetterResult.skillMatchScore}/5 stars`);
+                if (jobApplication.recommendation?.score !== null && jobApplication.recommendation?.score !== undefined) {
+                    console.log(`  Match Score: ${jobApplication.recommendation.score}% (${jobApplication.recommendation.shouldApply ? 'Should apply' : 'Not recommended'})`);
+                }
 
             } catch (error: any) {
                 console.error(`  Error processing job ${job.jobId}:`, error.message);
                 stats.errors++;
+                
+                // Update stats immediately after error
+                await WorkflowRun.findByIdAndUpdate(runId, { stats });
             }
         }
 

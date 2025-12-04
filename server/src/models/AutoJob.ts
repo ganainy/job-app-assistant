@@ -4,6 +4,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 // Interface defining the structure of an Auto Job document
 export interface IAutoJob extends Document {
     userId: mongoose.Schema.Types.ObjectId;
+    workflowRunId?: mongoose.Schema.Types.ObjectId; // Reference to the workflow run that created this job
 
     // Core job data
     jobId: string; // Unique identifier from job board
@@ -32,11 +33,13 @@ export interface IAutoJob extends Document {
         businessModel?: string;
     };
 
-    // Relevance and scoring
-    isRelevant?: boolean;
-    relevanceReason?: string;
-    skillMatchScore?: number; // 1-5 scale
-    skillMatchReason?: string;
+    // Recommendation (unified with dashboard)
+    recommendation?: {
+        score: number | null; // 0-100 percentage
+        shouldApply: boolean;
+        reason: string;
+        cachedAt: Date;
+    };
 
     // Generated content
     customizedResumeHtml?: string;
@@ -60,6 +63,11 @@ const AutoJobSchema: Schema = new Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
             required: true,
+            index: true
+        },
+        workflowRunId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'WorkflowRun',
             index: true
         },
 
@@ -109,20 +117,12 @@ const AutoJobSchema: Schema = new Schema(
             businessModel: String
         },
 
-        // Relevance and scoring
-        isRelevant: {
-            type: Boolean
-        },
-        relevanceReason: {
-            type: String
-        },
-        skillMatchScore: {
-            type: Number,
-            min: 1,
-            max: 5
-        },
-        skillMatchReason: {
-            type: String
+        // Recommendation (unified with dashboard)
+        recommendation: {
+            score: { type: Number, required: false },
+            shouldApply: { type: Boolean, required: false },
+            reason: { type: String, required: false },
+            cachedAt: { type: Date, required: false }
         },
 
         // Generated content
@@ -163,8 +163,8 @@ const AutoJobSchema: Schema = new Schema(
 // Compound index for deduplication (user + jobId must be unique)
 AutoJobSchema.index({ userId: 1, jobId: 1 }, { unique: true });
 
-// Index for querying by status and relevance
-AutoJobSchema.index({ userId: 1, processingStatus: 1, isRelevant: 1 });
+// Index for querying by status and recommendation
+AutoJobSchema.index({ userId: 1, processingStatus: 1, 'recommendation.shouldApply': 1 });
 
 // Create and export the Mongoose model
 export default mongoose.model<IAutoJob>('AutoJob', AutoJobSchema);

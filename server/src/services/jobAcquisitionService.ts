@@ -254,29 +254,73 @@ const fetchJobDetailsFromApify = async (
 /**
  * Retrieve jobs using Apify LinkedIn scraper
  * Note: Requires Apify API token
+ * 
+ * @param apifyToken - Apify API token
+ * @param options - Search options
  */
+export interface JobSearchOptions {
+    keywords?: string; // Job search keywords (max 200 chars)
+    location?: string; // Job search location (max 100 chars)
+    jobType?: string[]; // Job types: "full-time", "part-time", "contract", "internship"
+    experienceLevel?: string[]; // Experience levels: "entry level", "associate", "mid-senior level", "director", "internship"
+    datePosted?: string; // Date filter: "any time", "past 24 hours", "past week", "past month"
+    maxJobs?: number; // Maximum number of jobs (20-1000, default 100)
+    avoidDuplicates?: boolean; // Skip already scraped jobs
+}
+
 export const retrieveJobsFromApify = async (
-    searchUrl: string,
     apifyToken: string,
-    maxJobs: number = 50
+    options: JobSearchOptions
 ): Promise<RawJobData[]> => {
     try {
         if (!apifyToken) {
             throw new Error('Apify API token is not configured. Please add your Apify token in the Integrations settings page.');
         }
 
+        // Validate required fields
+        if (!options.keywords && !options.location) {
+            throw new Error('Either keywords or location must be provided');
+        }
+
         // Use patrickvicente's LinkedIn job scraper for getting job list only
         // This scraper is fast and cheap, but doesn't return full job descriptions
         // Actor: patrickvicente/linkedin-job-scraper---ultra-fast-and-cheap
-        const actorId = '4NagaIHzI0lwMxdrI'; // Verify this is the correct actor ID for patrickvicente's scraper
+        const actorId = '4NagaIHzI0lwMxdrI';
+
+        // Build request payload with all supported parameters
+        const requestPayload: any = {
+            max_jobs: Math.min(1000, Math.max(20, options.maxJobs || 100)),
+            avoid_duplicates: options.avoidDuplicates || false
+        };
+
+        // Add optional parameters if provided
+        if (options.keywords) {
+            requestPayload.keywords = options.keywords.substring(0, 200); // Enforce max length
+        }
+        if (options.location) {
+            requestPayload.location = options.location.substring(0, 100); // Enforce max length
+        }
+        if (options.jobType && options.jobType.length > 0) {
+            requestPayload.job_type = options.jobType;
+        }
+        if (options.experienceLevel && options.experienceLevel.length > 0) {
+            requestPayload.experience_level = options.experienceLevel;
+        }
+        if (options.datePosted) {
+            // Map invalid "past hour" to valid "past 24 hours"
+            const validDatePosted = options.datePosted === 'past hour' ? 'past 24 hours' : options.datePosted;
+            // Only include if it's a valid value
+            const validValues = ['any time', 'past 24 hours', 'past week', 'past month'];
+            if (validValues.includes(validDatePosted)) {
+                requestPayload.date_posted = validDatePosted;
+            }
+        }
+
+        console.log(`→ Job search parameters:`, JSON.stringify(requestPayload, null, 2));
 
         const response = await axios.post(
             `https://api.apify.com/v2/acts/${actorId}/runs?token=${apifyToken}`,
-            {
-                start_urls: [{ url: searchUrl }],  // Updated: start_urls instead of startUrls
-                max_jobs: Math.min(100, Math.max(20, maxJobs)),  // Ensure 20-100 range
-                avoid_duplicates: false
-            }
+            requestPayload
         );
 
         const runId = response.data.data.id;
@@ -379,9 +423,21 @@ export const retrieveJobsFromApify = async (
         return results;
     } catch (error: any) {
         console.error('Error retrieving jobs from Apify:', error.message);
+        
+        // Log the full error response for debugging
+        if (error.response) {
+            console.error('Apify API Error Response:', {
+                status: error.response.status,
+                statusText: error.response.statusText,
+                data: error.response.data
+            });
+        }
 
         // Provide clearer error messages
-        if (error.response?.status === 404) {
+        if (error.response?.status === 400) {
+            const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Invalid request parameters';
+            throw new Error(`Apify API error: ${errorMessage}. Please check your search parameters (keywords, location, date_posted, etc.).`);
+        } else if (error.response?.status === 404) {
             throw new Error('Apify actor not found. Please verify your Apify token is valid and has access to the LinkedIn scraper.');
         } else if (error.response?.status === 401 || error.response?.status === 403) {
             throw new Error('Apify authentication failed. Please check your Apify API token in the Integrations settings page.');
@@ -409,15 +465,12 @@ export const retrieveJobsSimple = async (searchUrl: string): Promise<RawJobData[
  * Tries Apify if token available, falls back to simple method
  */
 export const retrieveJobs = async (
-    searchUrl: string,
-    apifyToken?: string,
-    maxJobs: number = 50
+    apifyToken: string,
+    options: JobSearchOptions
 ): Promise<RawJobData[]> => {
-    const sanitizedUrl = sanitizeLinkedInUrl(searchUrl);
-
     if (apifyToken) {
-        return await retrieveJobsFromApify(sanitizedUrl, apifyToken, maxJobs);
+        return await retrieveJobsFromApify(apifyToken, options);
     } else {
-        return await retrieveJobsSimple(sanitizedUrl);
+        throw new Error('Apify API token is required');
     }
 };

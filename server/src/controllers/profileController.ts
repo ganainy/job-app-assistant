@@ -267,9 +267,14 @@ export const getCurrentUserProfile = asyncHandler(
         userId,
         autoJobSettings: {
           enabled: false,
-          linkedInSearchUrl: '',
-          schedule: '0 9 * * *',
-          maxJobs: 50
+          keywords: '',
+          location: '',
+          jobType: [],
+          experienceLevel: [],
+          datePosted: 'any time',
+          maxJobs: 100,
+          avoidDuplicates: false,
+          schedule: '0 9 * * *'
         }
       });
     }

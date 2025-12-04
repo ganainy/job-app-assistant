@@ -16,6 +16,37 @@ export interface IJobApplication extends Document {
     notes?: string; // Optional user notes
     jobDescriptionText?: string; // Store the scraped text
     language?: string; // Language of the job
+    
+    // --- Auto Job Fields (unified model) ---
+    isAutoJob?: boolean; // true if auto-discovered
+    showInDashboard?: boolean; // true to show in dashboard
+    jobId?: string; // Unique identifier from job board (for auto jobs)
+    workflowRunId?: mongoose.Schema.Types.ObjectId; // Reference to workflow run (for auto jobs)
+    processingStatus?: 'pending' | 'analyzed' | 'relevant' | 'not_relevant' | 'generated' | 'error'; // For auto jobs
+    errorMessage?: string; // Error message for auto jobs
+    discoveredAt?: Date; // When auto job was discovered
+    processedAt?: Date; // When auto job was processed
+    
+    // Extracted intelligence from AI analysis (for auto jobs)
+    extractedData?: {
+        skills?: string[];
+        salary?: {
+            min?: number;
+            max?: number;
+            currency?: string;
+        };
+        yearsExperience?: number;
+        location?: string;
+        remoteOption?: string;
+    };
+    
+    // Company insights from AI research (for auto jobs)
+    companyInsights?: {
+        missionStatement?: string;
+        coreValues?: string[];
+        businessModel?: string;
+    };
+    
     // --- New Fields for Drafts & Status ---
     draftCvJson?: JsonResumeSchema | mongoose.Schema.Types.Mixed; // Store draft CV data
     draftCoverLetterText?: string; // Store draft Cover Letter text
@@ -53,6 +84,41 @@ const JobApplicationSchema: Schema = new Schema(
         notes: { type: String, trim: true },
         jobDescriptionText: { type: String }, // Text from scraping
         language: { type: String, trim: true },
+        
+        // --- Auto Job Fields (unified model) ---
+        isAutoJob: { type: Boolean, default: false, index: true },
+        showInDashboard: { type: Boolean, default: true, index: true }, // Default true for manual jobs, false for auto jobs
+        jobId: { type: String, trim: true, index: true }, // Unique identifier from job board (for auto jobs)
+        workflowRunId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkflowRun', index: true },
+        processingStatus: {
+            type: String,
+            enum: ['pending', 'analyzed', 'relevant', 'not_relevant', 'generated', 'error'],
+            index: true
+        },
+        errorMessage: { type: String },
+        discoveredAt: { type: Date, index: true },
+        processedAt: { type: Date },
+        
+        // Extracted intelligence from AI analysis (for auto jobs)
+        extractedData: {
+            skills: [String],
+            salary: {
+                min: Number,
+                max: Number,
+                currency: { type: String, default: 'USD' }
+            },
+            yearsExperience: Number,
+            location: String,
+            remoteOption: String
+        },
+        
+        // Company insights from AI research (for auto jobs)
+        companyInsights: {
+            missionStatement: String,
+            coreValues: [String],
+            businessModel: String
+        },
+        
         // --- Schema Definitions for New Fields ---
         draftCvJson: { type: Schema.Types.Mixed, required: false },
         draftCoverLetterText: { type: String, required: false },
@@ -80,6 +146,15 @@ const JobApplicationSchema: Schema = new Schema(
     },
     { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );
+
+// Compound index for deduplication (user + jobId must be unique for auto jobs)
+JobApplicationSchema.index({ userId: 1, jobId: 1 }, { unique: true, sparse: true });
+
+// Index for querying auto jobs by status and recommendation
+JobApplicationSchema.index({ userId: 1, isAutoJob: 1, processingStatus: 1, 'recommendation.shouldApply': 1 });
+
+// Index for querying dashboard jobs
+JobApplicationSchema.index({ userId: 1, showInDashboard: 1, status: 1 });
 
 // Create and export the Mongoose model
 export default mongoose.model<IJobApplication>('JobApplication', JobApplicationSchema);

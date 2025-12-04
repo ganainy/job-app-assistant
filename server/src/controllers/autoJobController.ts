@@ -1,6 +1,5 @@
 // server/src/controllers/autoJobController.ts
 import { Request, Response } from 'express';
-import AutoJob from '../models/AutoJob';
 import JobApplication from '../models/JobApplication';
 import Profile from '../models/Profile';
 import WorkflowRun from '../models/WorkflowRun';
@@ -24,7 +23,8 @@ export const triggerWorkflow = async (req: Request, res: Response) => {
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
                     enabled: false,
-                    linkedInSearchUrl: '',
+                    keywords: '',
+                    location: '',
                     schedule: '0 9 * * *'
                 }
             });
@@ -33,11 +33,12 @@ export const triggerWorkflow = async (req: Request, res: Response) => {
 
         // Validate required settings
         const autoJobSettings = (profile as any).autoJobSettings;
-        const linkedInSearchUrl = autoJobSettings?.linkedInSearchUrl;
+        const keywords = autoJobSettings?.keywords || '';
+        const location = autoJobSettings?.location || '';
 
-        if (!linkedInSearchUrl) {
+        if (!keywords && !location) {
             return res.status(400).json({
-                message: 'Please configure your LinkedIn Search URL in settings before running the workflow.'
+                message: 'Please configure keywords or location in settings before running the workflow.'
             });
         }
 
@@ -151,27 +152,33 @@ export const getAutoJobs = async (req: Request, res: Response) => {
         const status = req.query.status as string;
         const relevance = req.query.relevance as string;
 
-        // Build query
-        const query: any = { userId: new mongoose.Types.ObjectId(userId) };
+        // Build query - only get auto jobs
+        const query: any = { 
+            userId: new mongoose.Types.ObjectId(userId),
+            isAutoJob: true
+        };
 
         if (status) {
             query.processingStatus = status;
         }
 
         if (relevance === 'true') {
-            query.isRelevant = true;
+            query['recommendation.shouldApply'] = true;
         } else if (relevance === 'false') {
-            query.isRelevant = false;
+            query['recommendation.shouldApply'] = false;
+        } else if (relevance === 'processing') {
+            // Filter for jobs that are still processing (pending or analyzed status)
+            query.processingStatus = { $in: ['pending', 'analyzed'] };
         }
 
         // Execute query with pagination
         const skip = (page - 1) * limit;
         const [jobs, total] = await Promise.all([
-            AutoJob.find(query)
+            JobApplication.find(query)
                 .sort({ discoveredAt: -1 })
                 .skip(skip)
                 .limit(limit),
-            AutoJob.countDocuments(query)
+            JobApplication.countDocuments(query)
         ]);
 
         res.json({
@@ -201,9 +208,10 @@ export const getAutoJobById = async (req: Request, res: Response) => {
         const userId = (req.user as any)._id.toString();
         const { id } = req.params;
 
-        const job = await AutoJob.findOne({
+        const job = await JobApplication.findOne({
             _id: new mongoose.Types.ObjectId(id),
-            userId: new mongoose.Types.ObjectId(userId)
+            userId: new mongoose.Types.ObjectId(userId),
+            isAutoJob: true
         });
 
         if (!job) {
@@ -221,7 +229,7 @@ export const getAutoJobById = async (req: Request, res: Response) => {
 };
 
 /**
- * Promote auto job to regular job application
+ * Promote auto job to dashboard (unified model - just update flag)
  * POST /api/auto-jobs/:id/promote
  */
 export const promoteAutoJob = async (req: Request, res: Response) => {
@@ -229,35 +237,20 @@ export const promoteAutoJob = async (req: Request, res: Response) => {
         const userId = (req.user as any)._id.toString();
         const { id } = req.params;
 
-        // Find auto job
-        const autoJob = await AutoJob.findOne({
+        // Find auto job (already a JobApplication with isAutoJob=true)
+        const jobApplication = await JobApplication.findOne({
             _id: new mongoose.Types.ObjectId(id),
-            userId: new mongoose.Types.ObjectId(userId)
+            userId: new mongoose.Types.ObjectId(userId),
+            isAutoJob: true
         });
 
-        if (!autoJob) {
+        if (!jobApplication) {
             return res.status(404).json({ message: 'Auto job not found' });
         }
 
-        // Create JobApplication from AutoJob
-        const jobApplication = new JobApplication({
-            userId: new mongoose.Types.ObjectId(userId),
-            jobTitle: autoJob.jobTitle,
-            companyName: autoJob.companyName,
-            jobUrl: autoJob.jobUrl,
-            jobDescriptionText: autoJob.jobDescriptionText,
-            status: 'Not Applied',
-            language: 'en',
-            draftCvJson: autoJob.customizedResumeHtml ? { html: autoJob.customizedResumeHtml } : undefined,
-            draftCoverLetterText: autoJob.coverLetterText,
-            generationStatus: autoJob.customizedResumeHtml || autoJob.coverLetterText ? 'draft_ready' : 'none',
-            notes: `Auto-discovered job. Skill match: ${autoJob.skillMatchScore || 'N/A'}/5\n\nRelevance: ${autoJob.relevanceReason || 'N/A'}`
-        });
-
+        // Simply update the flag to show in dashboard (unified model - no data copying needed!)
+        jobApplication.showInDashboard = true;
         await jobApplication.save();
-
-        // Optionally delete the auto job after promotion
-        await AutoJob.findByIdAndDelete(id);
 
         res.json({
             message: 'Job promoted successfully',
@@ -281,9 +274,10 @@ export const deleteAutoJob = async (req: Request, res: Response) => {
         const userId = (req.user as any)._id.toString();
         const { id } = req.params;
 
-        const result = await AutoJob.findOneAndDelete({
+        const result = await JobApplication.findOneAndDelete({
             _id: new mongoose.Types.ObjectId(id),
-            userId: new mongoose.Types.ObjectId(userId)
+            userId: new mongoose.Types.ObjectId(userId),
+            isAutoJob: true
         });
 
         if (!result) {
@@ -308,6 +302,11 @@ export const getStats = async (req: Request, res: Response) => {
     try {
         const userId = (req.user as any)._id.toString();
 
+        const baseQuery = { 
+            userId: new mongoose.Types.ObjectId(userId),
+            isAutoJob: true
+        };
+
         const [
             total,
             pending,
@@ -317,13 +316,13 @@ export const getStats = async (req: Request, res: Response) => {
             generated,
             errors
         ] = await Promise.all([
-            AutoJob.countDocuments({ userId: new mongoose.Types.ObjectId(userId) }),
-            AutoJob.countDocuments({ userId: new mongoose.Types.ObjectId(userId), processingStatus: 'pending' }),
-            AutoJob.countDocuments({ userId: new mongoose.Types.ObjectId(userId), processingStatus: 'analyzed' }),
-            AutoJob.countDocuments({ userId: new mongoose.Types.ObjectId(userId), isRelevant: true }),
-            AutoJob.countDocuments({ userId: new mongoose.Types.ObjectId(userId), isRelevant: false }),
-            AutoJob.countDocuments({ userId: new mongoose.Types.ObjectId(userId), processingStatus: 'generated' }),
-            AutoJob.countDocuments({ userId: new mongoose.Types.ObjectId(userId), processingStatus: 'error' })
+            JobApplication.countDocuments(baseQuery),
+            JobApplication.countDocuments({ ...baseQuery, processingStatus: 'pending' }),
+            JobApplication.countDocuments({ ...baseQuery, processingStatus: 'analyzed' }),
+            JobApplication.countDocuments({ ...baseQuery, 'recommendation.shouldApply': true }),
+            JobApplication.countDocuments({ ...baseQuery, 'recommendation.shouldApply': false }),
+            JobApplication.countDocuments({ ...baseQuery, processingStatus: 'generated' }),
+            JobApplication.countDocuments({ ...baseQuery, processingStatus: 'error' })
         ]);
 
         res.json({
@@ -351,9 +350,17 @@ export const getStats = async (req: Request, res: Response) => {
 export const updateSettings = async (req: Request, res: Response) => {
     try {
         const userId = (req.user as any)._id.toString();
-        const { enabled, linkedInSearchUrl, schedule, maxJobs } = req.body;
-        // Only log valid fields that we actually use
-        console.log(`Updating settings for user ${userId}:`, JSON.stringify({ enabled, linkedInSearchUrl, schedule, maxJobs }));
+        const { 
+            enabled, 
+            keywords, 
+            location, 
+            jobType, 
+            experienceLevel, 
+            datePosted, 
+            maxJobs, 
+            avoidDuplicates,
+            schedule 
+        } = req.body;
 
         let profile = await Profile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
 
@@ -363,18 +370,29 @@ export const updateSettings = async (req: Request, res: Response) => {
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
                     enabled: enabled || false,
-                    linkedInSearchUrl: linkedInSearchUrl || '',
-                    schedule: schedule || '0 9 * * *',
-                    maxJobs: maxJobs || 50
+                    keywords: keywords || '',
+                    location: location || '',
+                    jobType: Array.isArray(jobType) ? jobType : [],
+                    experienceLevel: Array.isArray(experienceLevel) ? experienceLevel : [],
+                    datePosted: datePosted || 'any time',
+                    maxJobs: maxJobs || 100,
+                    avoidDuplicates: avoidDuplicates || false,
+                    schedule: schedule || '0 9 * * *'
                 }
             });
         } else {
             // Update existing profile
+            const existingSettings = (profile as any).autoJobSettings || {};
             (profile as any).autoJobSettings = {
-                enabled: enabled !== undefined ? enabled : (profile as any).autoJobSettings?.enabled || false,
-                linkedInSearchUrl: linkedInSearchUrl || (profile as any).autoJobSettings?.linkedInSearchUrl || '',
-                schedule: schedule || (profile as any).autoJobSettings?.schedule || '0 9 * * *',
-                maxJobs: maxJobs !== undefined ? Math.min(100, Math.max(20, maxJobs)) : (profile as any).autoJobSettings?.maxJobs || 50
+                enabled: enabled !== undefined ? enabled : existingSettings.enabled || false,
+                keywords: keywords !== undefined ? keywords : existingSettings.keywords || '',
+                location: location !== undefined ? location : existingSettings.location || '',
+                jobType: Array.isArray(jobType) ? jobType : (jobType !== undefined ? [] : existingSettings.jobType || []),
+                experienceLevel: Array.isArray(experienceLevel) ? experienceLevel : (experienceLevel !== undefined ? [] : existingSettings.experienceLevel || []),
+                datePosted: datePosted !== undefined ? datePosted : existingSettings.datePosted || 'any time',
+                maxJobs: maxJobs !== undefined ? Math.min(1000, Math.max(20, maxJobs)) : existingSettings.maxJobs || 100,
+                avoidDuplicates: avoidDuplicates !== undefined ? avoidDuplicates : existingSettings.avoidDuplicates || false,
+                schedule: schedule || existingSettings.schedule || '0 9 * * *'
             };
         }
 
@@ -409,9 +427,14 @@ export const getSettings = async (req: Request, res: Response) => {
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
                     enabled: false,
-                    linkedInSearchUrl: '',
-                    schedule: '0 9 * * *',
-                    maxJobs: 50
+                    keywords: '',
+                    location: '',
+                    jobType: [],
+                    experienceLevel: [],
+                    datePosted: 'any time',
+                    maxJobs: 100,
+                    avoidDuplicates: false,
+                    schedule: '0 9 * * *'
                 }
             });
             await profile.save();
@@ -419,9 +442,14 @@ export const getSettings = async (req: Request, res: Response) => {
 
         const settings = (profile as any).autoJobSettings || {
             enabled: false,
-            linkedInSearchUrl: '',
-            schedule: '0 9 * * *',
-            maxJobs: 50
+            keywords: '',
+            location: '',
+            jobType: [],
+            experienceLevel: [],
+            datePosted: 'any time',
+            maxJobs: 100,
+            avoidDuplicates: false,
+            schedule: '0 9 * * *'
         };
 
         // Ensure maxJobs is present even if not in DB

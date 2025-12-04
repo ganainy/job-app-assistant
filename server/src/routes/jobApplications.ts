@@ -35,7 +35,11 @@ const getJobsHandler: RequestHandler = async (req, res) => {
       return;
     }
     const userId = req.user._id; // Get user ID from the authenticated user
-    const jobs = await JobApplication.find({ userId: userId }).sort({ createdAt: -1 });
+    // Only show jobs that should be displayed in dashboard
+    const jobs = await JobApplication.find({ 
+      userId: userId,
+      showInDashboard: true 
+    }).sort({ createdAt: -1 });
     res.status(200).json(jobs);
   } catch (error) {
     console.error("Error fetching jobs:", error);
@@ -61,7 +65,9 @@ const createJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
       status: status || 'Not Applied',
       jobUrl,
       notes,
-      jobDescriptionText // Pass scraped text if provided
+      jobDescriptionText, // Pass scraped text if provided
+      isAutoJob: false, // Manual job
+      showInDashboard: true // Manual jobs always show in dashboard
     });
 
     const savedJob = await newJob.save();
@@ -318,6 +324,8 @@ const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, re
       notes: extractedData.notes || '', // Use extracted notes or empty string
       jobUrl: url, // Save the original URL
       status: 'Not Applied', // Default status
+      isAutoJob: false, // Manual job
+      showInDashboard: true // Manual jobs always show in dashboard
     });
 
     // 3. Save the document

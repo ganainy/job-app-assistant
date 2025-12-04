@@ -3,14 +3,29 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api';
 
-// Types
+// Types - AutoJob is now a JobApplication with isAutoJob=true (unified model)
 export interface AutoJob {
     _id: string;
-    jobId: string;
+    userId: string;
     jobTitle: string;
     companyName: string;
-    jobUrl: string;
+    status: 'Applied' | 'Not Applied' | 'Interview' | 'Assessment' | 'Rejected' | 'Closed' | 'Offer';
+    jobUrl?: string;
     jobDescriptionText?: string;
+    language?: string;
+    notes?: string;
+    
+    // Auto job specific fields
+    isAutoJob: boolean;
+    showInDashboard: boolean;
+    jobId?: string;
+    workflowRunId?: string;
+    processingStatus?: 'pending' | 'analyzed' | 'relevant' | 'not_relevant' | 'generated' | 'error';
+    errorMessage?: string;
+    discoveredAt?: Date;
+    processedAt?: Date;
+    
+    // Extracted data (for auto jobs)
     extractedData?: {
         skills: string[];
         salary?: {
@@ -22,22 +37,29 @@ export interface AutoJob {
         location?: string;
         remoteOption?: string;
     };
+    
+    // Company insights (for auto jobs)
     companyInsights?: {
         missionStatement?: string;
         coreValues?: string[];
         businessModel?: string;
     };
-    isRelevant?: boolean;
-    relevanceReason?: string;
-    skillMatchScore?: number;
-    customizedResumeHtml?: string;
-    coverLetterText?: string;
-    processingStatus: 'pending' | 'analyzed' | 'relevant' | 'not_relevant' | 'generated' | 'error';
-    errorMessage?: string;
-    discoveredAt: Date;
-    processedAt?: Date;
-    createdAt: Date;
-    updatedAt: Date;
+    
+    // Recommendation (unified)
+    recommendation?: {
+        score: number | null;
+        shouldApply: boolean;
+        reason: string;
+        cachedAt: Date | string;
+    };
+    
+    // Draft content (mapped from customizedResumeHtml/coverLetterText)
+    draftCvJson?: any;
+    draftCoverLetterText?: string;
+    generationStatus?: 'none' | 'pending_input' | 'pending_generation' | 'draft_ready' | 'finalized' | 'error';
+    
+    createdAt: Date | string;
+    updatedAt: Date | string;
 }
 
 export interface AutoJobsResponse {
@@ -62,9 +84,14 @@ export interface WorkflowStats {
 
 export interface AutoJobSettings {
     enabled: boolean;
-    linkedInSearchUrl: string;
-    schedule: string;
+    keywords?: string;
+    location?: string;
+    jobType?: string[];
+    experienceLevel?: string[];
+    datePosted?: string;
     maxJobs?: number;
+    avoidDuplicates?: boolean;
+    schedule: string;
 }
 
 export interface WorkflowRun {
