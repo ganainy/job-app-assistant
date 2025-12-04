@@ -24,6 +24,7 @@ export interface AutoJob {
     errorMessage?: string;
     discoveredAt?: Date;
     processedAt?: Date;
+    jobPostDate?: Date | string; // When the job was posted (from crawler)
     
     // Extracted data (for auto jobs)
     extractedData?: {

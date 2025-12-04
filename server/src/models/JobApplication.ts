@@ -26,6 +26,8 @@ export interface IJobApplication extends Document {
     errorMessage?: string; // Error message for auto jobs
     discoveredAt?: Date; // When auto job was discovered
     processedAt?: Date; // When auto job was processed
+    jobPostDate?: Date; // When the job was posted (from crawler)
+    deletedAt?: Date; // Soft delete timestamp (for auto jobs to prevent re-fetching)
     
     // Extracted intelligence from AI analysis (for auto jobs)
     extractedData?: {
@@ -98,6 +100,8 @@ const JobApplicationSchema: Schema = new Schema(
         errorMessage: { type: String },
         discoveredAt: { type: Date, index: true },
         processedAt: { type: Date },
+        jobPostDate: { type: Date },
+        deletedAt: { type: Date, index: true }, // Soft delete timestamp
         
         // Extracted intelligence from AI analysis (for auto jobs)
         extractedData: {

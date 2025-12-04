@@ -4,10 +4,9 @@ import Profile from '../models/Profile';
 import User from '../models/User';
 import WorkflowRun from '../models/WorkflowRun';
 import { retrieveJobs, extractJobId, JobSearchOptions } from './jobAcquisitionService';
-import { analyzeJobAndCompany } from './jobAnalysisService';
+import { analyzeJobCompanyAndRelevance } from './jobAnalysisService';
 import { getOrStructureResume } from './resumeCacheService';
-import { checkRelevance } from './jobRelevanceService';
-import { generateCustomizedResume, generateCoverLetterWithSkillMatch } from './generatorService';
+import { waitForRateLimit } from '../utils/rateLimiter';
 import { decrypt } from '../utils/encryption';
 import { convertJsonResumeToText } from '../utils/cvTextExtractor';
 import mongoose from 'mongoose';
@@ -22,7 +21,6 @@ export interface WorkflowStats {
     analyzed: number;
     relevant: number;
     notRelevant: number;
-    generated: number;
     errors: number;
 }
 
@@ -83,7 +81,6 @@ export const runAutoJobWorkflow = async (userId: string, isManual: boolean = fal
             analyzed: 0,
             relevant: 0,
             notRelevant: 0,
-            generated: 0,
             errors: 0
         }
     });
@@ -106,6 +103,191 @@ export const runAutoJobWorkflow = async (userId: string, isManual: boolean = fal
 };
 
 /**
+ * Process a single job with merged analysis
+ */
+async function processSingleJob(
+    job: any,
+    index: number,
+    total: number,
+    userId: string,
+    runId: string,
+    structuredResume: any,
+    stats: WorkflowStats,
+    checkCancellation: () => Promise<boolean>,
+    updateProgress: (stepName: string, status: 'running' | 'completed' | 'failed', stepIndex: number, message?: string) => Promise<void>
+): Promise<void> {
+    const progressMsg = `Processing job ${index + 1}/${total}: ${job.jobTitle}`;
+    console.log(`[${index + 1}/${total}] Processing: ${job.jobTitle} at ${job.companyName}`);
+
+    // Update step progress
+    await WorkflowRun.findByIdAndUpdate(runId, {
+        'progress.currentStep': progressMsg,
+        'progress.percentage': Math.round(66 + ((index / total) * 33)), // Map job processing to 66-99% range
+        'steps.4.count': index + 1,
+        'steps.4.total': total,
+        'steps.4.message': progressMsg
+    });
+
+    try {
+        // Create JobApplication entry (unified model)
+        const jobApplication = new JobApplication({
+            userId: new mongoose.Types.ObjectId(userId),
+            workflowRunId: new mongoose.Types.ObjectId(runId),
+            jobId: job.jobId,
+            jobTitle: job.jobTitle,
+            companyName: job.companyName,
+            jobUrl: job.jobUrl,
+            jobDescriptionText: job.jobDescriptionText,
+            jobPostDate: job.jobPostDate, // Store post date from crawler
+            status: 'Not Applied', // Default status for auto jobs
+            isAutoJob: true,
+            showInDashboard: false, // Auto jobs hidden from dashboard by default
+            processingStatus: 'pending',
+            discoveredAt: new Date()
+        });
+        await jobApplication.save();
+        
+        // Update stats immediately after creating job
+        await WorkflowRun.findByIdAndUpdate(runId, { stats });
+
+        // Skip if no description
+        if (!job.jobDescriptionText || job.jobDescriptionText.length < 50) {
+            console.log(`  ✗ Skipping: Job description empty or too short`);
+            jobApplication.processingStatus = 'error';
+            jobApplication.errorMessage = 'Job description missing from source';
+            await jobApplication.save();
+            stats.errors++;
+            return;
+        }
+
+        // Check for cancellation before AI calls
+        if (await checkCancellation()) {
+            console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
+            return;
+        }
+
+        // Wait for rate limiter before making AI call
+        await waitForRateLimit();
+
+        // Use merged analysis function (combines job extraction, company insights, and relevance)
+        const structuredData = job.structuredData;
+        if (structuredData) {
+            console.log(`  → Using structured data from scraper (reducing AI calls)`);
+        }
+        
+        const analysis = await analyzeJobCompanyAndRelevance(
+            job.jobDescriptionText,
+            job.companyName,
+            structuredResume,
+            userId,
+            structuredData,
+            50 // Threshold: >=50% match is considered relevant
+        );
+
+        // Update job application with extracted data and company insights
+        jobApplication.extractedData = analysis.job.extractedData;
+        jobApplication.companyInsights = analysis.company;
+        jobApplication.processingStatus = 'analyzed';
+        jobApplication.processedAt = new Date();
+
+        // Build recommendation object from relevance analysis
+        const recommendation = {
+            score: analysis.relevance.score ?? null,
+            shouldApply: analysis.relevance.isRelevant,
+            reason: analysis.relevance.reason,
+            cachedAt: new Date()
+        };
+
+        jobApplication.recommendation = recommendation;
+
+        if (!analysis.relevance.isRelevant) {
+            jobApplication.processingStatus = 'not_relevant';
+            await jobApplication.save();
+            stats.analyzed++;
+            stats.notRelevant++;
+            
+            // Update stats immediately after relevance check
+            await WorkflowRun.findByIdAndUpdate(runId, { stats });
+            
+            console.log(`  ✗ Not relevant: ${analysis.relevance.reason}`);
+            return;
+        }
+
+        jobApplication.processingStatus = 'relevant';
+        await jobApplication.save();
+        stats.analyzed++;
+        stats.relevant++;
+        
+        // Update stats immediately after relevance check
+        await WorkflowRun.findByIdAndUpdate(runId, { stats });
+        
+        console.log(`  ✓ Relevant: ${analysis.relevance.reason} (${analysis.relevance.score ?? 'N/A'}% match)`);
+
+    } catch (error: any) {
+        console.error(`  Error processing job ${job.jobId}:`, error.message);
+        stats.errors++;
+        
+        // Update stats immediately after error
+        await WorkflowRun.findByIdAndUpdate(runId, { stats });
+    }
+}
+
+/**
+ * Process jobs in parallel with concurrency control
+ */
+async function processJobsInParallel(
+    jobs: any[],
+    userId: string,
+    runId: string,
+    structuredResume: any,
+    stats: WorkflowStats,
+    checkCancellation: () => Promise<boolean>,
+    updateProgress: (stepName: string, status: 'running' | 'completed' | 'failed', stepIndex: number, message?: string) => Promise<void>
+): Promise<void> {
+    const CONCURRENCY_LIMIT = 4; // Process 4 jobs at a time
+    
+    for (let i = 0; i < jobs.length; i += CONCURRENCY_LIMIT) {
+        // Check for cancellation before processing batch
+        if (await checkCancellation()) {
+            console.log(`\n⚠ Workflow cancelled by user. Stopping at job ${i + 1}/${jobs.length}`);
+            await WorkflowRun.findByIdAndUpdate(runId, {
+                status: 'cancelled',
+                'progress.currentStep': `Cancelled at job ${i + 1}/${jobs.length}`,
+                completedAt: new Date()
+            });
+            return;
+        }
+
+        // Get batch of jobs to process
+        const batch = jobs.slice(i, i + CONCURRENCY_LIMIT);
+        
+        // Process batch in parallel
+        const results = await Promise.allSettled(
+            batch.map((job, batchIndex) => 
+                processSingleJob(
+                    job,
+                    i + batchIndex,
+                    jobs.length,
+                    userId,
+                    runId,
+                    structuredResume,
+                    stats,
+                    checkCancellation,
+                    updateProgress
+                )
+            )
+        );
+
+        // Log any failures in the batch
+        results.forEach((result, batchIndex) => {
+            if (result.status === 'rejected') {
+                console.error(`  Error in batch job ${i + batchIndex + 1}:`, result.reason);
+            }
+        });
+    }
+}
+
+/**
  * Execute workflow asynchronously with progress tracking
  * This function contains the actual workflow logic
  */
@@ -117,7 +299,6 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         analyzed: 0,
         relevant: 0,
         notRelevant: 0,
-        generated: 0,
         errors: 0
     };
 
@@ -246,6 +427,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
 
         const newJobs = [];
         for (const job of rawJobs) {
+            // Check if job already exists (including soft-deleted ones, to prevent re-fetching)
             const exists = await JobApplication.findOne({
                 userId: new mongoose.Types.ObjectId(userId),
                 jobId: job.jobId
@@ -285,220 +467,11 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
 
         // Step 5: Process Jobs
         await updateProgress('Process Jobs', 'running', 4, `Processing ${newJobs.length} jobs...`);
-        console.log(`\n→ Processing ${newJobs.length} jobs sequentially...`);
-        console.log(`  (Adding delay to respect Gemini API rate limits)\n`);
+        console.log(`\n→ Processing ${newJobs.length} jobs in parallel (concurrency: 4)...`);
+        console.log(`  (Using rate limiter to respect API limits)\n`);
 
-        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-        for (let i = 0; i < newJobs.length; i++) {
-            // Check for cancellation before processing each job
-            if (await checkCancellation()) {
-                console.log(`\n⚠ Workflow cancelled by user. Stopping at job ${i + 1}/${newJobs.length}`);
-                await WorkflowRun.findByIdAndUpdate(runId, {
-                    status: 'cancelled',
-                    'progress.currentStep': `Cancelled at job ${i + 1}/${newJobs.length}`,
-                    completedAt: new Date()
-                });
-                return;
-            }
-
-            const job = newJobs[i];
-            const progressMsg = `Processing job ${i + 1}/${newJobs.length}: ${job.jobTitle}`;
-            console.log(`[${i + 1}/${newJobs.length}] Processing: ${job.jobTitle} at ${job.companyName}`);
-
-            // Update step progress
-            await WorkflowRun.findByIdAndUpdate(runId, {
-                'progress.currentStep': progressMsg,
-                'progress.percentage': Math.round(66 + ((i / newJobs.length) * 33)), // Map job processing to 66-99% range
-                'steps.4.count': i + 1,
-                'steps.4.total': newJobs.length,
-                'steps.4.message': progressMsg
-            });
-
-            try {
-                // Create JobApplication entry (unified model)
-                const jobApplication = new JobApplication({
-                    userId: new mongoose.Types.ObjectId(userId),
-                    workflowRunId: new mongoose.Types.ObjectId(runId),
-                    jobId: job.jobId,
-                    jobTitle: job.jobTitle,
-                    companyName: job.companyName,
-                    jobUrl: job.jobUrl,
-                    jobDescriptionText: job.jobDescriptionText,
-                    status: 'Not Applied', // Default status for auto jobs
-                    isAutoJob: true,
-                    showInDashboard: false, // Auto jobs hidden from dashboard by default
-                    processingStatus: 'pending',
-                    discoveredAt: new Date()
-                });
-                await jobApplication.save();
-                
-                // Update stats immediately after creating job
-                await WorkflowRun.findByIdAndUpdate(runId, { stats });
-
-                // Skip if no description
-                if (!job.jobDescriptionText || job.jobDescriptionText.length < 50) {
-                    console.log(`  ✗ Skipping: Job description empty or too short`);
-                    jobApplication.processingStatus = 'error';
-                    jobApplication.errorMessage = 'Job description missing from source';
-                    await jobApplication.save();
-                    stats.errors++;
-                    continue;
-                }
-
-                // Check for cancellation before AI calls
-                if (await checkCancellation()) {
-                    console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
-                    await WorkflowRun.findByIdAndUpdate(runId, {
-                        status: 'cancelled',
-                        'progress.currentStep': `Cancelled while processing job ${i + 1}/${newJobs.length}`,
-                        completedAt: new Date()
-                    });
-                    return;
-                }
-
-                // Rate limiting delay (10 seconds)
-                await delay(10000);
-
-                // Analyze job and company (pass structured data to reduce AI calls)
-                // Structured data contains skills, salary, location, remote_allow, company_description
-                const structuredData = job.structuredData;
-                if (structuredData) {
-                    console.log(`  → Using structured data from scraper (reducing AI calls)`);
-                }
-                
-                const analysis = await analyzeJobAndCompany(
-                    job.jobDescriptionText,
-                    job.companyName,
-                    userId,
-                    structuredData // Pass structured data from scraper
-                );
-
-                jobApplication.extractedData = analysis.job.extractedData;
-                jobApplication.companyInsights = analysis.company;
-                jobApplication.processingStatus = 'analyzed';
-                jobApplication.processedAt = new Date();
-                await jobApplication.save();
-                stats.analyzed++;
-
-                // Check for cancellation before relevance check
-                if (await checkCancellation()) {
-                    console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
-                    await WorkflowRun.findByIdAndUpdate(runId, {
-                        status: 'cancelled',
-                        'progress.currentStep': `Cancelled while processing job ${i + 1}/${newJobs.length}`,
-                        completedAt: new Date()
-                    });
-                    return;
-                }
-
-                // Rate limiting delay (10 seconds)
-                await delay(10000);
-
-                // Check relevance using unified logic (same as dashboard)
-                // Uses analyzeWithGemini internally for consistency
-                // Thresholds match dashboard:
-                // - >= 70%: Strong match → should apply
-                // - >= 50%: Moderate match → consider applying
-                // - < 50%: Weak match → not recommended
-                const relevanceCheck = await checkRelevance(
-                    structuredResume,
-                    job.jobDescriptionText,
-                    userId,
-                    50 // Threshold: >=50% match is considered relevant (same as dashboard "consider applying")
-                );
-
-                // Build recommendation object (unified with dashboard)
-                const recommendation = {
-                    score: relevanceCheck.score ?? null,
-                    shouldApply: relevanceCheck.isRelevant, // >= 50% is considered relevant
-                    reason: relevanceCheck.reason,
-                    cachedAt: new Date()
-                };
-
-                jobApplication.recommendation = recommendation;
-
-                if (!relevanceCheck.isRelevant) {
-                    jobApplication.processingStatus = 'not_relevant';
-                    await jobApplication.save();
-                    stats.notRelevant++;
-                    
-                    // Update stats immediately after relevance check
-                    await WorkflowRun.findByIdAndUpdate(runId, { stats });
-                    
-                    console.log(`  ✗ Not relevant: ${relevanceCheck.reason}`);
-                    continue;
-                }
-
-                jobApplication.processingStatus = 'relevant';
-                await jobApplication.save();
-                stats.relevant++;
-                
-                // Update stats immediately after relevance check
-                await WorkflowRun.findByIdAndUpdate(runId, { stats });
-                
-                console.log(`  ✓ Relevant: ${relevanceCheck.reason} (${relevanceCheck.score ?? 'N/A'}% match)`);
-
-                // Check for cancellation before content generation
-                if (await checkCancellation()) {
-                    console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
-                    await WorkflowRun.findByIdAndUpdate(runId, {
-                        status: 'cancelled',
-                        'progress.currentStep': `Cancelled while processing job ${i + 1}/${newJobs.length}`,
-                        completedAt: new Date()
-                    });
-                    return;
-                }
-
-                // Rate limiting delay (10 seconds)
-                await delay(10000);
-
-                // Generate content
-                const customizedResume = await generateCustomizedResume(
-                    resumeText,
-                    structuredResume,
-                    job.jobDescriptionText,
-                    userId
-                );
-
-                const coverLetterResult = await generateCoverLetterWithSkillMatch(
-                    structuredResume,
-                    analysis.company,
-                    {
-                        jobTitle: job.jobTitle,
-                        companyName: job.companyName,
-                        jobDescription: job.jobDescriptionText,
-                        extractedData: analysis.job.extractedData
-                    },
-                    userId
-                );
-
-                // Map generated content to draft fields (unified structure)
-                // draftCvJson is Mixed type, so we can store the HTML structure
-                jobApplication.draftCvJson = customizedResume ? { html: customizedResume } as any : undefined;
-                jobApplication.draftCoverLetterText = coverLetterResult.coverLetter;
-                jobApplication.generationStatus = (customizedResume || coverLetterResult.coverLetter) ? 'draft_ready' : 'none';
-                // Recommendation already set during relevance check, no need to update
-                jobApplication.processingStatus = 'generated';
-                await jobApplication.save();
-                stats.generated++;
-                
-                // Update stats immediately after content generation
-                await WorkflowRun.findByIdAndUpdate(runId, { stats });
-                
-                console.log(`  ✓ Generated resume and cover letter`);
-                if (jobApplication.recommendation?.score !== null && jobApplication.recommendation?.score !== undefined) {
-                    console.log(`  Match Score: ${jobApplication.recommendation.score}% (${jobApplication.recommendation.shouldApply ? 'Should apply' : 'Not recommended'})`);
-                }
-
-            } catch (error: any) {
-                console.error(`  Error processing job ${job.jobId}:`, error.message);
-                stats.errors++;
-                
-                // Update stats immediately after error
-                await WorkflowRun.findByIdAndUpdate(runId, { stats });
-            }
-        }
+        // Process jobs in parallel with concurrency control
+        await processJobsInParallel(newJobs, userId, runId, structuredResume, stats, checkCancellation, updateProgress);
 
         await updateProgress('Process Jobs', 'completed', 4, `Processed ${newJobs.length} jobs`);
 

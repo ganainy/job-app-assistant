@@ -147,10 +147,12 @@ export const getAutoJobs = async (req: Request, res: Response) => {
         const status = req.query.status as string;
         const relevance = req.query.relevance as string;
 
-        // Build query - only get auto jobs
+        // Build query - only get auto jobs that haven't been promoted to dashboard and aren't soft-deleted
         const query: any = { 
             userId: new mongoose.Types.ObjectId(userId),
-            isAutoJob: true
+            isAutoJob: true,
+            showInDashboard: false, // Exclude jobs that have been moved to dashboard
+            deletedAt: null // Exclude soft-deleted jobs
         };
 
         if (status) {
@@ -206,7 +208,8 @@ export const getAutoJobById = async (req: Request, res: Response) => {
         const job = await JobApplication.findOne({
             _id: new mongoose.Types.ObjectId(id),
             userId: new mongoose.Types.ObjectId(userId),
-            isAutoJob: true
+            isAutoJob: true,
+            deletedAt: null // Exclude soft-deleted jobs
         });
 
         if (!job) {
@@ -232,11 +235,12 @@ export const promoteAutoJob = async (req: Request, res: Response) => {
         const userId = (req.user as any)._id.toString();
         const { id } = req.params;
 
-        // Find auto job (already a JobApplication with isAutoJob=true)
+        // Find auto job (already a JobApplication with isAutoJob=true, not soft-deleted)
         const jobApplication = await JobApplication.findOne({
             _id: new mongoose.Types.ObjectId(id),
             userId: new mongoose.Types.ObjectId(userId),
-            isAutoJob: true
+            isAutoJob: true,
+            deletedAt: null // Exclude soft-deleted jobs
         });
 
         if (!jobApplication) {
@@ -261,22 +265,32 @@ export const promoteAutoJob = async (req: Request, res: Response) => {
 };
 
 /**
- * Delete auto job
+ * Delete auto job (soft delete)
  * DELETE /api/auto-jobs/:id
+ * Sets deletedAt timestamp instead of actually deleting, so the job won't be re-fetched in future workflows
  */
 export const deleteAutoJob = async (req: Request, res: Response) => {
     try {
         const userId = (req.user as any)._id.toString();
         const { id } = req.params;
 
-        const result = await JobApplication.findOneAndDelete({
-            _id: new mongoose.Types.ObjectId(id),
-            userId: new mongoose.Types.ObjectId(userId),
-            isAutoJob: true
-        });
+        const result = await JobApplication.findOneAndUpdate(
+            {
+                _id: new mongoose.Types.ObjectId(id),
+                userId: new mongoose.Types.ObjectId(userId),
+                isAutoJob: true,
+                deletedAt: null // Only update if not already deleted
+            },
+            {
+                deletedAt: new Date()
+            },
+            {
+                new: true
+            }
+        );
 
         if (!result) {
-            return res.status(404).json({ message: 'Auto job not found' });
+            return res.status(404).json({ message: 'Auto job not found or already deleted' });
         }
 
         res.json({ message: 'Auto job deleted successfully' });

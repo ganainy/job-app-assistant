@@ -19,7 +19,9 @@ import {
 } from '../services/autoJobApi';
 import Toast from '../components/common/Toast';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import ConfirmModal from '../components/common/ConfirmModal';
 import JobRecommendationBadge from '../components/jobs/JobRecommendationBadge';
+import { formatDate } from '../utils/dateUtils';
 
 const AutoJobsPage: React.FC = () => {
     // State
@@ -40,7 +42,18 @@ const AutoJobsPage: React.FC = () => {
     const [isTriggering, setIsTriggering] = useState(false);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+    // Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        message: string;
+        title?: string;
+        onConfirm: () => void;
+        confirmText?: string;
+        cancelText?: string;
+        confirmButtonStyle?: 'primary' | 'danger';
+    } | null>(null);
 
     // Workflow Progress State
     const [currentRunId, setCurrentRunId] = useState<string | null>(localStorage.getItem('autoJobRunId'));
@@ -322,7 +335,16 @@ const AutoJobsPage: React.FC = () => {
                     setLastJobCount(0);
 
                     if (status.status === 'completed') {
-                        showToast(`Workflow complete! ${status.stats.generated} jobs generated`, 'success');
+                        // Check if no jobs were found
+                        if (status.stats.jobsFound === 0) {
+                            showToast('No jobs found matching your search criteria. Try adjusting your keywords, location, or filters.', 'info');
+                        } else if (status.stats.generated > 0) {
+                            showToast(`Workflow complete! ${status.stats.generated} jobs generated`, 'success');
+                        } else if (status.stats.newJobs === 0 && status.stats.jobsFound > 0) {
+                            showToast(`Found ${status.stats.jobsFound} jobs, but all were duplicates. No new jobs to process.`, 'info');
+                        } else {
+                            showToast(`Workflow complete! Found ${status.stats.jobsFound} jobs`, 'success');
+                        }
                         fetchData(); // Refresh data
                     } else if (status.status === 'failed') {
                         showToast(`Workflow failed: ${status.errorMessage}`, 'error');
@@ -342,7 +364,7 @@ const AutoJobsPage: React.FC = () => {
     }, [currentRunId, filterRelevance, filterStatus, lastJobCount]);
 
     // Toast helper
-    const showToast = (message: string, type: 'success' | 'error') => {
+    const showToast = (message: string, type: 'success' | 'error' | 'info') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 5000);
     };
@@ -438,29 +460,47 @@ const AutoJobsPage: React.FC = () => {
     };
 
     // Handle promote job
-    const handlePromote = async (id: string) => {
-        if (!confirm('Save this job to your main dashboard?')) return;
-
-        try {
-            await promoteAutoJob(id);
-            showToast('Job saved to main dashboard successfully!', 'success');
-            fetchData();
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to save job to main dashboard', 'error');
-        }
+    const handlePromote = (id: string) => {
+        setConfirmModal({
+            isOpen: true,
+            message: 'Save this job to your main dashboard?',
+            title: 'Save Job',
+            confirmText: 'Save',
+            cancelText: 'Cancel',
+            confirmButtonStyle: 'primary',
+            onConfirm: async () => {
+                setConfirmModal(null);
+                try {
+                    await promoteAutoJob(id);
+                    showToast('Job saved to main dashboard successfully!', 'success');
+                    fetchData();
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to save job to main dashboard', 'error');
+                }
+            }
+        });
     };
 
     // Handle delete job
-    const handleDelete = async (id: string) => {
-        if (!confirm('Delete this auto job?')) return;
-
-        try {
-            await deleteAutoJob(id);
-            showToast('Job deleted successfully', 'success');
-            fetchData();
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to delete job', 'error');
-        }
+    const handleDelete = (id: string) => {
+        setConfirmModal({
+            isOpen: true,
+            message: 'Delete this auto job?',
+            title: 'Delete Job',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            confirmButtonStyle: 'danger',
+            onConfirm: async () => {
+                setConfirmModal(null);
+                try {
+                    await deleteAutoJob(id);
+                    showToast('Job deleted successfully', 'success');
+                    fetchData();
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to delete job', 'error');
+                }
+            }
+        });
     };
 
     // Render relevance badge (for processing status)
@@ -811,18 +851,27 @@ const AutoJobsPage: React.FC = () => {
                                 <button
                                     onClick={async () => {
                                         if (!currentRunId) return;
-                                        if (!confirm('Are you sure you want to cancel this workflow? Processing will stop at the current job.')) return;
-                                        
-                                        try {
-                                            await cancelWorkflow(currentRunId);
-                                            showToast('Workflow cancelled successfully', 'success');
-                                            const status = await getWorkflowStatus(currentRunId);
-                                            setWorkflowProgress(status);
-                                            setCurrentRunId(null);
-                                            localStorage.removeItem('autoJobRunId');
-                                        } catch (err: any) {
-                                            showToast(err.response?.data?.message || 'Failed to cancel workflow', 'error');
-                                        }
+                                        setConfirmModal({
+                                            isOpen: true,
+                                            message: 'Are you sure you want to cancel this workflow? Processing will stop at the current job.',
+                                            title: 'Cancel Workflow',
+                                            confirmText: 'Cancel Workflow',
+                                            cancelText: 'Keep Running',
+                                            confirmButtonStyle: 'danger',
+                                            onConfirm: async () => {
+                                                setConfirmModal(null);
+                                                try {
+                                                    await cancelWorkflow(currentRunId);
+                                                    showToast('Workflow cancelled successfully', 'success');
+                                                    const status = await getWorkflowStatus(currentRunId);
+                                                    setWorkflowProgress(status);
+                                                    setCurrentRunId(null);
+                                                    localStorage.removeItem('autoJobRunId');
+                                                } catch (err: any) {
+                                                    showToast(err.response?.data?.message || 'Failed to cancel workflow', 'error');
+                                                }
+                                            }
+                                        });
                                     }}
                                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-sm font-medium"
                                 >
@@ -960,66 +1009,38 @@ const AutoJobsPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* Jobs Table with Filters */}
+                {/* Jobs Table */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    {/* Filters */}
-                    <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-                        <div className="flex flex-wrap gap-6">
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                                    </svg>
-                                    RELEVANCE
-                                </label>
-                                <select
-                                    value={filterRelevance}
-                                    onChange={(e) => { setFilterRelevance(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
-                                >
-                                    <option value="">All Relevance</option>
-                                    <option value="true">Relevant</option>
-                                    <option value="processing">Processing</option>
-                                    <option value="false">Not Relevant</option>
-                                </select>
-                            </div>
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    STATUS
-                                </label>
-                                <select
-                                    value={filterStatus}
-                                    onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
-                                >
-                                    <option value="">All Status</option>
-                                    <option value="generated">Generated</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="archived">Archived</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead className="bg-gray-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
                                 <tr>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">JOB</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">LOCATION</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">RELEVANCE</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">POST DATE</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">SKILL MATCH</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">STATUS</th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">ACTIONS</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
                                 {jobs.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                                            No jobs found yet. Click "Run Now" to start discovering jobs!
+                                        <td colSpan={5} className="px-6 py-12 text-center">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <p className="text-slate-500 dark:text-slate-400 text-base">
+                                                    {workflowProgress?.status === 'completed' && workflowProgress.stats.jobsFound === 0 ? (
+                                                        <>
+                                                            No jobs found matching your search criteria.
+                                                            <br />
+                                                            <span className="text-sm mt-2 block">
+                                                                Try adjusting your keywords, location, date filters, or job type settings.
+                                                            </span>
+                                                        </>
+                                                    ) : (
+                                                        'No jobs found yet. Click "Run Now" to start discovering jobs!'
+                                                    )}
+                                                </p>
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : (
@@ -1059,7 +1080,39 @@ const AutoJobsPage: React.FC = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                {renderRelevanceBadge(job.processingStatus, job.recommendation)}
+                                                {job.jobPostDate ? (() => {
+                                                    try {
+                                                        const postDate = typeof job.jobPostDate === 'string' 
+                                                            ? new Date(job.jobPostDate) 
+                                                            : job.jobPostDate;
+                                                        if (isNaN(postDate.getTime())) {
+                                                            return (
+                                                                <span className="text-sm text-slate-400 dark:text-slate-500 italic">
+                                                                    Not available
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <span className="text-sm text-slate-700 dark:text-slate-300">
+                                                                {postDate.toLocaleDateString('en-US', {
+                                                                    year: 'numeric',
+                                                                    month: 'short',
+                                                                    day: 'numeric'
+                                                                })}
+                                                            </span>
+                                                        );
+                                                    } catch (error) {
+                                                        return (
+                                                            <span className="text-sm text-slate-400 dark:text-slate-500 italic">
+                                                                Not available
+                                                            </span>
+                                                        );
+                                                    }
+                                                })() : (
+                                                    <span className="text-sm text-slate-400 dark:text-slate-500 italic">
+                                                        Not available
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <JobRecommendationBadge 
@@ -1076,29 +1129,6 @@ const AutoJobsPage: React.FC = () => {
                                                     } : null}
                                                     isLoading={job.processingStatus === 'pending' || job.processingStatus === 'analyzed'}
                                                 />
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {job.processingStatus === 'generated' ? (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
-                                                        Generated
-                                                    </span>
-                                                ) : job.processingStatus === 'pending' || job.processingStatus === 'analyzed' ? (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                                                        Pending
-                                                    </span>
-                                                ) : job.processingStatus === 'error' ? (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                                                        Error
-                                                    </span>
-                                                ) : job.processingStatus ? (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 capitalize">
-                                                        {job.processingStatus.replace('_', ' ')}
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-                                                        Unknown
-                                                    </span>
-                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center justify-end gap-2">
@@ -1164,6 +1194,20 @@ const AutoJobsPage: React.FC = () => {
                     message={toast.message}
                     type={toast.type}
                     onClose={() => setToast(null)}
+                />
+            )}
+
+            {/* Confirmation Modal */}
+            {confirmModal && (
+                <ConfirmModal
+                    isOpen={confirmModal.isOpen}
+                    onClose={() => setConfirmModal(null)}
+                    onConfirm={confirmModal.onConfirm}
+                    title={confirmModal.title}
+                    message={confirmModal.message}
+                    confirmText={confirmModal.confirmText}
+                    cancelText={confirmModal.cancelText}
+                    confirmButtonStyle={confirmModal.confirmButtonStyle}
                 />
             )}
         </div>

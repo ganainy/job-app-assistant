@@ -33,6 +33,7 @@ export interface RawJobData {
     companyName: string;
     jobUrl: string;
     jobDescriptionText: string;
+    jobPostDate?: Date; // When the job was posted (from crawler)
     structuredData?: LinkedInJobDetails; // Full structured data from scraper
 }
 
@@ -402,6 +403,50 @@ export const retrieveJobsFromApify = async (
             const finalJobId = jobDetails?.job_id || extractedId;
             const finalJobUrl = jobDetails?.job_url || jobUrl;
             
+            // Extract job post date from scraper response
+            // Try multiple possible field names from both list scraper and details scraper
+            // Note: Apify list scraper returns 'posted_at' field (e.g., "2025-11-10 23:00:00 UTC")
+            let jobPostDate: Date | undefined;
+            // Check list scraper item first (it has posted_at), then details scraper
+            const postDateValue = item.posted_at || item.posted_date || item.date_posted || item.postedAt || item.posted ||
+                                 jobDetails?.posted_at || jobDetails?.posted_date || jobDetails?.date_posted || jobDetails?.postedAt;
+            
+            if (postDateValue) {
+                try {
+                    // Try parsing as Date if it's already a Date object
+                    if (postDateValue instanceof Date) {
+                        jobPostDate = postDateValue;
+                    } else if (typeof postDateValue === 'string') {
+                        // Apify returns dates in format "2025-11-10 23:00:00 UTC"
+                        // Replace " UTC" with "Z" to make it ISO-compatible
+                        let dateString = postDateValue.trim();
+                        if (dateString.endsWith(' UTC')) {
+                            dateString = dateString.replace(' UTC', 'Z');
+                        }
+                        // Try parsing as ISO string or other date formats
+                        const parsed = new Date(dateString);
+                        if (!isNaN(parsed.getTime())) {
+                            jobPostDate = parsed;
+                        } else {
+                            console.log(`    ⚠ Warning: Could not parse post date string: ${postDateValue}`);
+                        }
+                    } else if (typeof postDateValue === 'number') {
+                        // Assume it's a timestamp
+                        jobPostDate = new Date(postDateValue);
+                    }
+                } catch (error) {
+                    console.log(`    ⚠ Warning: Could not parse post date: ${postDateValue}`, error);
+                }
+            } else {
+                // Debug: log available fields if post date is missing
+                if (index < 3) {
+                    console.log(`    Debug: No post date found. Available fields in item:`, Object.keys(item));
+                    if (jobDetails) {
+                        console.log(`    Debug: Available fields in jobDetails:`, Object.keys(jobDetails));
+                    }
+                }
+            }
+            
             // Log if description is still missing
             if (!jobDescriptionText || jobDescriptionText.length < 50) {
                 console.log(`    ⚠ Warning: No description found for job ${finalJobTitle} at ${finalCompanyName}`);
@@ -415,6 +460,7 @@ export const retrieveJobsFromApify = async (
                 companyName: finalCompanyName,
                 jobUrl: finalJobUrl,
                 jobDescriptionText: jobDescriptionText,
+                jobPostDate: jobPostDate,
                 structuredData: structuredData || undefined
             });
         }
