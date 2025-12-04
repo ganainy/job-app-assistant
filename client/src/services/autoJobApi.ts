@@ -124,6 +124,14 @@ export const getWorkflowStatus = async (runId: string): Promise<WorkflowRun> => 
 };
 
 /**
+ * Cancel a running workflow
+ */
+export const cancelWorkflow = async (runId: string): Promise<{ message: string; runId: string }> => {
+    const response = await axios.post<{ message: string; runId: string }>(`${API_BASE_URL}/auto-jobs/runs/${runId}/cancel`);
+    return response.data;
+};
+
+/**
  * Get list of auto jobs with pagination and filters
  */
 export const getAutoJobs = async (params?: {

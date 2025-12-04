@@ -122,8 +122,19 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
     };
 
     try {
+        // Helper to check if workflow has been cancelled
+        const checkCancellation = async (): Promise<boolean> => {
+            const run = await WorkflowRun.findById(runId);
+            return run?.status === 'cancelled';
+        };
+
         // Helper to update progress
         const updateProgress = async (stepName: string, status: 'running' | 'completed' | 'failed', stepIndex: number, message?: string) => {
+            // Check if cancelled before updating
+            if (await checkCancellation()) {
+                throw new Error('Workflow cancelled by user');
+            }
+
             await WorkflowRun.findByIdAndUpdate(runId, {
                 'progress.currentStep': message || stepName,
                 'progress.currentStepIndex': stepIndex,
@@ -183,6 +194,12 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         const maxJobs = autoJobSettings.maxJobs || 50;
         await updateProgress('Initialize', 'completed', 0, 'Settings loaded');
 
+        // Check for cancellation before retrieving jobs
+        if (await checkCancellation()) {
+            console.log('Workflow cancelled before retrieving jobs');
+            return;
+        }
+
         // Step 2: Retrieve Jobs
         await updateProgress('Retrieve Jobs', 'running', 1, `Retrieving jobs from: ${linkedInSearchUrl}`);
         console.log(`→ Retrieving jobs from: ${linkedInSearchUrl}`);
@@ -228,6 +245,12 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
             return;
         }
 
+        // Check for cancellation before structuring resume
+        if (await checkCancellation()) {
+            console.log('Workflow cancelled before structuring resume');
+            return;
+        }
+
         // Step 4: Structure Resume
         await updateProgress('Structure Resume', 'running', 3, 'Structuring resume...');
         console.log(`\n→ Retrieving and structuring resume...`);
@@ -245,6 +268,17 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
         for (let i = 0; i < newJobs.length; i++) {
+            // Check for cancellation before processing each job
+            if (await checkCancellation()) {
+                console.log(`\n⚠ Workflow cancelled by user. Stopping at job ${i + 1}/${newJobs.length}`);
+                await WorkflowRun.findByIdAndUpdate(runId, {
+                    status: 'cancelled',
+                    'progress.currentStep': `Cancelled at job ${i + 1}/${newJobs.length}`,
+                    completedAt: new Date()
+                });
+                return;
+            }
+
             const job = newJobs[i];
             const progressMsg = `Processing job ${i + 1}/${newJobs.length}: ${job.jobTitle}`;
             console.log(`[${i + 1}/${newJobs.length}] Processing: ${job.jobTitle} at ${job.companyName}`);
@@ -282,14 +316,32 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                     continue;
                 }
 
+                // Check for cancellation before AI calls
+                if (await checkCancellation()) {
+                    console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
+                    await WorkflowRun.findByIdAndUpdate(runId, {
+                        status: 'cancelled',
+                        'progress.currentStep': `Cancelled while processing job ${i + 1}/${newJobs.length}`,
+                        completedAt: new Date()
+                    });
+                    return;
+                }
+
                 // Rate limiting delay (10 seconds)
                 await delay(10000);
 
-                // Analyze job and company
+                // Analyze job and company (pass structured data to reduce AI calls)
+                // Structured data contains skills, salary, location, remote_allow, company_description
+                const structuredData = job.structuredData;
+                if (structuredData) {
+                    console.log(`  → Using structured data from scraper (reducing AI calls)`);
+                }
+                
                 const analysis = await analyzeJobAndCompany(
                     job.jobDescriptionText,
                     job.companyName,
-                    geminiApiKey
+                    geminiApiKey,
+                    structuredData // Pass structured data from scraper
                 );
 
                 autoJob.extractedData = analysis.job.extractedData;
@@ -299,14 +351,31 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                 await autoJob.save();
                 stats.analyzed++;
 
+                // Check for cancellation before relevance check
+                if (await checkCancellation()) {
+                    console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
+                    await WorkflowRun.findByIdAndUpdate(runId, {
+                        status: 'cancelled',
+                        'progress.currentStep': `Cancelled while processing job ${i + 1}/${newJobs.length}`,
+                        completedAt: new Date()
+                    });
+                    return;
+                }
+
                 // Rate limiting delay (10 seconds)
                 await delay(10000);
 
-                // Check relevance
+                // Check relevance using unified logic (same as dashboard)
+                // Uses analyzeWithGemini internally for consistency
+                // Thresholds match dashboard:
+                // - >= 70%: Strong match → should apply
+                // - >= 50%: Moderate match → consider applying
+                // - < 50%: Weak match → not recommended
                 const relevanceCheck = await checkRelevance(
                     structuredResume,
                     job.jobDescriptionText,
-                    geminiApiKey
+                    userId,
+                    50 // Threshold: >=50% match is considered relevant (same as dashboard "consider applying")
                 );
 
                 autoJob.isRelevant = relevanceCheck.isRelevant;
@@ -324,6 +393,17 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
                 await autoJob.save();
                 stats.relevant++;
                 console.log(`  ✓ Relevant: ${relevanceCheck.reason}`);
+
+                // Check for cancellation before content generation
+                if (await checkCancellation()) {
+                    console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
+                    await WorkflowRun.findByIdAndUpdate(runId, {
+                        status: 'cancelled',
+                        'progress.currentStep': `Cancelled while processing job ${i + 1}/${newJobs.length}`,
+                        completedAt: new Date()
+                    });
+                    return;
+                }
 
                 // Rate limiting delay (10 seconds)
                 await delay(10000);
@@ -379,11 +459,21 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         });
 
     } catch (error: any) {
-        console.error('Workflow execution failed:', error);
-        await WorkflowRun.findByIdAndUpdate(runId, {
-            status: 'failed',
-            errorMessage: error.message,
-            completedAt: new Date()
-        });
+        // Check if error is due to cancellation
+        if (error.message === 'Workflow cancelled by user') {
+            console.log('Workflow cancelled successfully');
+            await WorkflowRun.findByIdAndUpdate(runId, {
+                status: 'cancelled',
+                'progress.currentStep': 'Cancelled by user',
+                completedAt: new Date()
+            });
+        } else {
+            console.error('Workflow execution failed:', error);
+            await WorkflowRun.findByIdAndUpdate(runId, {
+                status: 'failed',
+                errorMessage: error.message,
+                completedAt: new Date()
+            });
+        }
     }
 }

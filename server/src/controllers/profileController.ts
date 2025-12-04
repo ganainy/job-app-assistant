@@ -262,7 +262,16 @@ export const getCurrentUserProfile = asyncHandler(
 
     if (!profile) {
       // Create profile if it doesn't exist
-      profile = await Profile.create({ userId });
+      // Explicitly set autoJobSettings.enabled to false for new users
+      profile = await Profile.create({ 
+        userId,
+        autoJobSettings: {
+          enabled: false,
+          linkedInSearchUrl: '',
+          schedule: '0 9 * * *',
+          maxJobs: 50
+        }
+      });
     }
 
     // Include tokens for own profile (user needs to see/edit their token)

@@ -8,6 +8,7 @@ import {
     updateSettings,
     triggerWorkflow,
     getWorkflowStatus,
+    cancelWorkflow,
     promoteAutoJob,
     deleteAutoJob,
     AutoJob,
@@ -32,7 +33,6 @@ const AutoJobsPage: React.FC = () => {
     // Workflow Progress State
     const [currentRunId, setCurrentRunId] = useState<string | null>(localStorage.getItem('autoJobRunId'));
     const [workflowProgress, setWorkflowProgress] = useState<WorkflowRun | null>(null);
-    const [showProgressModal, setShowProgressModal] = useState(false);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -63,7 +63,8 @@ const AutoJobsPage: React.FC = () => {
             setTotalPages(jobsData.pagination.pages);
             setTotal(jobsData.pagination.total);
             setStats(statsData);
-            setSettings(settingsData);
+            // Filter settings to only include valid fields
+            setSettings(filterValidSettings(settingsData));
             setError(null);
         } catch (err: any) {
             setError(err.response?.data?.message || 'Failed to load data');
@@ -81,11 +82,12 @@ const AutoJobsPage: React.FC = () => {
     useEffect(() => {
         if (!currentRunId) return;
 
-        setShowProgressModal(true);
         const interval = setInterval(async () => {
             try {
                 const status = await getWorkflowStatus(currentRunId);
                 setWorkflowProgress(status);
+                // Clear isTriggering once we have workflow status
+                setIsTriggering(false);
 
                 if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
                     clearInterval(interval);
@@ -97,6 +99,9 @@ const AutoJobsPage: React.FC = () => {
                         fetchData(); // Refresh data
                     } else if (status.status === 'failed') {
                         showToast(`Workflow failed: ${status.errorMessage}`, 'error');
+                    } else if (status.status === 'cancelled') {
+                        showToast('Workflow cancelled successfully', 'success');
+                        fetchData(); // Refresh data
                     }
                 }
             } catch (err) {
@@ -121,26 +126,48 @@ const AutoJobsPage: React.FC = () => {
             const result = await triggerWorkflow();
             setCurrentRunId(result.runId);
             localStorage.setItem('autoJobRunId', result.runId);
-            setShowProgressModal(true);
+            // Keep isTriggering true until workflow status is fetched
+            // The button will remain disabled based on workflowProgress status
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to trigger workflow', 'error');
-        } finally {
             setIsTriggering(false);
+            showToast(err.response?.data?.message || 'Failed to trigger workflow', 'error');
         }
     };
 
-    // Handle settings save
-    const handleSaveSettings = async () => {
+    // Check if workflow is currently running
+    const isWorkflowRunning = workflowProgress?.status === 'running' || (currentRunId && !workflowProgress);
+
+    // Filter settings to only include valid fields
+    const filterValidSettings = (settingsToFilter: any): AutoJobSettings => {
+        return {
+            enabled: settingsToFilter.enabled ?? false,
+            linkedInSearchUrl: settingsToFilter.linkedInSearchUrl ?? '',
+            schedule: settingsToFilter.schedule ?? '0 9 * * *',
+            maxJobs: settingsToFilter.maxJobs
+        };
+    };
+
+    // Auto-save settings (debounced)
+    const autoSaveSettings = async (newSettings: AutoJobSettings, showMessage = false) => {
         try {
             setIsSavingSettings(true);
-            await updateSettings(settings);
-            showToast('Settings saved successfully', 'success');
-            fetchData();
+            // Only send valid fields to backend
+            const validSettings = filterValidSettings(newSettings);
+            await updateSettings(validSettings);
+            if (showMessage) {
+                showToast('Settings saved successfully', 'success');
+            }
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to save settings', 'error');
         } finally {
             setIsSavingSettings(false);
         }
+    };
+
+    // Handle settings save (for configuration card - kept for explicit save if needed)
+    const handleSaveSettings = async () => {
+        await autoSaveSettings(settings, true);
+        fetchData();
     };
 
     // Handle toggle enable
@@ -150,12 +177,35 @@ const AutoJobsPage: React.FC = () => {
         setSettings(newSettings); // Optimistic update
 
         try {
-            await updateSettings(newSettings);
+            // Only send valid fields to backend
+            const validSettings = filterValidSettings(newSettings);
+            await updateSettings(validSettings);
             showToast(`Auto jobs ${newEnabled ? 'enabled' : 'disabled'}`, 'success');
         } catch (err: any) {
             setSettings(settings); // Revert on error
             showToast('Failed to update settings', 'error');
         }
+    };
+
+    // Handle schedule change with auto-save
+    const handleScheduleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newSettings = { ...settings, schedule: e.target.value };
+        setSettings(newSettings);
+        await autoSaveSettings(newSettings, false);
+    };
+
+    // Handle LinkedIn URL change with auto-save
+    const handleLinkedInUrlChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newSettings = { ...settings, linkedInSearchUrl: e.target.value };
+        setSettings(newSettings);
+        await autoSaveSettings(newSettings, false);
+    };
+
+    // Handle max jobs change with auto-save
+    const handleMaxJobsChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newSettings = { ...settings, maxJobs: parseInt(e.target.value) };
+        setSettings(newSettings);
+        await autoSaveSettings(newSettings, false);
     };
 
     // Handle promote job
@@ -229,13 +279,16 @@ const AutoJobsPage: React.FC = () => {
                     </div>
                     <button
                         onClick={handleTrigger}
-                        disabled={isTriggering || !settings.enabled}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                        disabled={isWorkflowRunning || isTriggering}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 min-w-[120px] justify-center"
                     >
-                        {isTriggering ? (
+                        {(isWorkflowRunning || isTriggering) ? (
                             <>
-                                <span className="animate-spin">⟳</span>
-                                Running...
+                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>{isTriggering ? 'Starting...' : 'Running...'}</span>
                             </>
                         ) : (
                             <>🚀 Run Now</>
@@ -243,16 +296,16 @@ const AutoJobsPage: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Settings Card */}
+                {/* Auto Jobs Schedule Card */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">Configuration</h2>
+                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">Auto Jobs Schedule</h2>
 
                     <div className="space-y-4">
                         {/* Enable Toggle */}
                         <div className="flex items-center justify-between">
                             <div>
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Enable Auto Jobs</label>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Automatically search for jobs daily</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Automatically search for jobs on schedule (manual "Run Now" works independently)</p>
                             </div>
                             <button
                                 onClick={handleToggleEnable}
@@ -264,6 +317,31 @@ const AutoJobsPage: React.FC = () => {
                             </button>
                         </div>
 
+                        {/* Schedule - only show when enabled */}
+                        {settings.enabled && (
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    Schedule
+                                </label>
+                                <select
+                                    value={settings.schedule}
+                                    onChange={handleScheduleChange}
+                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="0 9 * * *">Daily at 9 AM</option>
+                                    <option value="0 */6 * * *">Every 6 hours</option>
+                                    <option value="0 */12 * * *">Every 12 hours</option>
+                                </select>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Configuration Card */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
+                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">Configuration</h2>
+
+                    <div className="space-y-4">
                         {/* LinkedIn URL */}
                         <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -272,7 +350,7 @@ const AutoJobsPage: React.FC = () => {
                             <input
                                 type="url"
                                 value={settings.linkedInSearchUrl}
-                                onChange={(e) => setSettings({ ...settings, linkedInSearchUrl: e.target.value })}
+                                onChange={handleLinkedInUrlChange}
                                 placeholder="https://www.linkedin.com/jobs/search/?keywords=..."
                                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             />
@@ -296,28 +374,12 @@ const AutoJobsPage: React.FC = () => {
                                 min="20"
                                 max="100"
                                 value={settings.maxJobs || 50}
-                                onChange={(e) => setSettings({ ...settings, maxJobs: parseInt(e.target.value) })}
+                                onChange={handleMaxJobsChange}
                                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-indigo-600"
                             />
                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                 Maximum number of jobs to process per run (20-100)
                             </p>
-                        </div>
-
-                        {/* Schedule */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                Schedule
-                            </label>
-                            <select
-                                value={settings.schedule}
-                                onChange={(e) => setSettings({ ...settings, schedule: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                            >
-                                <option value="0 9 * * *">Daily at 9 AM</option>
-                                <option value="0 */6 * * *">Every 6 hours</option>
-                                <option value="0 */12 * * *">Every 12 hours</option>
-                            </select>
                         </div>
 
                         {/* Save Button */}
@@ -353,44 +415,165 @@ const AutoJobsPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* Filters */}
-                <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-4">
-                    <div className="flex flex-wrap gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                Relevance
-                            </label>
-                            <select
-                                value={filterRelevance}
-                                onChange={(e) => { setFilterRelevance(e.target.value); setCurrentPage(1); }}
-                                className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                            >
-                                <option value="">All</option>
-                                <option value="true">Relevant Only</option>
-                                <option value="false">Not Relevant</option>
-                            </select>
+                {/* Workflow Progress Section - Inline on page */}
+                {workflowProgress && (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gray-200 dark:bg-gray-700">
+                            <div
+                                className="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500 ease-out"
+                                style={{ width: `${workflowProgress.progress.percentage}%` }}
+                            />
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                Status
-                            </label>
-                            <select
-                                value={filterStatus}
-                                onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-                                className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                            >
-                                <option value="">All</option>
-                                <option value="pending">Pending</option>
-                                <option value="analyzed">Analyzed</option>
-                                <option value="generated">Generated</option>
-                                <option value="error">Error</option>
-                            </select>
+
+                        <div className="mb-6">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-center flex-1">
+                                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                                        {workflowProgress.status === 'completed' ? 'Workflow Complete!' :
+                                            workflowProgress.status === 'failed' ? 'Workflow Failed' :
+                                                workflowProgress.status === 'cancelled' ? 'Workflow Cancelled' :
+                                                    'Running Auto Jobs...'}
+                                    </h2>
+                                </div>
+                                {workflowProgress.status === 'running' && (
+                                    <button
+                                        onClick={async () => {
+                                            if (!currentRunId) return;
+                                            if (!confirm('Are you sure you want to cancel this workflow? Processing will stop at the current job.')) return;
+                                            
+                                            try {
+                                                await cancelWorkflow(currentRunId);
+                                                showToast('Workflow cancelled successfully', 'success');
+                                                // Refresh workflow status to show cancelled state
+                                                const status = await getWorkflowStatus(currentRunId);
+                                                setWorkflowProgress(status);
+                                                setCurrentRunId(null);
+                                                localStorage.removeItem('autoJobRunId');
+                                            } catch (err: any) {
+                                                showToast(err.response?.data?.message || 'Failed to cancel workflow', 'error');
+                                            }
+                                        }}
+                                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-sm"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                        Cancel
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-slate-600 dark:text-slate-400 text-center">
+                                {workflowProgress.progress.currentStep}
+                            </p>
+                        </div>
+
+                        {/* Steps List */}
+                        <div className="space-y-3 mb-6">
+                            {workflowProgress.steps.map((step, index) => (
+                                <div key={index} className="flex items-center">
+                                    <div className={`
+                                        w-8 h-8 rounded-full flex items-center justify-center mr-4 flex-shrink-0
+                                        ${step.status === 'completed' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                                            step.status === 'running' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 animate-pulse' :
+                                                step.status === 'failed' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                                    'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'}
+                                    `}>
+                                        {step.status === 'completed' ? (
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        ) : step.status === 'failed' ? (
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        ) : (
+                                            <span className="text-sm font-bold">{index + 1}</span>
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className={`font-medium ${step.status === 'completed' ? 'text-slate-900 dark:text-white' :
+                                                    step.status === 'running' ? 'text-blue-600 dark:text-blue-400' :
+                                                        'text-slate-500 dark:text-slate-400'
+                                                }`}>
+                                                {step.name}
+                                            </span>
+                                            {step.status === 'running' && (
+                                                <span className="text-xs text-blue-500 animate-pulse">Processing...</span>
+                                            )}
+                                        </div>
+                                        {step.message && (
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-md">
+                                                {step.message}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Actions */}
+                        {(workflowProgress.status === 'completed' || workflowProgress.status === 'failed' || workflowProgress.status === 'cancelled') && (
+                            <div className="flex justify-center">
+                                <button
+                                    onClick={() => {
+                                        setWorkflowProgress(null);
+                                        setCurrentRunId(null);
+                                        localStorage.removeItem('autoJobRunId');
+                                        fetchData(); // Refresh data
+                                    }}
+                                    className="px-6 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        )}
+
+                        {workflowProgress.status === 'running' && (
+                            <div className="text-center text-xs text-slate-400 dark:text-slate-500 mt-4">
+                                You can safely navigate away. The workflow will continue in the background.
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Jobs Table with Filters */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    {/* Filters */}
+                    <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                        <div className="flex flex-wrap gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    Relevance
+                                </label>
+                                <select
+                                    value={filterRelevance}
+                                    onChange={(e) => { setFilterRelevance(e.target.value); setCurrentPage(1); }}
+                                    className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                >
+                                    <option value="">All</option>
+                                    <option value="true">Relevant Only</option>
+                                    <option value="false">Not Relevant</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    Status
+                                </label>
+                                <select
+                                    value={filterStatus}
+                                    onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                                    className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                >
+                                    <option value="">All</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="analyzed">Analyzed</option>
+                                    <option value="generated">Generated</option>
+                                    <option value="error">Error</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                </div>
-
-                {/* Jobs Table */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
@@ -406,7 +589,7 @@ const AutoJobsPage: React.FC = () => {
                                 {jobs.length === 0 ? (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                                            {settings.enabled ? 'No jobs found yet. Click "Run Now" to start discovering jobs!' : 'Enable auto jobs in settings to start discovering opportunities!'}
+                                            No jobs found yet. Click "Run Now" to start discovering jobs!
                                         </td>
                                     </tr>
                                 ) : (
@@ -495,124 +678,6 @@ const AutoJobsPage: React.FC = () => {
                     type={toast.type}
                     onClose={() => setToast(null)}
                 />
-            )}
-            {/* Progress Modal */}
-            {showProgressModal && workflowProgress && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8 max-w-2xl w-full mx-4 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gray-200 dark:bg-gray-700">
-                            <div
-                                className="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500 ease-out"
-                                style={{ width: `${workflowProgress.progress.percentage}%` }}
-                            />
-                        </div>
-
-                        <div className="mb-8 text-center">
-                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                                {workflowProgress.status === 'completed' ? 'Workflow Complete!' :
-                                    workflowProgress.status === 'failed' ? 'Workflow Failed' :
-                                        'Running Auto Jobs...'}
-                            </h2>
-                            <p className="text-gray-600 dark:text-gray-400">
-                                {workflowProgress.progress.currentStep}
-                            </p>
-                        </div>
-
-                        {/* Stats Grid */}
-                        <div className="grid grid-cols-4 gap-4 mb-8">
-                            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center">
-                                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                    {workflowProgress.stats.jobsFound}
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-1">Found</div>
-                            </div>
-                            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center">
-                                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                                    {workflowProgress.stats.analyzed}
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-1">Analyzed</div>
-                            </div>
-                            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center">
-                                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                                    {workflowProgress.stats.relevant}
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-1">Relevant</div>
-                            </div>
-                            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center">
-                                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                                    {workflowProgress.stats.generated}
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-1">Generated</div>
-                            </div>
-                        </div>
-
-                        {/* Steps List */}
-                        <div className="space-y-3 mb-8">
-                            {workflowProgress.steps.map((step, index) => (
-                                <div key={index} className="flex items-center">
-                                    <div className={`
-                                        w-8 h-8 rounded-full flex items-center justify-center mr-4 flex-shrink-0
-                                        ${step.status === 'completed' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
-                                            step.status === 'running' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 animate-pulse' :
-                                                step.status === 'failed' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
-                                                    'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'}
-                                    `}>
-                                        {step.status === 'completed' ? (
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                        ) : step.status === 'failed' ? (
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        ) : (
-                                            <span className="text-sm font-bold">{index + 1}</span>
-                                        )}
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className={`font-medium ${step.status === 'completed' ? 'text-gray-900 dark:text-white' :
-                                                    step.status === 'running' ? 'text-blue-600 dark:text-blue-400' :
-                                                        'text-gray-500 dark:text-gray-400'
-                                                }`}>
-                                                {step.name}
-                                            </span>
-                                            {step.status === 'running' && (
-                                                <span className="text-xs text-blue-500 animate-pulse">Processing...</span>
-                                            )}
-                                        </div>
-                                        {step.message && (
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-md">
-                                                {step.message}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Actions */}
-                        {(workflowProgress.status === 'completed' || workflowProgress.status === 'failed') && (
-                            <div className="flex justify-center">
-                                <button
-                                    onClick={() => {
-                                        setShowProgressModal(false);
-                                        setWorkflowProgress(null);
-                                    }}
-                                    className="px-6 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg font-medium hover:opacity-90 transition-opacity"
-                                >
-                                    Close
-                                </button>
-                            </div>
-                        )}
-
-                        {workflowProgress.status === 'running' && (
-                            <div className="text-center text-xs text-gray-400 mt-4">
-                                You can safely navigate away. The workflow will continue in the background.
-                            </div>
-                        )}
-                    </div>
-                </div>
             )}
         </div>
     );

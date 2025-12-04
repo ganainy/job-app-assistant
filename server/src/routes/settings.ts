@@ -53,7 +53,16 @@ router.get('/api-keys', asyncHandler(async (req: Request, res: Response) => {
   let profile = await Profile.findOne({ userId });
   if (!profile) {
     // Create a new profile if it doesn't exist
-    profile = await Profile.create({ userId });
+    // Explicitly set autoJobSettings.enabled to false for new users
+    profile = await Profile.create({ 
+      userId,
+      autoJobSettings: {
+        enabled: false,
+        linkedInSearchUrl: '',
+        schedule: '0 9 * * *',
+        maxJobs: 50
+      }
+    });
   }
 
   res.json({
@@ -97,7 +106,16 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
   // Find or create profile
   let profile = await Profile.findOne({ userId });
   if (!profile) {
-    profile = await Profile.create({ userId });
+    // Explicitly set autoJobSettings.enabled to false for new users
+    profile = await Profile.create({ 
+      userId,
+      autoJobSettings: {
+        enabled: false,
+        linkedInSearchUrl: '',
+        schedule: '0 9 * * *',
+        maxJobs: 50
+      }
+    });
   }
 
   // Update integrations

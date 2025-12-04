@@ -1,68 +1,149 @@
 // server/src/services/jobRelevanceService.ts
-import { getGeminiModel } from '../utils/geminiClient';
+import { analyzeWithGemini } from './atsGeminiService';
+import { JsonResumeSchema } from '../types/jsonresume';
+import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 
 /**
  * Result of relevance check
+ * Now unified with dashboard job matching logic
  */
 export interface RelevanceResult {
     isRelevant: boolean;
     reason: string;
+    score?: number | null; // Optional score for reference
 }
 
 /**
+ * Convert structured resume to JsonResumeSchema format
+ * Helper to bridge between cached resume structure and JsonResumeSchema
+ */
+const convertStructuredResumeToJsonResume = (structuredResume: any): JsonResumeSchema => {
+    // Handle case where structuredResume might already be in JsonResumeSchema format
+    if (structuredResume.basics) {
+        return structuredResume as JsonResumeSchema;
+    }
+
+    // Convert from our cached structure format
+    return {
+        basics: {
+            summary: structuredResume.summary || ''
+        },
+        skills: structuredResume.skills?.map((skill: any) => {
+            if (typeof skill === 'string') {
+                return { name: skill };
+            }
+            return skill;
+        }) || [],
+        work: structuredResume.experience?.map((exp: any) => ({
+            name: exp.company || '',
+            position: exp.title || '',
+            summary: exp.description || '',
+            startDate: exp.startDate || '',
+            endDate: exp.endDate || '',
+            highlights: []
+        })) || [],
+        education: structuredResume.education?.map((edu: any) => ({
+            institution: edu.institution || edu.school || '',
+            area: edu.area || edu.field || '',
+            studyType: edu.studyType || edu.degree || '',
+            startDate: edu.startDate || '',
+            endDate: edu.endDate || ''
+        })) || [],
+        projects: structuredResume.projects || [],
+        certificates: structuredResume.certifications?.map((cert: any) => ({
+            name: typeof cert === 'string' ? cert : cert.name || '',
+            date: cert.date || ''
+        })) || [],
+        languages: structuredResume.languages?.map((lang: any) => {
+            if (typeof lang === 'string') {
+                return { language: lang };
+            }
+            return {
+                language: lang.language || lang.name || '',
+                fluency: lang.proficiency || lang.fluency || ''
+            };
+        }) || []
+    };
+};
+
+/**
  * Check if a job is relevant to the user's resume
- * Uses Gemini AI to make intelligent relevance decisions
+ * Uses the same analysis logic and thresholds as dashboard job matching for consistency
+ * 
+ * Thresholds (same as dashboard):
+ * - >= 70%: Strong match → should apply (isRelevant = true)
+ * - >= 50%: Moderate match → consider applying (isRelevant = true)
+ * - < 50%: Weak match → not recommended (isRelevant = false)
+ * 
+ * @param structuredResume - Structured resume data (from cache)
+ * @param jobDescription - Job description text
+ * @param userId - User ID (for API key retrieval)
+ * @param relevanceThreshold - Score threshold for relevance (default: 50, matches "moderate match" threshold)
+ * @returns RelevanceResult with isRelevant boolean and reason
  */
 export const checkRelevance = async (
     structuredResume: any,
     jobDescription: string,
-    geminiApiKey: string
+    userId: string,
+    relevanceThreshold: number = 50
 ): Promise<RelevanceResult> => {
-    const gemini = getGeminiModel(geminiApiKey);
+    try {
+        // Convert structured resume to JsonResumeSchema format
+        const cvJson = convertStructuredResumeToJsonResume(structuredResume);
 
-    // Extract key info from structured resume for the prompt
-    const resumeSummary = JSON.stringify({
-        summary: structuredResume.summary,
-        skills: structuredResume.skills,
-        experience: structuredResume.experience?.map((exp: any) => ({
-            title: exp.title,
-            company: exp.company
-        }))
-    }, null, 2);
+        // Use the same analysis service as dashboard
+        const analysisResult = await analyzeWithGemini(
+            userId,
+            cvJson,
+            jobDescription
+        );
 
-    const prompt = `You are a job filtering assistant helping a job seeker find relevant opportunities.
+        if (analysisResult.error || analysisResult.score === null) {
+            const errorMsg = analysisResult.error || 'Failed to analyze job match';
+            return {
+                isRelevant: false,
+                reason: errorMsg,
+                score: null
+            };
+        }
 
-Given this candidate's resume summary:
-${resumeSummary}
+        const score = analysisResult.score;
+        
+        // Use same threshold logic as dashboard:
+        // >= 50% (moderate match or better) is considered relevant
+        // This matches dashboard logic where >= 50% is "consider applying"
+        const isRelevant = score >= relevanceThreshold;
+        
+        // Generate reason using exact same logic as jobRecommendationService
+        // >= 70%: Strong match → should apply
+        // >= 50%: Moderate match → consider applying
+        // < 50%: Weak match → not recommended
+        let reason: string;
+        if (score >= 70) {
+            const matchedSkills = analysisResult.details.skillMatchDetails?.matchedSkills || [];
+            const skillCount = matchedSkills.length;
+            reason = `Strong match (${score}% compatibility). ${skillCount > 0 ? `Matched ${skillCount} key skills. ` : ''}Good alignment with job requirements.`;
+        } else if (score >= 50) {
+            const missingSkills = analysisResult.details.skillMatchDetails?.missingSkills || [];
+            const skillCount = missingSkills.length;
+            reason = `Moderate match (${score}% compatibility). ${skillCount > 0 ? `${skillCount} important skills missing. ` : ''}Consider applying after addressing key gaps.`;
+        } else {
+            const missingSkills = analysisResult.details.skillMatchDetails?.missingSkills || [];
+            const skillCount = missingSkills.length;
+            reason = `Weak match (${score}% compatibility). ${skillCount > 0 ? `Missing ${skillCount} critical skills. ` : ''}Significant gaps in requirements. Not recommended.`;
+        }
 
-And this job description:
-${jobDescription}
-
-Determine if this job is a good fit for the candidate. Consider:
-- Skill match (do they have the required skills?)
-- Experience level match (does their experience align with requirements?)
-- Career progression (is this a logical next step?)
-
-Return ONLY a JSON object with:
-{
-  "isRelevant": true or false,
-  "reason": "Brief explanation (1-2 sentences) of why it is or isn't relevant"
-}`;
-
-    const result = await gemini.generateContent(prompt);
-    const responseText = result.response.text();
-
-    // Clean up response
-    let jsonText = responseText.trim();
-    if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        return {
+            isRelevant,
+            reason,
+            score
+        };
+    } catch (error: any) {
+        console.error('Error checking relevance:', error);
+        return {
+            isRelevant: false,
+            reason: `Failed to analyze relevance: ${error.message || 'Unknown error'}`,
+            score: null
+        };
     }
-
-    const parsed = JSON.parse(jsonText);
-    return {
-        isRelevant: parsed.isRelevant,
-        reason: parsed.reason
-    };
 };

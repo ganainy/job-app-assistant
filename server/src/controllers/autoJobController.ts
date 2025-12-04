@@ -96,6 +96,50 @@ export const getWorkflowStatus = async (req: Request, res: Response) => {
 };
 
 /**
+ * Cancel a running workflow
+ * POST /api/auto-jobs/runs/:runId/cancel
+ */
+export const cancelWorkflow = async (req: Request, res: Response) => {
+    try {
+        const userId = (req.user as any)._id.toString();
+        const { runId } = req.params;
+
+        const run = await WorkflowRun.findOne({
+            _id: new mongoose.Types.ObjectId(runId),
+            userId: new mongoose.Types.ObjectId(userId)
+        });
+
+        if (!run) {
+            return res.status(404).json({ message: 'Workflow run not found' });
+        }
+
+        // Only allow cancelling if workflow is still running
+        if (run.status !== 'running') {
+            return res.status(400).json({ 
+                message: `Cannot cancel workflow. Current status: ${run.status}` 
+            });
+        }
+
+        // Update workflow status to cancelled
+        await WorkflowRun.findByIdAndUpdate(runId, {
+            status: 'cancelled',
+            'progress.currentStep': 'Cancelled by user',
+            completedAt: new Date()
+        });
+
+        console.log(`Workflow ${runId} cancelled by user ${userId}`);
+
+        res.json({
+            message: 'Workflow cancelled successfully',
+            runId
+        });
+    } catch (error: any) {
+        console.error('Error cancelling workflow:', error);
+        res.status(500).json({ message: 'Failed to cancel workflow' });
+    }
+};
+
+/**
  * Get all auto jobs for the user
  * GET /api/auto-jobs?page=1&limit=10&status=relevant&relevance=true
  */
@@ -308,7 +352,8 @@ export const updateSettings = async (req: Request, res: Response) => {
     try {
         const userId = (req.user as any)._id.toString();
         const { enabled, linkedInSearchUrl, schedule, maxJobs } = req.body;
-        console.log(`Updating settings for user ${userId}:`, JSON.stringify(req.body));
+        // Only log valid fields that we actually use
+        console.log(`Updating settings for user ${userId}:`, JSON.stringify({ enabled, linkedInSearchUrl, schedule, maxJobs }));
 
         let profile = await Profile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
 

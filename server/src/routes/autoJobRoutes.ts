@@ -11,6 +11,7 @@ router.use(authMiddleware);
 // Workflow management
 router.post('/trigger', autoJobController.triggerWorkflow as RequestHandler);
 router.get('/runs/:runId', autoJobController.getWorkflowStatus as RequestHandler);
+router.post('/runs/:runId/cancel', autoJobController.cancelWorkflow as RequestHandler);
 
 // Settings - MUST be before /:id routes to avoid conflicts
 router.get('/settings/config', autoJobController.getSettings as RequestHandler);

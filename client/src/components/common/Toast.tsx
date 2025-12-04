@@ -8,14 +8,24 @@ interface ToastProps {
     duration?: number;
 }
 
-const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose, duration = 3000 }) => {
+const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose, duration }) => {
+    // Calculate duration based on message length with minimum duration
+    const calculate_duration = (msg: string): number => {
+        const min_duration = 2000; // Minimum 2 seconds for short messages
+        const chars_per_second = 16; // Average reading speed (~200 words/min = ~16 chars/sec)
+        const calculated_duration = (msg.length / chars_per_second) * 1000;
+        return Math.max(min_duration, calculated_duration);
+    };
+
+    const toast_duration = duration ?? calculate_duration(message);
+
     useEffect(() => {
         const timer = setTimeout(() => {
             onClose();
-        }, duration);
+        }, toast_duration);
 
         return () => clearTimeout(timer);
-    }, [duration, onClose]);
+    }, [toast_duration, onClose]);
 
     const typeStyles = {
         success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-300 dark:border-green-800',

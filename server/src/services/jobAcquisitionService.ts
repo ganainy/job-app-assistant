@@ -2,6 +2,29 @@
 import axios from 'axios';
 
 /**
+ * LinkedIn scraper structured data
+ */
+export interface LinkedInJobDetails {
+    job_id: string;
+    job_title: string;
+    company_name: string;
+    job_url: string;
+    job_description: string;
+    skills?: string[];
+    salary_details?: {
+        min_salary?: string;
+        max_salary?: string;
+        currency_code?: string;
+        pay_period?: string;
+    };
+    job_location?: string;
+    remote_allow?: boolean;
+    experience_level?: string;
+    company_description?: string;
+    [key: string]: any; // Allow other fields
+}
+
+/**
  * Job data from external source
  */
 export interface RawJobData {
@@ -10,6 +33,7 @@ export interface RawJobData {
     companyName: string;
     jobUrl: string;
     jobDescriptionText: string;
+    structuredData?: LinkedInJobDetails; // Full structured data from scraper
 }
 
 /**
@@ -92,13 +116,20 @@ export const filterJobPostings = (items: any[]): any[] => {
 };
 
 /**
- * Fetch full job details including description from Apify
+ * Fetch full job details including structured data from Apify
+ * Returns the full structured object from LinkedIn scraper
+ */
+/**
+ * Fetch full job details including description using bestscrapers LinkedIn job details scraper
+ * This should be used for each individual job to get complete information
+ * Actor: bestscrapers/linkedin-job-details-scraper
  */
 const fetchJobDetailsFromApify = async (
     jobUrl: string,
     apifyToken: string
-): Promise<string> => {
+): Promise<LinkedInJobDetails | null> => {
     try {
+        // Use bestscrapers scraper for individual job details (includes full descriptions)
         const actorId = 'bestscrapers~linkedin-job-details-scraper';  // Note: tilde, not slash
 
         // Clean the URL to match the required format: https://www.linkedin.com/jobs/view/{jobId}
@@ -108,19 +139,20 @@ const fetchJobDetailsFromApify = async (
             ? `https://www.linkedin.com/jobs/view/${jobIdMatch[1]}`
             : jobUrl;
 
-        console.log(`    Cleaned URL: ${cleanUrl}`);
+        console.log(`    Fetching job details from: ${cleanUrl}`);
 
         const response = await axios.post(
             `https://api.apify.com/v2/acts/${actorId}/runs?token=${apifyToken}`,
             {
-                job_url: cleanUrl  // Must be in this exact format
+                job_url: cleanUrl  // Must be in this exact format for bestscrapers scraper
             }
         );
 
         const runId = response.data.data.id;
 
         // Wait for scraper to finish (polling)
-        for (let i = 0; i < 20; i++) {
+        // Increased timeout for details scraper as it needs to fetch full job page
+        for (let i = 0; i < 30; i++) { // Increased from 20 to 30 (60 seconds total)
             await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
 
             const statusResponse = await axios.get(
@@ -135,21 +167,87 @@ const fetchJobDetailsFromApify = async (
                 );
 
                 const data = datasetResponse.data;
-                if (data && data.length > 0 && data[0].data) {
-                    return data[0].data.job_description || '';
+                
+                if (!data) {
+                    console.log(`    ⚠ Warning: Job details scraper returned null/undefined data for ${cleanUrl}`);
+                    return null;
                 }
-                return '';
+                
+                // Handle array response (normal case)
+                if (Array.isArray(data) && data.length > 0) {
+                    const rawResponse = data[0];
+                    
+                    // Priority 1: Check if job_description exists directly at top level (normal success case)
+                    // Note: Some scrapers return message: "ok" along with the data, so we check for job_description first
+                    if (rawResponse.job_description && typeof rawResponse.job_description === 'string') {
+                        if (rawResponse.job_description.length >= 50) {
+                            console.log(`    ✓ Successfully fetched job description (${rawResponse.job_description.length} chars)`);
+                            return rawResponse as LinkedInJobDetails;
+                        } else {
+                            console.log(`    ⚠ Warning: Job description too short (${rawResponse.job_description.length} chars)`);
+                        }
+                    }
+                    
+                    // Priority 2: Check if data is nested in a 'data' field (some responses wrap data)
+                    if (rawResponse.data && typeof rawResponse.data === 'object') {
+                        if (rawResponse.data.job_description && typeof rawResponse.data.job_description === 'string') {
+                            if (rawResponse.data.job_description.length >= 50) {
+                                console.log(`    ✓ Found job description in nested data field (${rawResponse.data.job_description.length} chars)`);
+                                return rawResponse.data as LinkedInJobDetails;
+                            }
+                        }
+                    }
+                    
+                    // Priority 3: Check for alternative field names
+                    const altFields = ['description', 'jobDescription', 'jobDescriptionText', 'text', 'content'];
+                    for (const field of altFields) {
+                        if (rawResponse[field] && typeof rawResponse[field] === 'string' && rawResponse[field].length >= 50) {
+                            console.log(`    ✓ Found description in alternative field: ${field} (${rawResponse[field].length} chars)`);
+                            const jobDetails = rawResponse as LinkedInJobDetails;
+                            jobDetails.job_description = rawResponse[field];
+                            return jobDetails;
+                        }
+                    }
+                    
+                    // Priority 4: Check if this is an actual error response (has error message but no job_description)
+                    if (rawResponse.message && rawResponse.message !== 'ok') {
+                        console.log(`    ⚠ Warning: Job details scraper returned error response for ${cleanUrl}`);
+                        console.log(`    Error message: ${rawResponse.message}`);
+                        return null;
+                    }
+                    
+                    // If we get here, description is missing or too short
+                    console.log(`    ⚠ Warning: Job details scraper returned empty/short description for ${cleanUrl}`);
+                    console.log(`    Description length: ${rawResponse.job_description?.length || 0}`);
+                    console.log(`    Available fields: ${Object.keys(rawResponse).join(', ')}`);
+                    return null;
+                }
+                
+                // Handle non-array response (shouldn't happen, but handle it)
+                console.log(`    ⚠ Warning: Job details scraper returned unexpected response format for ${cleanUrl}`);
+                console.log(`    Response type: ${typeof data}, Is array: ${Array.isArray(data)}`);
+                if (typeof data === 'object' && !Array.isArray(data)) {
+                    console.log(`    Response keys: ${Object.keys(data).join(', ')}`);
+                }
+                return null;
             } else if (status === 'FAILED') {
+                const errorInfo = statusResponse.data.data;
                 console.error(`Job details scraping failed for ${cleanUrl}`);
-                return '';
+                console.error(`  Status: ${status}, Error: ${JSON.stringify(errorInfo.stats || errorInfo.errorInfo || 'Unknown error')}`);
+                return null;
+            }
+            
+            // Log progress every 10 iterations
+            if (i > 0 && i % 10 === 0) {
+                console.log(`    Still waiting for job details... (${i * 2}s elapsed)`);
             }
         }
 
-        console.error(`Timeout waiting for job details: ${cleanUrl}`);
-        return '';
+        console.error(`Timeout waiting for job details after 60s: ${cleanUrl}`);
+        return null;
     } catch (error: any) {
         console.error(`Error fetching job details for ${jobUrl}:`, error.message);
-        return '';
+        return null;
     }
 };
 
@@ -167,8 +265,10 @@ export const retrieveJobsFromApify = async (
             throw new Error('Apify API token is not configured. Please add your Apify token in the Integrations settings page.');
         }
 
-        // Updated Apify actor ID for LinkedIn job scraper
-        const actorId = '4NagaIHzI0lwMxdrI';
+        // Use patrickvicente's LinkedIn job scraper for getting job list only
+        // This scraper is fast and cheap, but doesn't return full job descriptions
+        // Actor: patrickvicente/linkedin-job-scraper---ultra-fast-and-cheap
+        const actorId = '4NagaIHzI0lwMxdrI'; // Verify this is the correct actor ID for patrickvicente's scraper
 
         const response = await axios.post(
             `https://api.apify.com/v2/acts/${actorId}/runs?token=${apifyToken}`,
@@ -204,41 +304,74 @@ export const retrieveJobsFromApify = async (
         }
 
         // Transform Apify results to our format
-        // Note: Field names may vary, adjust based on actual response structure
+        // The list scraper (patrickvicente) only returns basic job info, not full descriptions
+        // We need to use the details scraper (bestscrapers) for each job to get full descriptions
         const results: RawJobData[] = [];
 
-        console.log(`\n→ Fetching full descriptions for ${dataset.length} jobs...`);
+        console.log(`\n→ List scraper returned ${dataset.length} jobs`);
+        console.log(`→ Now fetching full job details for each job using details scraper...`);
 
         for (let index = 0; index < dataset.length; index++) {
             const item = dataset[index];
 
-            // Debug: log first 3 items to see the structure
+            // Debug: log first 3 items to see the structure from list scraper
             if (index < 3) {
-                console.log(`\nApify item ${index + 1}:`, JSON.stringify(item, null, 2));
+                console.log(`\nList scraper item ${index + 1}:`, JSON.stringify(item, null, 2));
             }
 
-            // Prefer the 'id' field from Apify if available, otherwise extract from URL
-            const directId = item.id;
+            // Extract job URL from list scraper result
+            // The list scraper should provide job URLs that we can use with the details scraper
             const jobUrl = item.link || item.url || item.job_url || item.jobUrl || '';
+            const directId = item.id;
             const extractedId = directId || extractJobId(jobUrl);
+
+            if (!jobUrl) {
+                console.log(`  [${index + 1}/${dataset.length}] ⚠ Skipping: No job URL found for ${item.title || 'Unknown'}`);
+                continue;
+            }
 
             // Debug: log URL and extracted ID for first 3 items
             if (index < 3) {
                 console.log(`Direct ID: ${directId}`);
-                console.log(`URL: ${jobUrl}`);
+                console.log(`Job URL: ${jobUrl}`);
                 console.log(`Final ID: ${extractedId}\n`);
             }
 
-            // Fetch full job description using the details scraper
-            console.log(`  [${index + 1}/${dataset.length}] Fetching description for: ${item.title || 'Unknown'}`);
-            const fullDescription = await fetchJobDetailsFromApify(jobUrl, apifyToken);
+            // Fetch full job details using bestscrapers details scraper
+            // This is the correct scraper for getting complete job information including descriptions
+            console.log(`  [${index + 1}/${dataset.length}] Fetching full details for: ${item.title || 'Unknown'}`);
+            const jobDetails = await fetchJobDetailsFromApify(jobUrl, apifyToken);
+
+            // Use structured data if available, otherwise fall back to basic fields
+            const structuredData = jobDetails;
+            
+            // Try to get description from details scraper first, then fall back to search result
+            let jobDescriptionText = jobDetails?.job_description || '';
+            
+            // Fallback: Check if search result already has description
+            if (!jobDescriptionText || jobDescriptionText.length < 50) {
+                jobDescriptionText = item.description || item.job_description || item.jobDescription || '';
+            }
+            
+            const finalJobTitle = jobDetails?.job_title || item.title || item.position || item.job_title || item.jobTitle || '';
+            const finalCompanyName = jobDetails?.company_name || item.company || item.companyName || item.company_name || '';
+            const finalJobId = jobDetails?.job_id || extractedId;
+            const finalJobUrl = jobDetails?.job_url || jobUrl;
+            
+            // Log if description is still missing
+            if (!jobDescriptionText || jobDescriptionText.length < 50) {
+                console.log(`    ⚠ Warning: No description found for job ${finalJobTitle} at ${finalCompanyName}`);
+                console.log(`    URL: ${finalJobUrl}`);
+                console.log(`    Details scraper returned: ${jobDetails ? 'data object' : 'null'}`);
+            }
 
             results.push({
-                jobId: extractedId,
-                jobTitle: item.title || item.position || item.job_title || item.jobTitle || '',
-                companyName: item.company || item.companyName || item.company_name || '',
-                jobUrl: jobUrl,
-                jobDescriptionText: fullDescription
+                jobId: finalJobId,
+                jobTitle: finalJobTitle,
+                companyName: finalCompanyName,
+                jobUrl: finalJobUrl,
+                jobDescriptionText: jobDescriptionText,
+                structuredData: structuredData || undefined
             });
         }
 
