@@ -25,6 +25,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.14.0",
     "multer": "^1.4.5-lts.2",
+    "node-cron": "^4.2.1",
     "puppeteer": "^24.7.2",
     "zod": "^3.23.8"
   },
@@ -36,6 +37,7 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.15.2",
+    "@types/node-cron": "^3.0.11",
     "concurrently": "^9.1.2",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",

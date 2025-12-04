@@ -1,0 +1,151 @@
+// client/src/services/autoJobApi.ts
+import axios from 'axios';
+
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api';
+
+// Types
+export interface AutoJob {
+    _id: string;
+    jobId: string;
+    jobTitle: string;
+    companyName: string;
+    jobUrl: string;
+    jobDescriptionText?: string;
+    extractedData?: {
+        skills: string[];
+        salary?: {
+            min?: number;
+            max?: number;
+            currency?: string;
+        };
+        yearsExperience?: number;
+        location?: string;
+        remoteOption?: string;
+    };
+    companyInsights?: {
+        missionStatement?: string;
+        coreValues?: string[];
+        businessModel?: string;
+    };
+    isRelevant?: boolean;
+    relevanceReason?: string;
+    skillMatchScore?: number;
+    customizedResumeHtml?: string;
+    coverLetterText?: string;
+    processingStatus: 'pending' | 'analyzed' | 'relevant' | 'not_relevant' | 'generated' | 'error';
+    errorMessage?: string;
+    discoveredAt: Date;
+    processedAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface AutoJobsResponse {
+    jobs: AutoJob[];
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        pages: number;
+    };
+}
+
+export interface WorkflowStats {
+    total: number;
+    pending: number;
+    analyzed: number;
+    relevant: number;
+    notRelevant: number;
+    generated: number;
+    errors: number;
+}
+
+export interface AutoJobSettings {
+    enabled: boolean;
+    linkedInSearchUrl: string;
+    schedule: string;
+    maxJobs?: number;
+}
+
+export interface TriggerWorkflowResponse {
+    message: string;
+    stats: {
+        jobsFound: number;
+        newJobs: number;
+        duplicates: number;
+        analyzed: number;
+        relevant: number;
+        notRelevant: number;
+        generated: number;
+        errors: number;
+    };
+}
+
+/**
+ * Trigger the auto-job workflow manually
+ */
+export const triggerWorkflow = async (): Promise<TriggerWorkflowResponse> => {
+    const response = await axios.post<TriggerWorkflowResponse>(`${API_BASE_URL}/auto-jobs/trigger`);
+    return response.data;
+};
+
+/**
+ * Get list of auto jobs with pagination and filters
+ */
+export const getAutoJobs = async (params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    relevance?: string;
+}): Promise<AutoJobsResponse> => {
+    const response = await axios.get<AutoJobsResponse>(`${API_BASE_URL}/auto-jobs`, { params });
+    return response.data;
+};
+
+/**
+ * Get single auto job by ID
+ */
+export const getAutoJobById = async (id: string): Promise<AutoJob> => {
+    const response = await axios.get<AutoJob>(`${API_BASE_URL}/auto-jobs/${id}`);
+    return response.data;
+};
+
+/**
+ * Promote auto job to regular job application
+ */
+export const promoteAutoJob = async (id: string): Promise<{ message: string; jobApplication: any }> => {
+    const response = await axios.post(`${API_BASE_URL}/auto-jobs/${id}/promote`);
+    return response.data;
+};
+
+/**
+ * Delete auto job
+ */
+export const deleteAutoJob = async (id: string): Promise<{ message: string }> => {
+    const response = await axios.delete(`${API_BASE_URL}/auto-jobs/${id}`);
+    return response.data;
+};
+
+/**
+ * Get workflow statistics
+ */
+export const getStats = async (): Promise<WorkflowStats> => {
+    const response = await axios.get<WorkflowStats>(`${API_BASE_URL}/auto-jobs/stats`);
+    return response.data;
+};
+
+/**
+ * Get auto-job settings
+ */
+export const getSettings = async (): Promise<AutoJobSettings> => {
+    const response = await axios.get<AutoJobSettings>(`${API_BASE_URL}/auto-jobs/settings/config`);
+    return response.data;
+};
+
+/**
+ * Update auto-job settings
+ */
+export const updateSettings = async (settings: Partial<AutoJobSettings>): Promise<{ message: string; settings: AutoJobSettings }> => {
+    const response = await axios.put(`${API_BASE_URL}/auto-jobs/settings/config`, settings);
+    return response.data;
+};

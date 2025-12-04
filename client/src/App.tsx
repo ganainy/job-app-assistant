@@ -15,6 +15,7 @@ import PortfolioPage from './pages/PortfolioPage';
 import PortfolioSetupPage from './pages/PortfolioSetupPage';
 import SettingsPage from './pages/SettingsPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import AutoJobsPage from './pages/AutoJobsPage';
 
 function App() {
   const { isAuthenticated, user, logout, isLoading } = useAuth();
@@ -77,7 +78,7 @@ function App() {
   // Icon components matching Material Symbols style
   const BagFilledIcon = () => (
     <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M20 6h-3V4c0-1.1-.9-2-2-2H9c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9 4h6v2H9V4zm11 15H4V10h2v1h2v-1h6v1h2v-1h2v9z"/>
+      <path d="M20 6h-3V4c0-1.1-.9-2-2-2H9c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9 4h6v2H9V4zm11 15H4V10h2v1h2v-1h6v1h2v-1h2v9z" />
     </svg>
   );
 
@@ -128,8 +129,8 @@ function App() {
         <nav className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="container mx-auto px-4">
             <div className="flex justify-between items-center h-16">
-              <Link 
-                to="/" 
+              <Link
+                to="/"
                 className="flex items-center gap-2 text-2xl font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
               >
                 <BagFilledIcon />
@@ -152,16 +153,16 @@ function App() {
                   )}
                 </button>
                 {isLoginPage && (
-                  <Link 
-                    to="/register" 
+                  <Link
+                    to="/register"
                     className="px-4 py-2 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
                   >
                     Register
                   </Link>
                 )}
                 {isRegisterPage && (
-                  <Link 
-                    to="/login" 
+                  <Link
+                    to="/login"
                     className="px-4 py-2 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
                   >
                     Login
@@ -192,8 +193,8 @@ function App() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Brand */}
-            <Link 
-              to="/dashboard" 
+            <Link
+              to="/dashboard"
               className="flex items-center gap-2 text-2xl font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
             >
               <BagFilledIcon />
@@ -204,44 +205,53 @@ function App() {
             <div className="flex items-center gap-1">
               <Link
                 to="/dashboard"
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActiveRoute('/dashboard')
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActiveRoute('/dashboard')
                     ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
-                }`}
+                  }`}
               >
                 <DashboardIcon />
                 <span>Dashboard</span>
               </Link>
               <Link
                 to="/manage-cv"
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActiveRoute('/manage-cv')
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActiveRoute('/manage-cv')
                     ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
-                }`}
+                  }`}
               >
                 <WorkIcon />
                 <span>Manage CV</span>
               </Link>
               <Link
-                to="/analytics"
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActiveRoute('/analytics')
+                to="/auto-jobs"
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActiveRoute('/auto-jobs')
                     ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
-                }`}
+                  }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span>Auto Jobs</span>
+              </Link>
+              <Link
+
+                to="/analytics"
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActiveRoute('/analytics')
+                    ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
+                  }`}
               >
                 <AnalyticsIcon />
                 <span>Analytics</span>
               </Link>
               <Link
                 to="/portfolio-setup"
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActiveRoute('/portfolio-setup')
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActiveRoute('/portfolio-setup')
                     ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -250,11 +260,10 @@ function App() {
               </Link>
               <Link
                 to="/settings"
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActiveRoute('/settings')
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActiveRoute('/settings')
                     ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
-                }`}
+                  }`}
               >
                 <SettingsIcon />
                 <span>Settings</span>
@@ -308,7 +317,7 @@ function App() {
           <Route path="/register" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/manage-cv" element={<ProtectedRoute><CVManagementPage /></ProtectedRoute>} />
-          <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
+          <Route path="/auto-jobs" element={<ProtectedRoute><AutoJobsPage /></ProtectedRoute>} /> <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
           <Route path="/portfolio-setup" element={<ProtectedRoute><PortfolioSetupPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route

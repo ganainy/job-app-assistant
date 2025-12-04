@@ -20,6 +20,7 @@ import linkedinRoutes from './routes/linkedin';
 import profileRoutes from './routes/profile';
 import projectRoutes from './routes/projects';
 import settingsRoutes from './routes/settings';
+import autoJobRoutes from './routes/autoJobRoutes';
 // Correct the import for the default export
 import protect from './middleware/authMiddleware'; // Import default export and alias it as 'protect'
 import { errorHandler } from './middleware/errorHandler';
@@ -38,7 +39,7 @@ const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
     // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -80,6 +81,7 @@ app.use('/api/linkedin', linkedinRoutes); // LinkedIn routes (protected)
 app.use('/api/profile', profileRoutes); // Profile routes (public aggregated, protected for updates)
 app.use('/api/projects', projectRoutes); // Project routes (public viewing, protected for CRUD)
 app.use('/api/settings', settingsRoutes); // Settings routes (protected)
+app.use('/api/auto-jobs', autoJobRoutes); // Auto-jobs routes (protected)
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
@@ -95,6 +97,10 @@ if (!mongoUri) {
 mongoose.connect(mongoUri)
   .then(() => {
     console.log('MongoDB Connected Successfully');
+
+    // Initialize auto-job scheduler
+    const { initializeScheduler } = require('./utils/scheduler');
+    initializeScheduler();
 
     // Start listening only after successful DB connection
     const server = app.listen(port, () => {

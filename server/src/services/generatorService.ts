@@ -1,5 +1,6 @@
 import { generateStructuredResponse } from '../utils/geminiClient';
 import { getGeminiApiKey } from '../utils/apiKeyHelpers';
+import { getGeminiModel } from '../utils/geminiClient';
 
 /**
  * Improves a CV section using AI
@@ -91,3 +92,116 @@ Output should be:
     }
 };
 
+/**
+ * Generate customized resume HTML for a specific job
+ * Used by auto-job workflow
+ */
+export const generateCustomizedResume = async (
+    baseResumeText: string,
+    structuredResume: any,
+    jobDescription: string,
+    geminiApiKey: string
+): Promise<string> => {
+    const gemini = getGeminiModel(geminiApiKey);
+
+    const prompt = `You are a resume writing assistant creating a tailored resume.
+
+Base Resume:
+${baseResumeText}
+
+Structured Resume Data:
+${JSON.stringify(structuredResume, null, 2)}
+
+Job Description:
+${jobDescription}
+
+Create a customized resume that:
+1. Highlights relevant skills and experiences for this specific job
+2. Uses keywords from the job description naturally
+3. Maintains truthfulness - don't add fake experience
+4. Formats in clean, professional HTML (suitable for PDF conversion)
+5. Includes proper sections: Summary, Experience, Education, Skills
+
+Return ONLY the HTML content (without <html>, <head>, or <body> tags - just the inner content).`;
+
+    const result = await gemini.generateContent(prompt);
+    let htmlContent = result.response.text();
+
+    // Clean up markdown code blocks if present
+    if (htmlContent.includes('```html')) {
+        htmlContent = htmlContent.replace(/^```html\s*/, '').replace(/\s*```$/, '');
+    } else if (htmlContent.includes('```')) {
+        htmlContent = htmlContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    return htmlContent.trim();
+};
+
+/**
+ * Generate cover letter with skill match scoring
+ * Used by auto-job workflow
+ */
+export const generateCoverLetterWithSkillMatch = async (
+    structuredResume: any,
+    companyInsights: any,
+    jobDetails: {
+        jobTitle: string;
+        companyName: string;
+        jobDescription: string;
+        extractedData?: any;
+    },
+    geminiApiKey: string
+): Promise<{ coverLetter: string; skillMatchScore: number }> => {
+    const gemini = getGeminiModel(geminiApiKey);
+
+    const prompt = `You are a cover letter writing assistant.
+
+Candidate Resume:
+${JSON.stringify(structuredResume, null, 2)}
+
+Company Information:
+${JSON.stringify(companyInsights, null, 2)}
+
+Job Details:
+- Title: ${jobDetails.jobTitle}
+- Company: ${jobDetails.companyName}
+- Description: ${jobDetails.jobDescription}
+
+Tasks:
+1. Write a compelling, humanized cover letter that:
+   - Shows genuine interest in the company (use their mission/values)
+   - Highlights relevant experience
+   - Demonstrates cultural fit
+   - Is personalized, not generic
+   - Is 250-350 words
+   
+2. Calculate a skill match score (1-5 scale):
+   - 5: Exceptional match, candidate exceeds requirements
+   - 4: Strong match, meets all key requirements
+   - 3: Good match, meets most requirements
+   - 2: Partial match, meets some requirements
+   - 1: Weak match, limited alignment
+
+Return a JSON object:
+{
+  "coverLetter": "Dear Hiring Manager,\n\n...",
+  "skillMatchScore": 4
+}`;
+
+    const result = await gemini.generateContent(prompt);
+    const responseText = result.response.text();
+
+    // Clean up response
+    let jsonText = responseText.trim();
+    if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    const parsed = JSON.parse(jsonText);
+    return {
+        coverLetter: parsed.coverLetter,
+        skillMatchScore: Math.min(Math.max(parsed.skillMatchScore, 1), 5) // Ensure 1-5 range
+    };
+};

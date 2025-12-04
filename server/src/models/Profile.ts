@@ -71,6 +71,12 @@ export interface IProfile extends Document {
     showLinkedInSkills?: boolean;
     showLinkedInLanguages?: boolean;
   };
+  autoJobSettings?: {
+    enabled?: boolean;
+    linkedInSearchUrl?: string;
+    schedule?: string; // cron expression
+    maxJobs?: number; // Maximum number of jobs to retrieve (1-100)
+  };
   isPublished?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -213,6 +219,26 @@ const ProfileSchema: Schema = new Schema(
       showLinkedInLanguages: {
         type: Boolean,
         default: true,
+      },
+    },
+    autoJobSettings: {
+      enabled: {
+        type: Boolean,
+        default: false,
+      },
+      linkedInSearchUrl: {
+        type: String,
+        default: '',
+      },
+      schedule: {
+        type: String,
+        default: '0 9 * * *', // Daily at 9 AM
+      },
+      maxJobs: {
+        type: Number,
+        default: 50,
+        min: 20,
+        max: 100
       },
     },
     isPublished: {
