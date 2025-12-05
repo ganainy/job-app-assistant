@@ -22,6 +22,7 @@ import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import ConfirmModal from '../components/common/ConfirmModal';
 import JobRecommendationBadge from '../components/jobs/JobRecommendationBadge';
 import { formatDate } from '../utils/dateUtils';
+import { getJobRecommendation } from '../services/jobRecommendationApi';
 
 const AutoJobsPage: React.FC = () => {
     // State
@@ -494,6 +495,42 @@ const AutoJobsPage: React.FC = () => {
                 }
             }
         });
+    };
+
+    // Handle retry skill match calculation
+    const handleRetrySkillMatch = async (jobId: string) => {
+        try {
+            const recommendation = await getJobRecommendation(jobId, true);
+            
+            // Update the job in the local state
+            setJobs(prevJobs => 
+                prevJobs.map(job => 
+                    job._id === jobId 
+                        ? { 
+                            ...job, 
+                            recommendation: {
+                                score: recommendation.score,
+                                shouldApply: recommendation.shouldApply,
+                                reason: recommendation.reason,
+                                cachedAt: recommendation.cachedAt ? new Date(recommendation.cachedAt) : new Date(),
+                                error: recommendation.error
+                            }
+                        }
+                        : job
+                )
+            );
+            
+            // Refresh the job data to get the latest state
+            await fetchData();
+            
+            if (recommendation.error) {
+                showToast(`Failed to calculate skill match: ${recommendation.error}`, 'error');
+            } else {
+                showToast('Skill match calculated successfully', 'success');
+            }
+        } catch (err: any) {
+            showToast(err.response?.data?.message || err.message || 'Failed to retry skill match calculation', 'error');
+        }
     };
 
     // Render relevance badge (for processing status)
@@ -1070,9 +1107,23 @@ const AutoJobsPage: React.FC = () => {
                                                             ? job.recommendation.cachedAt.toISOString() 
                                                             : typeof job.recommendation.cachedAt === 'string' 
                                                                 ? job.recommendation.cachedAt 
-                                                                : new Date().toISOString()
+                                                                : new Date().toISOString(),
+                                                        error: (job.recommendation as any).error
+                                                    } : job.processingStatus === 'error' && job.errorMessage ? {
+                                                        score: null,
+                                                        shouldApply: false,
+                                                        reason: job.errorMessage,
+                                                        cached: false,
+                                                        error: job.errorMessage
                                                     } : null}
-                                                    isLoading={job.processingStatus === 'pending' || job.processingStatus === 'analyzed'}
+                                                    isLoading={
+                                                        // Only show loading if workflow is running AND job is still being processed
+                                                        isWorkflowRunning && 
+                                                        (job.processingStatus === 'pending' || job.processingStatus === 'analyzed') &&
+                                                        !job.recommendation
+                                                    }
+                                                    onRetry={() => handleRetrySkillMatch(job._id)}
+                                                    jobId={job._id}
                                                 />
                                             </td>
                                             <td className="px-6 py-4">

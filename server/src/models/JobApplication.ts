@@ -68,6 +68,7 @@ export interface IJobApplication extends Document {
         shouldApply: boolean;
         reason: string;
         cachedAt: Date;
+        error?: string;
     };
     // --- Standard Timestamps ---
     createdAt: Date;
@@ -145,7 +146,8 @@ const JobApplicationSchema: Schema = new Schema(
             score: { type: Number, required: false },
             shouldApply: { type: Boolean, required: false },
             reason: { type: String, required: false },
-            cachedAt: { type: Date, required: false }
+            cachedAt: { type: Date, required: false },
+            error: { type: String, required: false }
         }
     },
     { timestamps: true } // Automatically adds createdAt and updatedAt fields

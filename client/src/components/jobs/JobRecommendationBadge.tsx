@@ -5,14 +5,19 @@ interface JobRecommendationBadgeProps {
     recommendation: JobRecommendation | null;
     isLoading?: boolean;
     className?: string;
+    onRetry?: () => void;
+    jobId?: string;
 }
 
 const JobRecommendationBadge: React.FC<JobRecommendationBadgeProps> = ({
     recommendation,
     isLoading = false,
-    className = ''
+    className = '',
+    onRetry,
+    jobId
 }) => {
     const [showTooltip, setShowTooltip] = useState(false);
+    const [isRetrying, setIsRetrying] = useState(false);
 
     if (isLoading) {
         return (
@@ -23,35 +28,123 @@ const JobRecommendationBadge: React.FC<JobRecommendationBadgeProps> = ({
     }
 
     if (!recommendation) {
+        const handleRetry = async () => {
+            if (onRetry && !isRetrying) {
+                setIsRetrying(true);
+                try {
+                    await onRetry();
+                } finally {
+                    setIsRetrying(false);
+                }
+            }
+        };
+
         return (
-            <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 ${className}`}>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>Not analyzed</span>
+            <div className={`inline-flex items-center gap-2 ${className}`}>
+                <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 ${className}`}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Not analyzed</span>
+                </div>
+                {onRetry && (
+                    <button
+                        onClick={handleRetry}
+                        disabled={isRetrying}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed"
+                        title="Calculate skill match"
+                    >
+                        {isRetrying ? (
+                            <>
+                                <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Calculating...</span>
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Calculate</span>
+                            </>
+                        )}
+                    </button>
+                )}
             </div>
         );
     }
 
-    if (recommendation.error) {
+    // Check if there's an error (either in error field or reason contains error indicators)
+    const hasError = recommendation.error || 
+                     (recommendation.reason && (
+                         recommendation.reason.includes('failed:') ||
+                         recommendation.reason.includes('Analysis completed but relevance check failed') ||
+                         recommendation.reason.includes('Error') ||
+                         recommendation.reason.includes('ECONNRESET') ||
+                         recommendation.reason.includes('quota') ||
+                         recommendation.reason.includes('timeout')
+                     ));
+
+    if (hasError) {
+        const errorMessage = recommendation.error || recommendation.reason || 'Analysis failed';
+        const handleRetry = async () => {
+            if (onRetry && !isRetrying) {
+                setIsRetrying(true);
+                try {
+                    await onRetry();
+                } finally {
+                    setIsRetrying(false);
+                }
+            }
+        };
+
         return (
-            <div
-                className={`relative inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 cursor-help ${className}`}
-                onMouseEnter={() => setShowTooltip(true)}
-                onMouseLeave={() => setShowTooltip(false)}
-            >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <span>Error</span>
-                {showTooltip && (
-                    <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-lg whitespace-pre-line max-w-xs pointer-events-none">
-                        <div className="font-semibold mb-1">Analysis Error</div>
-                        {recommendation.error}
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                            <div className="border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+            <div className={`inline-flex items-center gap-2 ${className}`}>
+                <div
+                    className={`relative inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 ${onRetry ? 'cursor-help' : ''}`}
+                    onMouseEnter={() => setShowTooltip(true)}
+                    onMouseLeave={() => setShowTooltip(false)}
+                >
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span>Failed</span>
+                    {showTooltip && (
+                        <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-lg whitespace-pre-line max-w-xs pointer-events-none">
+                            <div className="font-semibold mb-1">Analysis Error</div>
+                            {errorMessage}
+                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                                <div className="border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+                            </div>
                         </div>
-                    </div>
+                    )}
+                </div>
+                {onRetry && (
+                    <button
+                        onClick={handleRetry}
+                        disabled={isRetrying}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed"
+                        title="Retry skill match calculation"
+                    >
+                        {isRetrying ? (
+                            <>
+                                <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Retrying...</span>
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Retry</span>
+                            </>
+                        )}
+                    </button>
                 )}
             </div>
         );

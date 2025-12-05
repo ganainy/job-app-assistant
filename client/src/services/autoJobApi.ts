@@ -52,6 +52,7 @@ export interface AutoJob {
         shouldApply: boolean;
         reason: string;
         cachedAt: Date | string;
+        error?: string;
     };
     
     // Draft content (mapped from customizedResumeHtml/coverLetterText)

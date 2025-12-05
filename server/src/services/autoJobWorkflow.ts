@@ -175,14 +175,34 @@ async function processSingleJob(
             console.log(`  → Using structured data from scraper (reducing AI calls)`);
         }
         
-        const analysis = await analyzeJobCompanyAndRelevance(
-            job.jobDescriptionText,
-            job.companyName,
-            structuredResume,
-            userId,
-            structuredData,
-            50 // Threshold: >=50% match is considered relevant
-        );
+        let analysis;
+        try {
+            analysis = await analyzeJobCompanyAndRelevance(
+                job.jobDescriptionText,
+                job.companyName,
+                structuredResume,
+                userId,
+                structuredData,
+                50 // Threshold: >=50% match is considered relevant
+            );
+        } catch (analysisError: any) {
+            // Store error in recommendation
+            const errorMsg = analysisError.message || 'Failed to analyze job match';
+            jobApplication.recommendation = {
+                score: null,
+                shouldApply: false,
+                reason: errorMsg,
+                cachedAt: new Date(),
+                error: errorMsg
+            };
+            jobApplication.processingStatus = 'error';
+            jobApplication.errorMessage = errorMsg;
+            await jobApplication.save();
+            stats.errors++;
+            await WorkflowRun.findByIdAndUpdate(runId, { stats });
+            console.error(`  ✗ Analysis failed for job ${job.jobId}: ${errorMsg}`);
+            return;
+        }
 
         // Update job application with extracted data and company insights
         jobApplication.extractedData = analysis.job.extractedData;
@@ -191,11 +211,15 @@ async function processSingleJob(
         jobApplication.processedAt = new Date();
 
         // Build recommendation object from relevance analysis
+        // Check if the reason indicates an error (from fallback error handling)
+        const reasonIndicatesError = analysis.relevance.reason?.includes('failed:') || 
+                                   analysis.relevance.reason?.includes('Analysis completed but relevance check failed');
         const recommendation = {
             score: analysis.relevance.score ?? null,
             shouldApply: analysis.relevance.isRelevant,
             reason: analysis.relevance.reason,
-            cachedAt: new Date()
+            cachedAt: new Date(),
+            ...(reasonIndicatesError && { error: analysis.relevance.reason })
         };
 
         jobApplication.recommendation = recommendation;
