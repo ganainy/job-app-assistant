@@ -181,15 +181,17 @@ If you want to host your own instance of VibeHired, i provide a comprehensive de
 
 | Feature | Description | Screenshot |
 |---------|-------------|------------|
-| **Dashboard** | The main dashboard provides a comprehensive view of all job applications with filtering, sorting, and quick actions. | ![Dashboard](demo/screencapture-localhost-5173-dashboard-2025-11-17-00_39_35.png) |
-| **Analytics Dashboard** | Track your application progress with detailed statistics, charts, and a visual kanban pipeline. | ![Analytics](demo/screencapture-localhost-5173-analytics-2025-11-17-00_41_33.png) |
-| **CV Management** | Upload, parse, and edit your CV with a rich editor that supports section-by-section editing and AI-powered analysis. | ![CV Management](demo/screencapture-localhost-5173-manage-cv-2025-11-17-00_41_17.png) |
-| **Portfolio Setup - Step 1** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 1](demo/screencapture-localhost-5173-portfolio-setup-2025-11-17-00_41_55.png) |
-| **Portfolio Setup - Step 2** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 2](demo/screencapture-localhost-5173-portfolio-setup-2025-11-17-00_42_25.png) |
-| **Portfolio Setup - Step 3** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 3](demo/screencapture-localhost-5173-portfolio-setup-2025-11-17-00_42_31.png) |
-| **Portfolio Setup - Step 4** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 4](demo/screencapture-localhost-5173-portfolio-setup-2025-11-17-00_42_40.png) |
-| **Public Portfolio** | Share your professional portfolio with a clean, modern public page. | ![Public Portfolio](demo/screencapture-localhost-5173-portfolio-a-a-com-2025-11-17-00_42_05.png) |
-| **Review & Finalization - Overview** | Review, edit, and finalize your generated CVs and cover letters before PDF generation. | ![Review Page - Overview](demo/screencapture-localhost-5173-jobs-6919eac2ce65dfda35869b25-review-2025-11-17-00_51_46.png) |
-| **Review & Finalization - CV Editing** | Review, edit, and finalize your generated CVs and cover letters before PDF generation. | ![Review Page - CV Editing](demo/screencapture-localhost-5173-jobs-6919eac2ce65dfda35869b25-review-2025-11-17-00_52_48.png) |
-| **Review & Finalization - Cover Letter Editing** | Review, edit, and finalize your generated CVs and cover letters before PDF generation. | ![Review Page - Cover Letter Editing](demo/screencapture-localhost-5173-jobs-6919eac2ce65dfda35869b25-review-2025-11-17-00_53_07.png) |
-| **Review & Finalization - Finalization** | Review, edit, and finalize your generated CVs and cover letters before PDF generation. | ![Review Page - Finalization](demo/screencapture-localhost-5173-jobs-6919eac2ce65dfda35869b25-review-2025-11-17-00_53_44.png) |
+| **Auto Jobs** | Automated job discovery with AI-powered analysis and filtering. Manually trigger job searches and get intelligent job recommendations. | ![Auto Jobs](demo/auto-jobs.png) |
+| **Dashboard** | The main dashboard provides a comprehensive view of all job applications with filtering, sorting, and quick actions. | ![Dashboard](demo/main-dashbaord.png) |
+| **Analytics Dashboard** | Track your application progress with detailed statistics, charts, and a visual kanban pipeline. | ![Analytics](demo/analytics-dashboard.png) |
+| **Job Details** | View detailed job information and manage individual job applications. | ![Job Details](demo/job-details.png) |
+| **Custom Job CV** | Review and customize AI-generated CVs tailored to specific job applications. | ![Custom Job CV](demo/custom-job-cv.png) |
+| **Custom Job Cover Letter** | Review and customize AI-generated cover letters tailored to specific job applications. | ![Custom Job Cover Letter](demo/custom-job-coverletter.png) |
+| **ATS Analysis** | Get detailed ATS compatibility scores and feedback to optimize your application. | ![ATS Analysis](demo/ats-analysis.png) |
+| **CV Management** | Upload, parse, and edit your CV with a rich editor that supports section-by-section editing and AI-powered analysis. | ![CV Management](demo/ats-analysis2.png) |
+| **Portfolio Setup - Step 1** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 1](demo/portfolio-setup.png) |
+| **Portfolio Setup - Step 2** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 2](demo/portfolio-setup2.png) |
+| **Portfolio Setup - Step 3** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 3](demo/portfolio-setup3.png) |
+| **Portfolio Setup - Step 4** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 4](demo/portfolio-setup4.png) |
+| **Public Portfolio** | Share your professional portfolio with a clean, modern public page. | ![Public Portfolio](demo/custom-portfolio.png) |
+| **Settings** | Manage your API keys for AI features (Gemini, OpenRouter, Ollama) and integrations (Apify). Configure AI provider settings and model selection. | ![Settings](demo/settings.png) |
