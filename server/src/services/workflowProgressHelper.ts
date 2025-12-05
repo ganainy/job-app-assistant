@@ -1,4 +1,7 @@
 // Helper function to update workflow progress
+import WorkflowRun, { IWorkflowRun } from '../models/WorkflowRun';
+import { WorkflowStats } from './autoJobWorkflow';
+
 async function updateWorkflowProgress(
     runId: string,
     updates: {
@@ -55,7 +58,7 @@ async function updateWorkflowProgress(
         if (updates.stepUpdate) {
             const run = await WorkflowRun.findById(runId);
             if (run) {
-                const stepIndex = run.steps.findIndex(s => s.name === updates.stepUpdate!.name);
+                const stepIndex = run.steps.findIndex((s: IWorkflowRun['steps'][0]) => s.name === updates.stepUpdate!.name);
                 if (stepIndex !== -1) {
                     run.steps[stepIndex].status = updates.stepUpdate.status;
                     if (updates.stepUpdate.status === 'running') {
