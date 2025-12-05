@@ -100,9 +100,7 @@ mongoose.connect(mongoUri)
   .then(() => {
     console.log('MongoDB Connected Successfully');
 
-    // Initialize auto-job scheduler
-    const { initializeScheduler } = require('./utils/scheduler');
-    initializeScheduler();
+    // Auto-job scheduling removed - jobs are now only manually triggered
 
     // Start listening only after successful DB connection
     const server = app.listen(port, () => {

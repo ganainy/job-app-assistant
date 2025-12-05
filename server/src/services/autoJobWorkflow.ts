@@ -336,10 +336,8 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
             profile = new Profile({
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
-                    enabled: false,
                     keywords: '',
-                    location: '',
-                    schedule: '0 9 * * *'
+                    location: ''
                 }
             });
             await profile.save();
@@ -352,14 +350,6 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
 
         // Get auto-job settings
         const autoJobSettings = (profile as any).autoJobSettings;
-
-        // If not manual, check if enabled
-        if (!isManual && !autoJobSettings?.enabled) {
-            console.log('Auto-job workflow is disabled for this user');
-            await updateProgress('Initialize', 'completed', 0, 'Workflow disabled');
-            await WorkflowRun.findByIdAndUpdate(runId, { status: 'completed', stats });
-            return;
-        }
 
         const keywords = autoJobSettings.keywords || '';
         const location = autoJobSettings.location || '';

@@ -72,19 +72,16 @@ router.get('/api-keys', asyncHandler(async (req: Request, res: Response) => {
   let profile = await Profile.findOne({ userId });
   if (!profile) {
     // Create a new profile if it doesn't exist
-    // Explicitly set autoJobSettings.enabled to false for new users
     profile = await Profile.create({ 
       userId,
       autoJobSettings: {
-        enabled: false,
         keywords: '',
         location: '',
         jobType: [],
         experienceLevel: [],
         datePosted: 'any time',
         maxJobs: 100,
-        avoidDuplicates: false,
-        schedule: '0 9 * * *'
+        avoidDuplicates: false
       }
     });
   }
@@ -190,19 +187,16 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
   // Find or create profile
   let profile = await Profile.findOne({ userId });
   if (!profile) {
-    // Explicitly set autoJobSettings.enabled to false for new users
     profile = await Profile.create({ 
       userId,
       autoJobSettings: {
-        enabled: false,
         keywords: '',
         location: '',
         jobType: [],
         experienceLevel: [],
         datePosted: 'any time',
         maxJobs: 100,
-        avoidDuplicates: false,
-        schedule: '0 9 * * *'
+        avoidDuplicates: false
       }
     });
   }

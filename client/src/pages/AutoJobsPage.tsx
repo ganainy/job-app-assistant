@@ -28,15 +28,13 @@ const AutoJobsPage: React.FC = () => {
     const [jobs, setJobs] = useState<AutoJob[]>([]);
     const [stats, setStats] = useState<WorkflowStats | null>(null);
     const [settings, setSettings] = useState<AutoJobSettings>({ 
-        enabled: false, 
         keywords: '',
         location: '',
         jobType: [],
         experienceLevel: [],
         datePosted: 'any time',
         maxJobs: 100,
-        avoidDuplicates: false,
-        schedule: '0 9 * * *' 
+        avoidDuplicates: false
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isTriggering, setIsTriggering] = useState(false);
@@ -230,10 +228,10 @@ const AutoJobsPage: React.FC = () => {
         const trimmedValue = value.substring(0, 100);
         setLocationInput(trimmedValue);
 
-        // Update settings immediately (no debounce for input)
+        // Update settings immediately (no debounce for input display)
         const newSettings = { ...settings, location: trimmedValue };
         setSettings(newSettings);
-        autoSaveSettings(newSettings, false);
+        debouncedAutoSave(newSettings);
 
         // Clear previous timeout
         if (locationSearchTimeoutRef.current) {
@@ -273,7 +271,7 @@ const AutoJobsPage: React.FC = () => {
         setShowLocationSuggestions(false);
         const newSettings = { ...settings, location: suggestion };
         setSettings(newSettings);
-        autoSaveSettings(newSettings, false);
+        debouncedAutoSave(newSettings);
     };
 
     useEffect(() => {
@@ -400,12 +398,14 @@ const AutoJobsPage: React.FC = () => {
             datePosted: settingsToFilter.datePosted === 'past hour' ? 'past 24 hours' : (settingsToFilter.datePosted ?? 'any time'),
             maxJobs: settingsToFilter.maxJobs ?? 100,
             avoidDuplicates: settingsToFilter.avoidDuplicates ?? false,
-            schedule: settingsToFilter.schedule ?? '0 9 * * *'
         };
     };
 
     // Auto-save settings (debounced)
-    const autoSaveSettings = async (newSettings: AutoJobSettings, showMessage = false) => {
+    // Debounce timer for auto-save
+    const autoSaveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    const autoSaveSettings = async (newSettings: AutoJobSettings, showMessage = true) => {
         try {
             setIsSavingSettings(true);
             // Only send valid fields to backend
@@ -421,42 +421,35 @@ const AutoJobsPage: React.FC = () => {
         }
     };
 
-    // Handle settings save (for configuration card - kept for explicit save if needed)
-    const handleSaveSettings = async () => {
-        await autoSaveSettings(settings, true);
-        fetchData();
-    };
-
-    // Handle toggle enable
-    const handleToggleEnable = async () => {
-        const newEnabled = !settings.enabled;
-        const newSettings = { ...settings, enabled: newEnabled };
-        setSettings(newSettings); // Optimistic update
-
-        try {
-            // Only send valid fields to backend
-            const validSettings = filterValidSettings(newSettings);
-            await updateSettings(validSettings);
-            showToast(`Auto jobs ${newEnabled ? 'enabled' : 'disabled'}`, 'success');
-        } catch (err: any) {
-            setSettings(settings); // Revert on error
-            showToast('Failed to update settings', 'error');
+    // Debounced auto-save function
+    const debouncedAutoSave = (newSettings: AutoJobSettings) => {
+        // Clear previous timeout
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
         }
+
+        // Set new timeout for auto-save
+        autoSaveTimeoutRef.current = setTimeout(() => {
+            autoSaveSettings(newSettings, true);
+        }, 1000); // 1 second debounce
     };
 
-    // Handle schedule change with auto-save
-    const handleScheduleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newSettings = { ...settings, schedule: e.target.value };
-        setSettings(newSettings);
-        await autoSaveSettings(newSettings, false);
-    };
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (autoSaveTimeoutRef.current) {
+                clearTimeout(autoSaveTimeoutRef.current);
+            }
+        };
+    }, []);
+
 
 
     // Handle max jobs change with auto-save
-    const handleMaxJobsChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleMaxJobsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newSettings = { ...settings, maxJobs: parseInt(e.target.value) };
         setSettings(newSettings);
-        await autoSaveSettings(newSettings, false);
+        debouncedAutoSave(newSettings);
     };
 
     // Handle promote job
@@ -536,10 +529,11 @@ const AutoJobsPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 py-8 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto space-y-8">
-                {/* Header */}
-                <div className="flex items-center justify-between">
+                {/* Header - Sticky */}
+                <div className="sticky top-0 z-40 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pt-8 pb-4 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95 border-b border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Auto Jobs</h1>
                         <p className="mt-1 text-slate-600 dark:text-slate-400">
@@ -563,46 +557,6 @@ const AutoJobsPage: React.FC = () => {
                             <>🚀 Run Now</>
                         )}
                     </button>
-                </div>
-
-                {/* Auto Jobs Schedule Card */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">Auto Jobs Schedule</h2>
-
-                    <div className="space-y-4">
-                        {/* Enable Toggle */}
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Enable Auto Jobs</label>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Automatically search for jobs on schedule (manual "Run Now" works independently)</p>
-                            </div>
-                            <button
-                                onClick={handleToggleEnable}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.enabled ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'
-                                    }`}
-                            >
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.enabled ? 'translate-x-6' : 'translate-x-1'
-                                    }`} />
-                            </button>
-                        </div>
-
-                        {/* Schedule - only show when enabled */}
-                        {settings.enabled && (
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                    Schedule
-                                </label>
-                                <select
-                                    value={settings.schedule}
-                                    onChange={handleScheduleChange}
-                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                                >
-                                    <option value="0 9 * * *">Daily at 9 AM</option>
-                                    <option value="0 */6 * * *">Every 6 hours</option>
-                                    <option value="0 */12 * * *">Every 12 hours</option>
-                                </select>
-                            </div>
-                        )}
                     </div>
                 </div>
 
@@ -622,7 +576,7 @@ const AutoJobsPage: React.FC = () => {
                                 onChange={(e) => {
                                     const newSettings = { ...settings, keywords: e.target.value.substring(0, 200) };
                                     setSettings(newSettings);
-                                    autoSaveSettings(newSettings, false);
+                                    debouncedAutoSave(newSettings);
                                 }}
                                 placeholder="e.g., mobile developer"
                                 maxLength={200}
@@ -697,7 +651,7 @@ const AutoJobsPage: React.FC = () => {
                                                     : currentTypes.filter(t => t !== type);
                                                 const newSettings = { ...settings, jobType: newTypes };
                                                 setSettings(newSettings);
-                                                autoSaveSettings(newSettings, false);
+                                                debouncedAutoSave(newSettings);
                                             }}
                                             className="mr-2 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                         />
@@ -728,7 +682,7 @@ const AutoJobsPage: React.FC = () => {
                                                     : currentLevels.filter(l => l !== level);
                                                 const newSettings = { ...settings, experienceLevel: newLevels };
                                                 setSettings(newSettings);
-                                                autoSaveSettings(newSettings, false);
+                                                debouncedAutoSave(newSettings);
                                             }}
                                             className="mr-2 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                         />
@@ -753,7 +707,7 @@ const AutoJobsPage: React.FC = () => {
                                     const datePosted = e.target.value === 'past hour' ? 'past 24 hours' : e.target.value;
                                     const newSettings = { ...settings, datePosted };
                                     setSettings(newSettings);
-                                    autoSaveSettings(newSettings, false);
+                                    debouncedAutoSave(newSettings);
                                 }}
                                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
                             >
@@ -800,7 +754,7 @@ const AutoJobsPage: React.FC = () => {
                                 onClick={() => {
                                     const newSettings = { ...settings, avoidDuplicates: !settings.avoidDuplicates };
                                     setSettings(newSettings);
-                                    autoSaveSettings(newSettings, false);
+                                    debouncedAutoSave(newSettings);
                                 }}
                                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.avoidDuplicates ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'
                                     }`}
@@ -809,15 +763,6 @@ const AutoJobsPage: React.FC = () => {
                                     }`} />
                             </button>
                         </div>
-
-                        {/* Save Button */}
-                        <button
-                            onClick={handleSaveSettings}
-                            disabled={isSavingSettings}
-                            className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                        >
-                            {isSavingSettings ? 'Saving...' : 'Save Settings'}
-                        </button>
                     </div>
                 </div>
 

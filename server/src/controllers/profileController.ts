@@ -262,19 +262,16 @@ export const getCurrentUserProfile = asyncHandler(
 
     if (!profile) {
       // Create profile if it doesn't exist
-      // Explicitly set autoJobSettings.enabled to false for new users
       profile = await Profile.create({ 
         userId,
         autoJobSettings: {
-          enabled: false,
           keywords: '',
           location: '',
           jobType: [],
           experienceLevel: [],
           datePosted: 'any time',
           maxJobs: 100,
-          avoidDuplicates: false,
-          schedule: '0 9 * * *'
+          avoidDuplicates: false
         }
       });
     }

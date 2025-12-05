@@ -72,7 +72,6 @@ export interface IProfile extends Document {
     showLinkedInLanguages?: boolean;
   };
     autoJobSettings?: {
-      enabled?: boolean;
       keywords?: string; // Job search keywords (max 200 chars)
       location?: string; // Job search location (max 100 chars)
       jobType?: string[]; // Job types: "full-time", "part-time", "contract", "internship"
@@ -80,7 +79,6 @@ export interface IProfile extends Document {
       datePosted?: string; // Date filter: "any time", "past 24 hours", "past week", "past month"
       maxJobs?: number; // Maximum number of jobs to retrieve (20-1000, default 100)
       avoidDuplicates?: boolean; // Skip already scraped jobs
-      schedule?: string; // cron expression
     };
     aiProviderSettings?: {
       defaultProvider?: 'gemini' | 'openrouter' | 'ollama';
@@ -245,10 +243,6 @@ const ProfileSchema: Schema = new Schema(
       },
     },
     autoJobSettings: {
-      enabled: {
-        type: Boolean,
-        default: false,
-      },
       keywords: {
         type: String,
         default: '',
@@ -283,10 +277,6 @@ const ProfileSchema: Schema = new Schema(
       avoidDuplicates: {
         type: Boolean,
         default: false,
-      },
-      schedule: {
-        type: String,
-        default: '0 9 * * *', // Daily at 9 AM
       },
     },
     aiProviderSettings: {

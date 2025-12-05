@@ -22,10 +22,8 @@ export const triggerWorkflow = async (req: Request, res: Response) => {
             profile = new Profile({
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
-                    enabled: false,
                     keywords: '',
-                    location: '',
-                    schedule: '0 9 * * *'
+                    location: ''
                 }
             });
             await profile.save();
@@ -378,30 +376,26 @@ export const updateSettings = async (req: Request, res: Response) => {
             profile = new Profile({
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
-                    enabled: enabled || false,
                     keywords: keywords || '',
                     location: location || '',
                     jobType: Array.isArray(jobType) ? jobType : [],
                     experienceLevel: Array.isArray(experienceLevel) ? experienceLevel : [],
                     datePosted: datePosted || 'any time',
                     maxJobs: maxJobs || 100,
-                    avoidDuplicates: avoidDuplicates || false,
-                    schedule: schedule || '0 9 * * *'
+                    avoidDuplicates: avoidDuplicates || false
                 }
             });
         } else {
             // Update existing profile
             const existingSettings = (profile as any).autoJobSettings || {};
             (profile as any).autoJobSettings = {
-                enabled: enabled !== undefined ? enabled : existingSettings.enabled || false,
                 keywords: keywords !== undefined ? keywords : existingSettings.keywords || '',
                 location: location !== undefined ? location : existingSettings.location || '',
                 jobType: Array.isArray(jobType) ? jobType : (jobType !== undefined ? [] : existingSettings.jobType || []),
                 experienceLevel: Array.isArray(experienceLevel) ? experienceLevel : (experienceLevel !== undefined ? [] : existingSettings.experienceLevel || []),
                 datePosted: datePosted !== undefined ? datePosted : existingSettings.datePosted || 'any time',
                 maxJobs: maxJobs !== undefined ? Math.min(1000, Math.max(20, maxJobs)) : existingSettings.maxJobs || 100,
-                avoidDuplicates: avoidDuplicates !== undefined ? avoidDuplicates : existingSettings.avoidDuplicates || false,
-                schedule: schedule || existingSettings.schedule || '0 9 * * *'
+                avoidDuplicates: avoidDuplicates !== undefined ? avoidDuplicates : existingSettings.avoidDuplicates || false
             };
         }
 
@@ -435,30 +429,26 @@ export const getSettings = async (req: Request, res: Response) => {
             profile = new Profile({
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
-                    enabled: false,
                     keywords: '',
                     location: '',
                     jobType: [],
                     experienceLevel: [],
                     datePosted: 'any time',
                     maxJobs: 100,
-                    avoidDuplicates: false,
-                    schedule: '0 9 * * *'
+                    avoidDuplicates: false
                 }
             });
             await profile.save();
         }
 
         const settings = (profile as any).autoJobSettings || {
-            enabled: false,
             keywords: '',
             location: '',
             jobType: [],
             experienceLevel: [],
             datePosted: 'any time',
             maxJobs: 100,
-            avoidDuplicates: false,
-            schedule: '0 9 * * *'
+            avoidDuplicates: false
         };
 
         // Ensure maxJobs is present even if not in DB

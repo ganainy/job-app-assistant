@@ -84,7 +84,6 @@ export interface WorkflowStats {
 }
 
 export interface AutoJobSettings {
-    enabled: boolean;
     keywords?: string;
     location?: string;
     jobType?: string[];
@@ -92,7 +91,6 @@ export interface AutoJobSettings {
     datePosted?: string;
     maxJobs?: number;
     avoidDuplicates?: boolean;
-    schedule: string;
 }
 
 export interface WorkflowRun {
