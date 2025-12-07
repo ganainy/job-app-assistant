@@ -1,6 +1,4 @@
-import { generateStructuredResponse } from '../utils/geminiClient';
-import { getGeminiApiKey } from '../utils/apiKeyHelpers';
-import { getGeminiModel } from '../utils/geminiClient';
+import { generateStructuredResponse, generateContent } from '../utils/aiService';
 
 /**
  * Improves a CV section using AI
@@ -68,8 +66,7 @@ Output should be:
 `;
 
     try {
-        const apiKey = await getGeminiApiKey(userId);
-        const improvedData = await generateStructuredResponse<any>(apiKey, improvementPrompt);
+        const improvedData = await generateStructuredResponse<any>(userId, improvementPrompt);
 
         if (!improvedData || typeof improvedData !== 'object') {
             throw new Error('AI response did not return valid section data');
@@ -100,10 +97,8 @@ export const generateCustomizedResume = async (
     baseResumeText: string,
     structuredResume: any,
     jobDescription: string,
-    geminiApiKey: string
+    userId: string
 ): Promise<string> => {
-    const gemini = getGeminiModel(geminiApiKey);
-
     const prompt = `You are a resume writing assistant creating a tailored resume.
 
 Base Resume:
@@ -124,8 +119,8 @@ Create a customized resume that:
 
 Return ONLY the HTML content (without <html>, <head>, or <body> tags - just the inner content).`;
 
-    const result = await gemini.generateContent(prompt);
-    let htmlContent = result.response.text();
+    const result = await generateContent(userId, prompt);
+    let htmlContent = result.text;
 
     // Clean up markdown code blocks if present
     if (htmlContent.includes('```html')) {
@@ -150,9 +145,8 @@ export const generateCoverLetterWithSkillMatch = async (
         jobDescription: string;
         extractedData?: any;
     },
-    geminiApiKey: string
+    userId: string
 ): Promise<{ coverLetter: string; skillMatchScore: number; skillMatchReason: string }> => {
-    const gemini = getGeminiModel(geminiApiKey);
 
     const prompt = `You are a cover letter writing assistant.
 
@@ -191,8 +185,8 @@ Return a JSON object:
   "skillMatchReason": "Candidate has strong React experience but lacks Python knowledge."
 }`;
 
-    const result = await gemini.generateContent(prompt);
-    const responseText = result.response.text();
+    const result = await generateContent(userId, prompt);
+    const responseText = result.text;
 
     // Clean up response
     let jsonText = responseText.trim();

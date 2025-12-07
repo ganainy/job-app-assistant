@@ -82,6 +82,21 @@ export async function getJobRecommendation(
 
         if (analysisResult.error || analysisResult.score === null) {
             const errorMsg = analysisResult.error || 'Failed to analyze job match';
+            const recommendationWithError = {
+                score: null,
+                shouldApply: false,
+                reason: errorMsg,
+                cachedAt: new Date(),
+                error: errorMsg
+            };
+            
+            // Store error in recommendation field
+            await JobApplication.findByIdAndUpdate(
+                jobIdObj,
+                { $set: { recommendation: recommendationWithError } },
+                { new: true }
+            );
+            
             return {
                 shouldApply: false,
                 score: null,

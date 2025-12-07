@@ -22,10 +22,8 @@ export const triggerWorkflow = async (req: Request, res: Response) => {
             profile = new Profile({
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
-                    enabled: false,
                     keywords: '',
-                    location: '',
-                    schedule: '0 9 * * *'
+                    location: ''
                 }
             });
             await profile.save();
@@ -42,13 +40,8 @@ export const triggerWorkflow = async (req: Request, res: Response) => {
             });
         }
 
-        // Check for Gemini API key
-        const geminiApiKey = profile.integrations?.gemini?.accessToken || process.env.GEMINI_API_KEY;
-        if (!geminiApiKey) {
-            return res.status(400).json({
-                message: 'Please configure your Gemini API key in the Integrations settings page.'
-            });
-        }
+        // AI provider will be checked by aiService when needed
+        // No need to check here as aiService handles provider selection and fallback
 
         // Run workflow
         console.log(`Manual trigger: Running auto-job workflow for user ${userId}`);
@@ -152,10 +145,12 @@ export const getAutoJobs = async (req: Request, res: Response) => {
         const status = req.query.status as string;
         const relevance = req.query.relevance as string;
 
-        // Build query - only get auto jobs
+        // Build query - only get auto jobs that haven't been promoted to dashboard and aren't soft-deleted
         const query: any = { 
             userId: new mongoose.Types.ObjectId(userId),
-            isAutoJob: true
+            isAutoJob: true,
+            showInDashboard: false, // Exclude jobs that have been moved to dashboard
+            deletedAt: null // Exclude soft-deleted jobs
         };
 
         if (status) {
@@ -211,7 +206,8 @@ export const getAutoJobById = async (req: Request, res: Response) => {
         const job = await JobApplication.findOne({
             _id: new mongoose.Types.ObjectId(id),
             userId: new mongoose.Types.ObjectId(userId),
-            isAutoJob: true
+            isAutoJob: true,
+            deletedAt: null // Exclude soft-deleted jobs
         });
 
         if (!job) {
@@ -237,11 +233,12 @@ export const promoteAutoJob = async (req: Request, res: Response) => {
         const userId = (req.user as any)._id.toString();
         const { id } = req.params;
 
-        // Find auto job (already a JobApplication with isAutoJob=true)
+        // Find auto job (already a JobApplication with isAutoJob=true, not soft-deleted)
         const jobApplication = await JobApplication.findOne({
             _id: new mongoose.Types.ObjectId(id),
             userId: new mongoose.Types.ObjectId(userId),
-            isAutoJob: true
+            isAutoJob: true,
+            deletedAt: null // Exclude soft-deleted jobs
         });
 
         if (!jobApplication) {
@@ -266,22 +263,32 @@ export const promoteAutoJob = async (req: Request, res: Response) => {
 };
 
 /**
- * Delete auto job
+ * Delete auto job (soft delete)
  * DELETE /api/auto-jobs/:id
+ * Sets deletedAt timestamp instead of actually deleting, so the job won't be re-fetched in future workflows
  */
 export const deleteAutoJob = async (req: Request, res: Response) => {
     try {
         const userId = (req.user as any)._id.toString();
         const { id } = req.params;
 
-        const result = await JobApplication.findOneAndDelete({
-            _id: new mongoose.Types.ObjectId(id),
-            userId: new mongoose.Types.ObjectId(userId),
-            isAutoJob: true
-        });
+        const result = await JobApplication.findOneAndUpdate(
+            {
+                _id: new mongoose.Types.ObjectId(id),
+                userId: new mongoose.Types.ObjectId(userId),
+                isAutoJob: true,
+                deletedAt: null // Only update if not already deleted
+            },
+            {
+                deletedAt: new Date()
+            },
+            {
+                new: true
+            }
+        );
 
         if (!result) {
-            return res.status(404).json({ message: 'Auto job not found' });
+            return res.status(404).json({ message: 'Auto job not found or already deleted' });
         }
 
         res.json({ message: 'Auto job deleted successfully' });
@@ -369,30 +376,26 @@ export const updateSettings = async (req: Request, res: Response) => {
             profile = new Profile({
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
-                    enabled: enabled || false,
                     keywords: keywords || '',
                     location: location || '',
                     jobType: Array.isArray(jobType) ? jobType : [],
                     experienceLevel: Array.isArray(experienceLevel) ? experienceLevel : [],
                     datePosted: datePosted || 'any time',
                     maxJobs: maxJobs || 100,
-                    avoidDuplicates: avoidDuplicates || false,
-                    schedule: schedule || '0 9 * * *'
+                    avoidDuplicates: avoidDuplicates || false
                 }
             });
         } else {
             // Update existing profile
             const existingSettings = (profile as any).autoJobSettings || {};
             (profile as any).autoJobSettings = {
-                enabled: enabled !== undefined ? enabled : existingSettings.enabled || false,
                 keywords: keywords !== undefined ? keywords : existingSettings.keywords || '',
                 location: location !== undefined ? location : existingSettings.location || '',
                 jobType: Array.isArray(jobType) ? jobType : (jobType !== undefined ? [] : existingSettings.jobType || []),
                 experienceLevel: Array.isArray(experienceLevel) ? experienceLevel : (experienceLevel !== undefined ? [] : existingSettings.experienceLevel || []),
                 datePosted: datePosted !== undefined ? datePosted : existingSettings.datePosted || 'any time',
                 maxJobs: maxJobs !== undefined ? Math.min(1000, Math.max(20, maxJobs)) : existingSettings.maxJobs || 100,
-                avoidDuplicates: avoidDuplicates !== undefined ? avoidDuplicates : existingSettings.avoidDuplicates || false,
-                schedule: schedule || existingSettings.schedule || '0 9 * * *'
+                avoidDuplicates: avoidDuplicates !== undefined ? avoidDuplicates : existingSettings.avoidDuplicates || false
             };
         }
 
@@ -426,30 +429,26 @@ export const getSettings = async (req: Request, res: Response) => {
             profile = new Profile({
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
-                    enabled: false,
                     keywords: '',
                     location: '',
                     jobType: [],
                     experienceLevel: [],
                     datePosted: 'any time',
                     maxJobs: 100,
-                    avoidDuplicates: false,
-                    schedule: '0 9 * * *'
+                    avoidDuplicates: false
                 }
             });
             await profile.save();
         }
 
         const settings = (profile as any).autoJobSettings || {
-            enabled: false,
             keywords: '',
             location: '',
             jobType: [],
             experienceLevel: [],
             datePosted: 'any time',
             maxJobs: 100,
-            avoidDuplicates: false,
-            schedule: '0 9 * * *'
+            avoidDuplicates: false
         };
 
         // Ensure maxJobs is present even if not in DB

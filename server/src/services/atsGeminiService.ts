@@ -1,8 +1,7 @@
-// Gemini-based ATS analysis service
-import { generateJsonAnalysis } from '../utils/geminiClient';
+// ATS analysis service (provider-agnostic)
+import { generateStructuredResponse } from '../utils/aiService';
 import { JsonResumeSchema } from '../types/jsonresume';
 import { convertJsonResumeToText } from '../utils/cvTextExtractor';
-import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 import { 
     ISkillMatchDetails, 
     IAtsComplianceDetails,
@@ -245,14 +244,11 @@ Provide detailed analysis for each metric to ensure the CV can pass through ATS 
   }
 }`;
 
-        // Get user's Gemini API key
-        const apiKey = await getGeminiApiKey(userId);
-        
-        // Call Gemini API
-        const geminiResult: GeminiAtsResponse = await generateJsonAnalysis<GeminiAtsResponse>(
-            apiKey,
-            prompt,
-            cvJsonString
+        // Call AI service
+        const combinedPrompt = `${prompt}\n\nAnalyze the following CV in JSON Resume format:\n\n${cvJsonString}`;
+        const geminiResult: GeminiAtsResponse = await generateStructuredResponse<GeminiAtsResponse>(
+            userId,
+            combinedPrompt
         );
 
         // Map Gemini results to existing interface structure

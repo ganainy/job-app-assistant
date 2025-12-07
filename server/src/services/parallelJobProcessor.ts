@@ -2,8 +2,8 @@
 import mongoose from 'mongoose';
 import JobApplication from '../models/JobApplication';
 import Profile from '../models/Profile';
-import { analyzeJobAndCompanyWithProvider } from './jobAnalysisService';
-import { checkRelevanceWithProvider } from './jobRelevanceService';
+import { analyzeJobCompanyAndRelevance } from './jobAnalysisService';
+// checkRelevanceWithProvider is no longer needed - merged into analyzeJobCompanyAndRelevance
 import { generateCoverLetterWithProvider } from './generatorService';
 import { processBatchWithErrors, calculateBatchDelay } from '../utils/batchProcessor';
 import { getRateLimitDelay } from './providerService';
@@ -66,15 +66,15 @@ async function processSingleJob(
             return { success: false, stats, error: new Error('No description') };
         }
 
-        // Step 1: Analyze job and company
-        const analysisModel = models.analysis || 'gemini-1.5-flash';
-        const analysis = await analyzeJobAndCompanyWithProvider(
+        // Step 1: Merged analysis (job extraction + company analysis + relevance check)
+        // This combines what was previously 2 separate AI calls into 1
+        const analysis = await analyzeJobCompanyAndRelevance(
             job.jobDescriptionText,
             job.companyName,
-            profile,
-            provider,
-            analysisModel,
-            job.structuredData
+            structuredResume,
+            userId,
+            job.structuredData,
+            50 // Threshold: >=50% match is considered relevant
         );
 
         jobApplication.extractedData = analysis.job.extractedData;
@@ -84,40 +84,28 @@ async function processSingleJob(
         await jobApplication.save();
         stats.analyzed++;
 
-        // Step 2: Check relevance
-        const relevanceModel = models.relevance || 'gemini-1.5-flash';
-        const relevanceCheck = await checkRelevanceWithProvider(
-            structuredResume,
-            job.jobDescriptionText,
-            userId,
-            profile,
-            provider,
-            relevanceModel,
-            50 // Threshold: >=50% match is considered relevant
-        );
-
-        // Build recommendation object
+        // Build recommendation object from merged analysis
         const recommendation = {
-            score: relevanceCheck.score ?? null,
-            shouldApply: relevanceCheck.isRelevant,
-            reason: relevanceCheck.reason,
+            score: analysis.relevance.score ?? null,
+            shouldApply: analysis.relevance.isRelevant,
+            reason: analysis.relevance.reason,
             cachedAt: new Date()
         };
 
         jobApplication.recommendation = recommendation;
 
-        if (!relevanceCheck.isRelevant) {
+        if (!analysis.relevance.isRelevant) {
             jobApplication.processingStatus = 'not_relevant';
             await jobApplication.save();
             stats.notRelevant++;
-            console.log(`  ✗ Not relevant: ${relevanceCheck.reason}`);
+            console.log(`  ✗ Not relevant: ${analysis.relevance.reason}`);
             return { success: true, stats, jobApplication };
         }
 
         jobApplication.processingStatus = 'relevant';
         await jobApplication.save();
         stats.relevant++;
-        console.log(`  ✓ Relevant: ${relevanceCheck.reason} (${relevanceCheck.score ?? 'N/A'}% match)`);
+        console.log(`  ✓ Relevant: ${analysis.relevance.reason} (${analysis.relevance.score ?? 'N/A'}% match)`);
 
         // Step 3: Generate cover letter
         const generationModel = models.generation || 'gemini-1.5-pro';

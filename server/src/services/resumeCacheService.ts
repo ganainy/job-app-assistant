@@ -1,7 +1,7 @@
 // server/src/services/resumeCacheService.ts
 import crypto from 'crypto';
 import ResumeCache, { IResumeCache } from '../models/ResumeCache';
-import { getGeminiModel } from '../utils/geminiClient';
+import { generateStructuredResponse } from '../utils/aiService';
 import mongoose from 'mongoose';
 
 /**
@@ -46,10 +46,8 @@ export const getCachedResume = async (
  */
 export const structureResume = async (
     resumeText: string,
-    geminiApiKey: string
+    userId: string
 ): Promise<any> => {
-    const gemini = getGeminiModel(geminiApiKey);
-
     const prompt = `You are a career assistant tasked with structuring a resume.
 
 Given the following resume text, extract and structure it into a JSON object with these fields:
@@ -66,19 +64,7 @@ ${resumeText}
 
 Return ONLY the JSON object, no markdown formatting, no explanation.`;
 
-    const result = await gemini.generateContent(prompt);
-    const responseText = result.response.text();
-
-    // Clean up response - remove markdown code blocks if present
-    let jsonText = responseText.trim();
-    if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-
-    const structuredData = JSON.parse(jsonText);
-    return structuredData;
+    return await generateStructuredResponse<any>(userId, prompt);
 };
 
 /**
@@ -119,8 +105,7 @@ export const cacheResume = async (
  */
 export const getOrStructureResume = async (
     userId: string,
-    resumeText: string,
-    geminiApiKey: string
+    resumeText: string
 ): Promise<any> => {
     // Check cache first
     const cached = await getCachedResume(userId, resumeText);
@@ -129,8 +114,8 @@ export const getOrStructureResume = async (
     }
 
     // Structure resume using AI
-    console.log(`→ Structuring resume for user ${userId} using Gemini...`);
-    const structuredData = await structureResume(resumeText, geminiApiKey);
+    console.log(`→ Structuring resume for user ${userId} using AI...`);
+    const structuredData = await structureResume(resumeText, userId);
 
     // Cache for future use
     await cacheResume(userId, resumeText, structuredData);

@@ -1,11 +1,11 @@
 # Deployment Guide
 
-This guide walks you through deploying the Job Application Assistant to Netlify (frontend) and Heroku (backend), with MongoDB Atlas for database storage.
+This guide walks you through deploying VibeHired to Netlify (frontend) and Heroku (backend) with automatic deployment on every git push. Both platforms will automatically redeploy when you push changes to your repository.
 
 ## Prerequisites
 
 - Node.js (v18+) installed locally
-- Git repository set up
+- Git repository set up and pushed to GitHub/GitLab/Bitbucket
 - MongoDB Atlas account (free tier works)
 - Netlify account (free tier works)
 - Heroku account (free tier available, but consider paid tier for production)
@@ -43,61 +43,32 @@ This guide walks you through deploying the Job Application Assistant to Netlify 
    - Example: `mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/job-app-assistant?retryWrites=true&w=majority`
    - **Save this connection string** - you'll need it for Heroku
 
-## Part 2: Heroku Backend Deployment
+## Part 2: Heroku Backend Deployment with Auto-Deploy
 
-### Step 1: Install Heroku CLI
+### Step 1: Create Heroku App
 
-1. Download and install [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli)
-2. Verify installation: `heroku --version`
-3. Login: `heroku login`
+1. **Go to [Heroku Dashboard](https://dashboard.heroku.com)**
+   - Sign up or log in
 
-### Step 2: Prepare the Backend
+2. **Create a new app:**
+   - Click "New" → "Create new app"
+   - Enter an app name (e.g., `your-app-name-backend`)
+   - Choose a region
+   - Click "Create app"
 
-1. **Navigate to the server directory:**
-   ```bash
-   cd server
-   ```
-
-2. **Initialize Git repository (if not already done):**
-   ```bash
-   git init
-   ```
-
-3. **Ensure all dependencies are installed:**
-   ```bash
-   npm install
-   ```
-
-4. **Build the TypeScript code:**
-   ```bash
-   npm run build
-   ```
-
-5. **Verify the build output exists:**
-   - Check that `dist/index.js` exists
-
-### Step 3: Create Heroku App
-
-1. **Create a new Heroku app:**
-   ```bash
-   heroku create your-app-name-backend
-   ```
-   Note: Replace `your-app-name-backend` with your desired app name (must be unique). For example: `my-job-assistant-backend`
-
-2. **Note your Heroku app URL:**
-   - It will be something like: `https://your-app-name-backend.herokuapp.com`
+3. **Note your Heroku app URL:**
+   - It will be: `https://your-app-name-backend.herokuapp.com`
    - **Save this URL** - you'll need it for Netlify configuration
 
-### Step 4: Configure Environment Variables
+### Step 2: Configure Environment Variables
 
-Set the required environment variables on Heroku using the Heroku Dashboard:
+Set the required environment variables on Heroku:
 
 1. **Go to your Heroku Dashboard:**
-   - Visit [Heroku Dashboard](https://dashboard.heroku.com)
    - Select your app (e.g., `your-app-name-backend`)
 
 2. **Navigate to Settings:**
-   - Click on the **Settings** tab in your app's dashboard
+   - Click on the **Settings** tab
    - Scroll down to the **Config Vars** section
    - Click **Reveal Config Vars** or **Edit Config Vars**
 
@@ -116,103 +87,52 @@ Set the required environment variables on Heroku using the Heroku Dashboard:
    - Click **Add** after entering each key-value pair
    - Your app will automatically restart after each config var is added
 
-**Alternative: Using Heroku CLI**
+**Note:** The `PORT` variable is automatically set by Heroku - you don't need to add it.
 
-If you prefer using the CLI, you can set config vars using (replace `your-app-name-backend` with your actual Heroku app name):
-```bash
-heroku config:set --app your-app-name-backend MONGODB_URI='mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/job-app-assistant?retryWrites=true&w=majority'
-heroku config:set --app your-app-name-backend JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
-heroku config:set --app your-app-name-backend ENCRYPTION_KEY="your-encryption-key-min-32-chars"
-heroku config:set --app your-app-name-backend FRONTEND_URL="https://your-netlify-app.netlify.app"
-heroku config:set --app your-app-name-backend NODE_ENV="production"
-```
+### Step 3: Connect GitHub Repository for Auto-Deploy
 
-**Note:** The Dashboard method is recommended as it avoids shell escaping issues with special characters like `&` in connection strings.
+1. **Go to the Deploy tab:**
+   - In your Heroku app dashboard, click the **Deploy** tab
 
-### Step 5: Deploy to Heroku
+2. **Connect to GitHub:**
+   - Under "Deployment method", click **Connect to GitHub**
+   - Authorize Heroku to access your GitHub account if prompted
+   - Search for your repository name
+   - Click **Connect** next to your repository
 
-1. **Ensure you're in the server directory:**
-   ```bash
-   cd server
-   ```
+3. **Enable Automatic Deploys:**
+   - Scroll down to "Automatic deploys"
+   - Select the branch you want to deploy (usually `main` or `master`)
+   - Optionally check "Wait for CI to pass before deploy" (if you have CI/CD)
+   - Click **Enable Automatic Deploys**
 
-2. **Add Heroku remote (if not already added):**
-   ```bash
-   heroku git:remote -a your-app-name-backend
-   ```
-   Replace `your-app-name-backend` with your actual Heroku app name.
-
-3. **Deploy:**
-   ```bash
-   git add .
-   git commit -m "Deploy backend to Heroku"
-   git push heroku main
-   ```
-   Note: If your main branch is named `master`, use `git push heroku master`
-
-4. **Monitor the deployment:**
-   - Watch the build logs
-   - Wait for "Build succeeded" message
+4. **Manual Deploy (First Time):**
+   - Scroll to "Manual deploy"
+   - Select your branch (usually `main`)
+   - Click **Deploy Branch**
+   - Wait for the build to complete
 
 5. **Verify deployment:**
-   ```bash
-   heroku open --app your-app-name-backend
-   ```
-   Replace `your-app-name-backend` with your actual Heroku app name.
+   - Once deployed, click **View** or visit `https://your-app-name-backend.herokuapp.com`
    - You should see: "Job App Assistant Backend is Running!"
 
-6. **Check logs:**
-   ```bash
-   heroku logs --tail --app your-app-name-backend
-   ```
-   Replace `your-app-name-backend` with your actual Heroku app name.
-   - Look for "MongoDB Connected Successfully"
-   - Look for server running message
+### Step 4: Verify Heroku Configuration
 
-### Step 6: Update Frontend URL (After Netlify Deployment)
+The project is already configured for Heroku deployment:
 
-Once you have your Netlify URL, update the Heroku config:
+- ✅ `Procfile` is at the root directory with `web: npm start`
+- ✅ Root `package.json` has `heroku-postbuild` script that builds the server
+- ✅ Root `package.json` has `start` script that runs the server
 
-1. **Go to your Heroku Dashboard:**
-   - Visit [Heroku Dashboard](https://dashboard.heroku.com)
-   - Select your app
-   - Go to **Settings** → **Config Vars**
+**How it works:**
+1. Heroku detects `package.json` and `Procfile` at the root
+2. Runs `npm install` (installs all workspace dependencies)
+3. Runs `heroku-postbuild` (builds the server TypeScript code)
+4. Runs `web: npm start` from Procfile (starts the server)
 
-2. **Update the `FRONTEND_URL` variable:**
-   - Find `FRONTEND_URL` in the list
-   - Click **Edit** (or the pencil icon)
-   - Update the value to your actual Netlify URL: `https://your-actual-netlify-url.netlify.app`
-   - Click **Save**
+## Part 3: Netlify Frontend Deployment with Auto-Deploy
 
-**Alternative: Using Heroku CLI**
-```bash
-heroku config:set --app your-app-name-backend FRONTEND_URL="https://your-actual-netlify-url.netlify.app"
-```
-Replace `your-app-name-backend` with your actual Heroku app name.
-
-## Part 3: Netlify Frontend Deployment
-
-### Step 1: Prepare the Frontend
-
-1. **Navigate to the project root:**
-   ```bash
-   cd ..  # If you're in the server directory
-   ```
-
-2. **Verify netlify.toml exists:**
-   - The file should be in the root directory
-   - It should contain build configuration
-
-3. **Test the build locally:**
-   ```bash
-   cd client
-   npm install
-   npm run build
-   ```
-   - Verify that `client/dist` directory is created
-   - Check for any build errors
-
-### Step 2: Deploy via Netlify Dashboard
+### Step 1: Deploy via Netlify Dashboard
 
 1. **Go to [Netlify](https://app.netlify.com)**
    - Sign up or log in
@@ -220,20 +140,23 @@ Replace `your-app-name-backend` with your actual Heroku app name.
 2. **Add a new site:**
    - Click "Add new site" → "Import an existing project"
    - Connect to your Git provider (GitHub, GitLab, or Bitbucket)
+   - Authorize Netlify to access your repositories
    - Select your repository
 
 3. **Configure build settings:**
-   - **Base directory:** Leave empty (or set to root)
+   - Netlify should auto-detect settings from `netlify.toml`, but verify:
+   - **Base directory:** Leave empty (root)
    - **Build command:** `cd client && npm install && npm run build`
    - **Publish directory:** `client/dist`
-   - These should be auto-detected from `netlify.toml`
+   - These are already configured in `netlify.toml`
 
 4. **Set environment variables:**
-   - Go to Site settings → Environment variables
+   - Before deploying, click "Show advanced" → "New variable"
    - Add the following:
      - **Key:** `VITE_BACKEND_URL`
      - **Value:** `https://your-app-name-backend.herokuapp.com/api`
      - Replace `your-app-name-backend` with your actual Heroku app name
+   - Click "Add variable"
 
 5. **Deploy:**
    - Click "Deploy site"
@@ -244,6 +167,19 @@ Replace `your-app-name-backend` with your actual Heroku app name.
    - Go to Site settings → General → Site details
    - Click "Change site name"
    - Choose a custom name: `your-app-name.netlify.app`
+
+### Step 2: Verify Auto-Deploy is Enabled
+
+Netlify automatically enables auto-deploy when you connect a Git repository:
+
+1. **Go to Site settings:**
+   - In your Netlify dashboard, select your site
+   - Go to **Site settings** → **Build & deploy**
+
+2. **Verify Continuous Deployment:**
+   - Under "Continuous Deployment", you should see your connected repository
+   - The branch should be set to `main` (or `master`)
+   - Every push to this branch will trigger a new deployment
 
 ### Step 3: Update Heroku CORS Configuration
 
@@ -257,7 +193,7 @@ After you have your Netlify URL, update Heroku:
 2. **Update the `FRONTEND_URL` variable:**
    - Find `FRONTEND_URL` in the list
    - Click **Edit** (or the pencil icon)
-   - Update the value to your Netlify URL: `https://your-netlify-app.netlify.app`
+   - Update the value to your actual Netlify URL: `https://your-netlify-app.netlify.app`
    - Click **Save**
 
 **Alternative: Using Heroku CLI**
@@ -268,7 +204,51 @@ Replace `your-app-name-backend` with your actual Heroku app name.
 
 This will allow your Netlify frontend to make API requests to your Heroku backend.
 
-## Part 4: Verify Deployment
+## Part 4: Automatic Deployment Workflow
+
+Once configured, both platforms will automatically redeploy on every git push:
+
+### How Auto-Deploy Works
+
+**Heroku:**
+- When you push to your connected branch (e.g., `main`), Heroku automatically:
+  1. Detects the push
+  2. Starts a new build
+  3. Deploys the updated backend
+  4. Restarts the app
+
+**Netlify:**
+- When you push to your connected branch (e.g., `main`), Netlify automatically:
+  1. Detects the push
+  2. Starts a new build
+  3. Deploys the updated frontend
+  4. Makes it live
+
+### Daily Workflow
+
+1. **Make your changes locally:**
+   ```bash
+   # Test locally first
+   npm run dev
+   ```
+
+2. **Commit and push:**
+   ```bash
+   git add .
+   git commit -m "Your commit message"
+   git push origin main
+   ```
+
+3. **Both platforms automatically deploy:**
+   - Heroku: Check the "Activity" tab in your Heroku dashboard
+   - Netlify: Check the "Deploys" tab in your Netlify dashboard
+   - You'll see build progress and completion status
+
+4. **Verify deployment:**
+   - Wait for builds to complete (usually 2-5 minutes)
+   - Test your changes on the live sites
+
+## Part 5: Verify Deployment
 
 ### Test Frontend
 
@@ -288,10 +268,10 @@ This will allow your Netlify frontend to make API requests to your Heroku backen
 ### Test Backend
 
 1. **Check Heroku logs:**
-   ```bash
-   heroku logs --tail --app your-app-name-backend
-   ```
-   Replace `your-app-name-backend` with your actual Heroku app name.
+   - Go to Heroku Dashboard → Your App → More → View logs
+   - Or use CLI: `heroku logs --tail --app your-app-name-backend`
+   - Look for "MongoDB Connected Successfully"
+   - Look for server running message
 
 2. **Test API endpoint:**
    - Visit: `https://your-app-name-backend.herokuapp.com`
@@ -300,128 +280,12 @@ This will allow your Netlify frontend to make API requests to your Heroku backen
 
 3. **Test API route:**
    - Visit: `https://your-app-name-backend.herokuapp.com/api/auth/register`
-   - Replace `your-app-name-backend` with your actual Heroku app name
    - Should see an error (expected - needs POST request)
    - This confirms the route is accessible
 
-## Part 5: Pushing Updates
+## Part 6: Managing Environment Variables
 
-Once your application is deployed, you'll need to push updates regularly. This section covers the quick and easy workflows for updating both the frontend and backend.
-
-### Quick Update Workflow
-
-**Best Practice:** Always test your changes locally before deploying to production.
-
-1. **Test locally:**
-   - Run the frontend: `cd client && npm run dev`
-   - Run the backend: `cd server && npm run dev`
-   - Verify all changes work as expected
-
-2. **Commit your changes:**
-   ```bash
-   git add .
-   git commit -m "Description of your changes"
-   git push origin main
-   ```
-
-### Backend Updates (Heroku)
-
-Updating the backend is straightforward - just push to the Heroku remote.
-
-1. **Navigate to the server directory:**
-   ```bash
-   cd server
-   ```
-
-2. **Ensure your changes are committed:**
-   ```bash
-   git status
-   ```
-   - If you have uncommitted changes, commit them first:
-   ```bash
-   git add .
-   git commit -m "Your commit message"
-   ```
-
-3. **Push to Heroku:**
-   ```bash
-   git push heroku main
-   ```
-   Note: If your main branch is named `master`, use `git push heroku master`
-
-4. **Monitor the deployment:**
-   - Watch the build logs in your terminal
-   - Wait for "Build succeeded" message
-   - The app will automatically restart after deployment
-
-5. **Verify the update:**
-   ```bash
-   # Check logs for any errors
-   heroku logs --tail --app your-app-name-backend
-   
-   # Test the API endpoint
-   heroku open --app your-app-name-backend
-   ```
-   Replace `your-app-name-backend` with your actual Heroku app name.
-
-**Quick Command:**
-```bash
-cd server && git push heroku main
-```
-
-### Frontend Updates (Netlify)
-
-Netlify automatically deploys when you push to your connected Git repository. If you've connected your repository during initial setup, updates are automatic.
-
-#### Automatic Deployment (Recommended)
-
-1. **Commit and push to your Git repository:**
-   ```bash
-   git add .
-   git commit -m "Your commit message"
-   git push origin main
-   ```
-
-2. **Netlify will automatically:**
-   - Detect the push to your repository
-   - Start a new build
-   - Deploy the updated site
-   - You'll receive a notification when deployment completes
-
-3. **Monitor the deployment:**
-   - Go to your Netlify dashboard
-   - Click on your site
-   - View the "Deploys" tab to see build progress
-   - Check build logs if there are any issues
-
-#### Manual Deployment (If Needed)
-
-If automatic deployment isn't working or you need to trigger manually:
-
-1. **Go to Netlify Dashboard:**
-   - Visit [Netlify](https://app.netlify.com)
-   - Select your site
-
-2. **Trigger deployment:**
-   - Go to "Deploys" tab
-   - Click "Trigger deploy" → "Deploy site"
-   - Or use the Netlify CLI:
-   ```bash
-   cd client
-   netlify deploy --prod
-   ```
-
-**Quick Command:**
-```bash
-git push origin main
-```
-(Netlify will automatically deploy)
-
-### Updating Environment Variables
-
-#### Backend (Heroku)
-
-If you need to update environment variables:
+### Backend (Heroku)
 
 **Using Heroku Dashboard (Recommended):**
 
@@ -434,12 +298,10 @@ If you need to update environment variables:
    - **Add a variable:** Click **Add**, enter the key and value, then click **Add**
    - **Edit a variable:** Click **Edit** (or pencil icon) next to the variable, update the value, then click **Save**
    - **Remove a variable:** Click **Delete** (or trash icon) next to the variable
-   - **View all variables:** All config vars are listed in the Config Vars section
 
 **Note:** Your app automatically restarts when you add, edit, or remove config vars.
 
 **Alternative: Using Heroku CLI**
-
 ```bash
 # Update a single variable
 heroku config:set --app your-app-name-backend KEY="new-value"
@@ -452,18 +314,14 @@ heroku config --app your-app-name-backend
 
 # Remove a variable
 heroku config:unset --app your-app-name-backend KEY
-
-# Restart app (if needed)
-heroku restart --app your-app-name-backend
 ```
-Replace `your-app-name-backend` with your actual Heroku app name in all commands.
+Replace `your-app-name-backend` with your actual Heroku app name.
 
-**Reference:** See the [Heroku Config Vars documentation](https://devcenter.heroku.com/articles/config-vars) for more details.
-
-#### Frontend (Netlify)
+### Frontend (Netlify)
 
 1. **Go to Netlify Dashboard:**
-   - Site settings → Environment variables
+   - Select your site
+   - Go to **Site settings** → **Environment variables**
 
 2. **Update variables:**
    - Edit existing variables or add new ones
@@ -471,38 +329,45 @@ Replace `your-app-name-backend` with your actual Heroku app name in all commands
 
 3. **Redeploy:**
    - Changes require a new deployment
-   - Go to "Deploys" → "Trigger deploy" → "Deploy site"
+   - Go to **Deploys** → **Trigger deploy** → **Deploy site**
    - Or push a new commit to trigger automatic deployment
 
-### Rollback Procedures
+## Part 7: Rollback Procedures
 
 If something goes wrong, you can quickly rollback to a previous version.
 
-#### Backend Rollback (Heroku)
+### Backend Rollback (Heroku)
 
-1. **List recent releases:**
-   ```bash
-   heroku releases --app your-app-name-backend
-   ```
-   Replace `your-app-name-backend` with your actual Heroku app name.
+1. **Go to Heroku Dashboard:**
+   - Select your app
+   - Go to **Activity** tab
 
-2. **Rollback to a previous release:**
-   ```bash
-   heroku rollback v123 --app your-app-name-backend
-   ```
-   Replace `v123` with the release number you want to rollback to, and `your-app-name-backend` with your actual Heroku app name.
+2. **Find the previous successful release:**
+   - Browse through your release history
 
-3. **Or rollback to the previous release:**
-   ```bash
-   heroku rollback --app your-app-name-backend
-   ```
-   Replace `your-app-name-backend` with your actual Heroku app name.
+3. **Rollback:**
+   - Click the three dots (⋯) next to the release you want
+   - Select "Rollback to this release"
+   - Confirm the rollback
 
-#### Frontend Rollback (Netlify)
+**Alternative: Using Heroku CLI**
+```bash
+# List recent releases
+heroku releases --app your-app-name-backend
+
+# Rollback to a specific release
+heroku rollback v123 --app your-app-name-backend
+
+# Rollback to the previous release
+heroku rollback --app your-app-name-backend
+```
+Replace `your-app-name-backend` with your actual Heroku app name.
+
+### Frontend Rollback (Netlify)
 
 1. **Go to Netlify Dashboard:**
    - Select your site
-   - Go to "Deploys" tab
+   - Go to **Deploys** tab
 
 2. **Find the previous successful deploy:**
    - Browse through your deploy history
@@ -512,107 +377,15 @@ If something goes wrong, you can quickly rollback to a previous version.
    - Select "Publish deploy"
    - Confirm the rollback
 
-### Best Practices
-
-1. **Test before deploying:**
-   - Always test changes locally first
-   - Run `npm run build` to catch build errors
-   - Test API endpoints locally
-
-2. **Use meaningful commit messages:**
-   - Write clear, descriptive commit messages
-   - Makes it easier to track changes and rollback if needed
-
-3. **Deploy during low-traffic periods:**
-   - Schedule major updates during off-peak hours
-   - Reduces impact if issues occur
-
-4. **Monitor after deployment:**
-   - Check logs immediately after deployment
-   - Monitor for errors or unusual behavior
-   - Test critical features after deployment
-
-5. **Keep dependencies updated:**
-   - Regularly update npm packages
-   - Test updates in a development environment first
-   - Update one package at a time to identify issues
-
-6. **Use feature branches:**
-   - Create branches for new features
-   - Test thoroughly before merging to main
-   - Main branch should always be deployable
-
-### Quick Reference Commands
-
-**Backend (Heroku):**
-```bash
-# Deploy updates
-cd server && git push heroku main
-
-# View logs
-heroku logs --tail --app your-app-name-backend
-
-# Restart app
-heroku restart --app your-app-name-backend
-
-# Rollback
-heroku rollback --app your-app-name-backend
-
-# Check status
-heroku ps --app your-app-name-backend
-```
-Replace `your-app-name-backend` with your actual Heroku app name in all commands.
-
-**Frontend (Netlify):**
-```bash
-# Deploy updates (automatic via Git push)
-git push origin main
-
-# Manual deploy (if using Netlify CLI)
-cd client && netlify deploy --prod
-
-# View build logs
-# (Check Netlify dashboard)
-```
-
-## Database Migrations
+## Part 8: Database Migrations
 
 ### Username Migration (One-Time Setup)
 
 **When to run:** This migration should be run **once** when deploying the username feature for the first time or if you have existing users without usernames.
 
-**What it does:** Automatically generates usernames for all existing users based on their email addresses. This enables the new username-based portfolio URLs (e.g., `/portfolio/john-doe`) instead of email-based URLs.
+**What it does:** Automatically generates usernames for all existing users based on their email addresses.
 
-#### Run the Migration
-
-**Option 1: Locally (Recommended for testing):**
-
-1. **Configure environment:**
-   ```bash
-   cd server
-   # Make sure server/.env has your MongoDB connection string
-   ```
-
-2. **Run migration:**
-   ```bash
-   npm run migrate:usernames
-   ```
-
-3. **Expected output:**
-   ```
-   🔄 Starting username migration...
-   ✅ Connected to MongoDB
-   📊 Found 4 users without usernames
-   ✅ a@a.com → a00
-   ✅ a2@a.com → a20
-   ✅ a3@a.com → a30
-   ✅ amrmohammedali11@gmail.com → amrmohammedali11
-   🎉 Successfully migrated 4 users!
-   ✅ Disconnected from MongoDB
-   ✅ Migration completed successfully!
-   ```
-
-**Option 2: On Heroku (After deployment):**
+#### Run the Migration on Heroku
 
 ```bash
 # Run migration on Heroku
@@ -637,101 +410,124 @@ Replace `your-app-name-backend` with your actual Heroku app name.
 - **Unique:** Automatically handles duplicate usernames
 - **No data loss:** Only adds usernames, doesn't modify existing data
 
-#### Important Notes
-
-- ⚠️ Run this migration **BEFORE** deploying the code that removes email-based portfolio lookup
-- ✅ Users can change their auto-generated username later in the Portfolio Setup page
-- ✅ The migration connects to your MongoDB database (uses `MONGODB_URI` from `.env`)
-
-#### After Migration
-
-1. **Verify usernames were created:**
-   - Check your MongoDB database - all users should have a `username` field
-   - Log into the app and check Portfolio Setup page
-
-2. **Deploy updated code:**
-   ```bash
-   # Backend (removes email-based portfolio lookup)
-   git push heroku main
-   
-   # Frontend (uses username-based URLs)
-   git push origin main  # Netlify auto-deploys
-   ```
-
 ## Troubleshooting
 
 ### Frontend Issues
 
 **Build fails:**
-- Check Netlify build logs
+- Check Netlify build logs in the Deploys tab
 - Ensure all dependencies are in `package.json`
 - Verify Node.js version (should be 18+)
+- Check `netlify.toml` configuration
 
 **API calls fail:**
 - Check `VITE_BACKEND_URL` environment variable in Netlify
 - Verify CORS is configured correctly in Heroku
 - Check browser console for CORS errors
+- Ensure `FRONTEND_URL` in Heroku matches your Netlify URL exactly
 
 **Routes not working:**
 - Verify `netlify.toml` has redirect rules
-- Check that SPA redirect is configured
+- Check that SPA redirect is configured (should redirect `/*` to `/index.html`)
 
 ### Backend Issues
 
 **Build fails:**
-- Check Heroku build logs: `heroku logs --tail --app your-app-name-backend`
-  - Replace `your-app-name-backend` with your actual Heroku app name
-- Ensure `Procfile` exists in `server/` directory
-- Verify TypeScript compiles: `npm run build`
+- Check Heroku build logs in the Activity tab
+- Ensure `Procfile` exists at the root directory
+- Verify TypeScript compiles: test locally with `npm run build:server`
+- Check that all dependencies are in `server/package.json`
 
 **MongoDB connection fails:**
 - Verify `MONGODB_URI` is set correctly in Heroku Dashboard (Settings → Config Vars)
 - Check MongoDB Atlas network access (should allow 0.0.0.0/0)
 - Verify database user credentials
+- Check Heroku logs for connection errors
 
 **CORS errors:**
 - Check `FRONTEND_URL` is set correctly in Heroku Dashboard (Settings → Config Vars)
-- Verify the URL matches your Netlify domain exactly
+- Verify the URL matches your Netlify domain exactly (no trailing slash)
 - Check server logs for CORS errors
+- Ensure CORS middleware is configured correctly
 
 **App crashes:**
-- Check Heroku logs: `heroku logs --tail --app your-app-name-backend`
-  - Replace `your-app-name-backend` with your actual Heroku app name
+- Check Heroku logs: Go to Dashboard → Your App → More → View logs
 - Verify all environment variables are set in Heroku Dashboard (Settings → Config Vars)
 - Check for missing dependencies
+- Verify TypeScript build completed successfully
 
 ### Common Commands
 
 **Heroku:**
-
-**Config Vars (Recommended: Use Dashboard):**
-- Go to [Heroku Dashboard](https://dashboard.heroku.com) → Your App → Settings → Config Vars
-- Add, edit, or remove config vars directly in the Dashboard
-- See [Heroku Config Vars documentation](https://devcenter.heroku.com/articles/config-vars)
-
-**CLI Commands:**
 ```bash
 # View logs
 heroku logs --tail --app your-app-name-backend
 
-# View config vars (CLI alternative)
+# View config vars
 heroku config --app your-app-name-backend
-
-# Set config var (CLI alternative)
-heroku config:set --app your-app-name-backend KEY=value
 
 # Restart app
 heroku restart --app your-app-name-backend
 
 # Open app
 heroku open --app your-app-name-backend
+
+# Check app status
+heroku ps --app your-app-name-backend
 ```
-Replace `your-app-name-backend` with your actual Heroku app name in all commands.
+Replace `your-app-name-backend` with your actual Heroku app name.
 
 **Netlify:**
-- View build logs in Netlify dashboard
+- View build logs: Go to Deploys tab → Select deploy → View logs
 - Environment variables: Site settings → Environment variables
-- Deploy logs: Deploys → Select deploy → View logs
+- Trigger deploy: Deploys → Trigger deploy → Deploy site
+
+## Environment Variables Summary
+
+### Heroku (Backend)
+
+**Set these in Heroku Dashboard:** [Dashboard](https://dashboard.heroku.com) → Your App → Settings → Config Vars
+
+- `MONGODB_URI` - MongoDB Atlas connection string
+- `JWT_SECRET` - Secret key for JWT tokens (min 32 chars)
+- `ENCRYPTION_KEY` - Secret key for encrypting API keys (min 32 chars)
+- `FRONTEND_URL` - Your Netlify app URL (e.g., `https://your-app.netlify.app`)
+- `NODE_ENV` - Set to `production`
+- `PORT` - Automatically set by Heroku (don't add manually)
+
+### Netlify (Frontend)
+
+**Set these in Netlify Dashboard:** Site settings → Environment variables
+
+- `VITE_BACKEND_URL` - Your Heroku backend URL + `/api`
+  - Example: `https://your-app-name-backend.herokuapp.com/api`
+  - Replace `your-app-name-backend` with your actual Heroku app name
+
+## Best Practices
+
+1. **Test before deploying:**
+   - Always test changes locally first
+   - Run `npm run build:server` and `npm run build:client` to catch build errors
+   - Test API endpoints locally
+
+2. **Use meaningful commit messages:**
+   - Write clear, descriptive commit messages
+   - Makes it easier to track changes and rollback if needed
+
+3. **Monitor deployments:**
+   - Check build logs after each deployment
+   - Monitor for errors or unusual behavior
+   - Test critical features after deployment
+
+4. **Use feature branches:**
+   - Create branches for new features
+   - Test thoroughly before merging to main
+   - Main branch should always be deployable
+
+5. **Keep dependencies updated:**
+   - Regularly update npm packages
+   - Test updates in a development environment first
+   - Update one package at a time to identify issues
 
 ## Next Steps
 
@@ -746,36 +542,19 @@ Replace `your-app-name-backend` with your actual Heroku app name in all commands
 3. **Set up monitoring:**
    - Consider adding error tracking (Sentry, etc.)
    - Set up uptime monitoring
+   - Configure alerts for failed deployments
 
 4. **Optimize performance:**
    - Enable Netlify CDN caching
    - Optimize images and assets
    - Consider Heroku add-ons for performance
 
-## Environment Variables Summary
-
-### Heroku (Backend)
-
-**Set these in Heroku Dashboard:** [Dashboard](https://dashboard.heroku.com) → Your App → Settings → Config Vars
-
-- `MONGODB_URI` - MongoDB Atlas connection string
-- `JWT_SECRET` - Secret key for JWT tokens (min 32 chars)
-- `ENCRYPTION_KEY` - Secret key for encrypting API keys (min 32 chars)
-- `FRONTEND_URL` - Your Netlify app URL
-- `NODE_ENV` - Set to "production"
-- `PORT` - Automatically set by Heroku
-
-### Netlify (Frontend)
-- `VITE_BACKEND_URL` - Your Heroku backend URL + `/api`
-  - Example: `https://your-app-name-backend.herokuapp.com/api`
-  - Replace `your-app-name-backend` with your actual Heroku app name
-
 ## Support
 
 If you encounter issues:
-1. Check the logs (Heroku and Netlify)
+1. Check the logs (Heroku Activity tab and Netlify Deploys tab)
 2. Verify all environment variables are set correctly
 3. Ensure MongoDB Atlas is accessible
 4. Check CORS configuration
 5. Verify build processes complete successfully
-
+6. Review the troubleshooting section above

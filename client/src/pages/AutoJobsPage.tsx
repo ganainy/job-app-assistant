@@ -19,28 +19,40 @@ import {
 } from '../services/autoJobApi';
 import Toast from '../components/common/Toast';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import ConfirmModal from '../components/common/ConfirmModal';
 import JobRecommendationBadge from '../components/jobs/JobRecommendationBadge';
+import { formatDate } from '../utils/dateUtils';
+import { getJobRecommendation } from '../services/jobRecommendationApi';
 
 const AutoJobsPage: React.FC = () => {
     // State
     const [jobs, setJobs] = useState<AutoJob[]>([]);
     const [stats, setStats] = useState<WorkflowStats | null>(null);
     const [settings, setSettings] = useState<AutoJobSettings>({ 
-        enabled: false, 
         keywords: '',
         location: '',
         jobType: [],
         experienceLevel: [],
         datePosted: 'any time',
         maxJobs: 100,
-        avoidDuplicates: false,
-        schedule: '0 9 * * *' 
+        avoidDuplicates: false
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isTriggering, setIsTriggering] = useState(false);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+    // Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        message: string;
+        title?: string;
+        onConfirm: () => void;
+        confirmText?: string;
+        cancelText?: string;
+        confirmButtonStyle?: 'primary' | 'danger';
+    } | null>(null);
 
     // Workflow Progress State
     const [currentRunId, setCurrentRunId] = useState<string | null>(localStorage.getItem('autoJobRunId'));
@@ -217,10 +229,10 @@ const AutoJobsPage: React.FC = () => {
         const trimmedValue = value.substring(0, 100);
         setLocationInput(trimmedValue);
 
-        // Update settings immediately (no debounce for input)
+        // Update settings immediately (no debounce for input display)
         const newSettings = { ...settings, location: trimmedValue };
         setSettings(newSettings);
-        autoSaveSettings(newSettings, false);
+        debouncedAutoSave(newSettings);
 
         // Clear previous timeout
         if (locationSearchTimeoutRef.current) {
@@ -260,7 +272,7 @@ const AutoJobsPage: React.FC = () => {
         setShowLocationSuggestions(false);
         const newSettings = { ...settings, location: suggestion };
         setSettings(newSettings);
-        autoSaveSettings(newSettings, false);
+        debouncedAutoSave(newSettings);
     };
 
     useEffect(() => {
@@ -322,7 +334,16 @@ const AutoJobsPage: React.FC = () => {
                     setLastJobCount(0);
 
                     if (status.status === 'completed') {
-                        showToast(`Workflow complete! ${status.stats.generated} jobs generated`, 'success');
+                        // Check if no jobs were found
+                        if (status.stats.jobsFound === 0) {
+                            showToast('No jobs found matching your search criteria. Try adjusting your keywords, location, or filters.', 'info');
+                        } else if (status.stats.generated > 0) {
+                            showToast(`Workflow complete! ${status.stats.generated} jobs generated`, 'success');
+                        } else if (status.stats.newJobs === 0 && status.stats.jobsFound > 0) {
+                            showToast(`Found ${status.stats.jobsFound} jobs, but all were duplicates. No new jobs to process.`, 'info');
+                        } else {
+                            showToast(`Workflow complete! Found ${status.stats.jobsFound} jobs`, 'success');
+                        }
                         fetchData(); // Refresh data
                     } else if (status.status === 'failed') {
                         showToast(`Workflow failed: ${status.errorMessage}`, 'error');
@@ -342,7 +363,7 @@ const AutoJobsPage: React.FC = () => {
     }, [currentRunId, filterRelevance, filterStatus, lastJobCount]);
 
     // Toast helper
-    const showToast = (message: string, type: 'success' | 'error') => {
+    const showToast = (message: string, type: 'success' | 'error' | 'info') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 5000);
     };
@@ -378,12 +399,14 @@ const AutoJobsPage: React.FC = () => {
             datePosted: settingsToFilter.datePosted === 'past hour' ? 'past 24 hours' : (settingsToFilter.datePosted ?? 'any time'),
             maxJobs: settingsToFilter.maxJobs ?? 100,
             avoidDuplicates: settingsToFilter.avoidDuplicates ?? false,
-            schedule: settingsToFilter.schedule ?? '0 9 * * *'
         };
     };
 
     // Auto-save settings (debounced)
-    const autoSaveSettings = async (newSettings: AutoJobSettings, showMessage = false) => {
+    // Debounce timer for auto-save
+    const autoSaveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    const autoSaveSettings = async (newSettings: AutoJobSettings, showMessage = true) => {
         try {
             setIsSavingSettings(true);
             // Only send valid fields to backend
@@ -399,67 +422,114 @@ const AutoJobsPage: React.FC = () => {
         }
     };
 
-    // Handle settings save (for configuration card - kept for explicit save if needed)
-    const handleSaveSettings = async () => {
-        await autoSaveSettings(settings, true);
-        fetchData();
-    };
-
-    // Handle toggle enable
-    const handleToggleEnable = async () => {
-        const newEnabled = !settings.enabled;
-        const newSettings = { ...settings, enabled: newEnabled };
-        setSettings(newSettings); // Optimistic update
-
-        try {
-            // Only send valid fields to backend
-            const validSettings = filterValidSettings(newSettings);
-            await updateSettings(validSettings);
-            showToast(`Auto jobs ${newEnabled ? 'enabled' : 'disabled'}`, 'success');
-        } catch (err: any) {
-            setSettings(settings); // Revert on error
-            showToast('Failed to update settings', 'error');
+    // Debounced auto-save function
+    const debouncedAutoSave = (newSettings: AutoJobSettings) => {
+        // Clear previous timeout
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
         }
+
+        // Set new timeout for auto-save
+        autoSaveTimeoutRef.current = setTimeout(() => {
+            autoSaveSettings(newSettings, true);
+        }, 1000); // 1 second debounce
     };
 
-    // Handle schedule change with auto-save
-    const handleScheduleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newSettings = { ...settings, schedule: e.target.value };
-        setSettings(newSettings);
-        await autoSaveSettings(newSettings, false);
-    };
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (autoSaveTimeoutRef.current) {
+                clearTimeout(autoSaveTimeoutRef.current);
+            }
+        };
+    }, []);
+
 
 
     // Handle max jobs change with auto-save
-    const handleMaxJobsChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleMaxJobsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newSettings = { ...settings, maxJobs: parseInt(e.target.value) };
         setSettings(newSettings);
-        await autoSaveSettings(newSettings, false);
+        debouncedAutoSave(newSettings);
     };
 
     // Handle promote job
-    const handlePromote = async (id: string) => {
-        if (!confirm('Save this job to your main dashboard?')) return;
-
-        try {
-            await promoteAutoJob(id);
-            showToast('Job saved to main dashboard successfully!', 'success');
-            fetchData();
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to save job to main dashboard', 'error');
-        }
+    const handlePromote = (id: string) => {
+        setConfirmModal({
+            isOpen: true,
+            message: 'Save this job to your main dashboard?',
+            title: 'Save Job',
+            confirmText: 'Save',
+            cancelText: 'Cancel',
+            confirmButtonStyle: 'primary',
+            onConfirm: async () => {
+                setConfirmModal(null);
+                try {
+                    await promoteAutoJob(id);
+                    showToast('Job saved to main dashboard successfully!', 'success');
+                    fetchData();
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to save job to main dashboard', 'error');
+                }
+            }
+        });
     };
 
     // Handle delete job
-    const handleDelete = async (id: string) => {
-        if (!confirm('Delete this auto job?')) return;
+    const handleDelete = (id: string) => {
+        setConfirmModal({
+            isOpen: true,
+            message: 'Delete this auto job?',
+            title: 'Delete Job',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            confirmButtonStyle: 'danger',
+            onConfirm: async () => {
+                setConfirmModal(null);
+                try {
+                    await deleteAutoJob(id);
+                    showToast('Job deleted successfully', 'success');
+                    fetchData();
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to delete job', 'error');
+                }
+            }
+        });
+    };
 
+    // Handle retry skill match calculation
+    const handleRetrySkillMatch = async (jobId: string) => {
         try {
-            await deleteAutoJob(id);
-            showToast('Job deleted successfully', 'success');
-            fetchData();
+            const recommendation = await getJobRecommendation(jobId, true);
+            
+            // Update the job in the local state
+            setJobs(prevJobs => 
+                prevJobs.map(job => 
+                    job._id === jobId 
+                        ? { 
+                            ...job, 
+                            recommendation: {
+                                score: recommendation.score,
+                                shouldApply: recommendation.shouldApply,
+                                reason: recommendation.reason,
+                                cachedAt: recommendation.cachedAt ? new Date(recommendation.cachedAt) : new Date(),
+                                error: recommendation.error
+                            }
+                        }
+                        : job
+                )
+            );
+            
+            // Refresh the job data to get the latest state
+            await fetchData();
+            
+            if (recommendation.error) {
+                showToast(`Failed to calculate skill match: ${recommendation.error}`, 'error');
+            } else {
+                showToast('Skill match calculated successfully', 'success');
+            }
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to delete job', 'error');
+            showToast(err.response?.data?.message || err.message || 'Failed to retry skill match calculation', 'error');
         }
     };
 
@@ -496,10 +566,11 @@ const AutoJobsPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 py-8 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto space-y-8">
-                {/* Header */}
-                <div className="flex items-center justify-between">
+                {/* Header - Sticky */}
+                <div className="sticky top-0 z-40 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pt-8 pb-4 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95 border-b border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Auto Jobs</h1>
                         <p className="mt-1 text-slate-600 dark:text-slate-400">
@@ -523,46 +594,6 @@ const AutoJobsPage: React.FC = () => {
                             <>🚀 Run Now</>
                         )}
                     </button>
-                </div>
-
-                {/* Auto Jobs Schedule Card */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">Auto Jobs Schedule</h2>
-
-                    <div className="space-y-4">
-                        {/* Enable Toggle */}
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Enable Auto Jobs</label>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Automatically search for jobs on schedule (manual "Run Now" works independently)</p>
-                            </div>
-                            <button
-                                onClick={handleToggleEnable}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.enabled ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'
-                                    }`}
-                            >
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.enabled ? 'translate-x-6' : 'translate-x-1'
-                                    }`} />
-                            </button>
-                        </div>
-
-                        {/* Schedule - only show when enabled */}
-                        {settings.enabled && (
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                    Schedule
-                                </label>
-                                <select
-                                    value={settings.schedule}
-                                    onChange={handleScheduleChange}
-                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                                >
-                                    <option value="0 9 * * *">Daily at 9 AM</option>
-                                    <option value="0 */6 * * *">Every 6 hours</option>
-                                    <option value="0 */12 * * *">Every 12 hours</option>
-                                </select>
-                            </div>
-                        )}
                     </div>
                 </div>
 
@@ -582,7 +613,7 @@ const AutoJobsPage: React.FC = () => {
                                 onChange={(e) => {
                                     const newSettings = { ...settings, keywords: e.target.value.substring(0, 200) };
                                     setSettings(newSettings);
-                                    autoSaveSettings(newSettings, false);
+                                    debouncedAutoSave(newSettings);
                                 }}
                                 placeholder="e.g., mobile developer"
                                 maxLength={200}
@@ -657,7 +688,7 @@ const AutoJobsPage: React.FC = () => {
                                                     : currentTypes.filter(t => t !== type);
                                                 const newSettings = { ...settings, jobType: newTypes };
                                                 setSettings(newSettings);
-                                                autoSaveSettings(newSettings, false);
+                                                debouncedAutoSave(newSettings);
                                             }}
                                             className="mr-2 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                         />
@@ -688,7 +719,7 @@ const AutoJobsPage: React.FC = () => {
                                                     : currentLevels.filter(l => l !== level);
                                                 const newSettings = { ...settings, experienceLevel: newLevels };
                                                 setSettings(newSettings);
-                                                autoSaveSettings(newSettings, false);
+                                                debouncedAutoSave(newSettings);
                                             }}
                                             className="mr-2 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                         />
@@ -713,7 +744,7 @@ const AutoJobsPage: React.FC = () => {
                                     const datePosted = e.target.value === 'past hour' ? 'past 24 hours' : e.target.value;
                                     const newSettings = { ...settings, datePosted };
                                     setSettings(newSettings);
-                                    autoSaveSettings(newSettings, false);
+                                    debouncedAutoSave(newSettings);
                                 }}
                                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
                             >
@@ -760,7 +791,7 @@ const AutoJobsPage: React.FC = () => {
                                 onClick={() => {
                                     const newSettings = { ...settings, avoidDuplicates: !settings.avoidDuplicates };
                                     setSettings(newSettings);
-                                    autoSaveSettings(newSettings, false);
+                                    debouncedAutoSave(newSettings);
                                 }}
                                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.avoidDuplicates ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'
                                     }`}
@@ -769,15 +800,6 @@ const AutoJobsPage: React.FC = () => {
                                     }`} />
                             </button>
                         </div>
-
-                        {/* Save Button */}
-                        <button
-                            onClick={handleSaveSettings}
-                            disabled={isSavingSettings}
-                            className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                        >
-                            {isSavingSettings ? 'Saving...' : 'Save Settings'}
-                        </button>
                     </div>
                 </div>
 
@@ -811,18 +833,27 @@ const AutoJobsPage: React.FC = () => {
                                 <button
                                     onClick={async () => {
                                         if (!currentRunId) return;
-                                        if (!confirm('Are you sure you want to cancel this workflow? Processing will stop at the current job.')) return;
-                                        
-                                        try {
-                                            await cancelWorkflow(currentRunId);
-                                            showToast('Workflow cancelled successfully', 'success');
-                                            const status = await getWorkflowStatus(currentRunId);
-                                            setWorkflowProgress(status);
-                                            setCurrentRunId(null);
-                                            localStorage.removeItem('autoJobRunId');
-                                        } catch (err: any) {
-                                            showToast(err.response?.data?.message || 'Failed to cancel workflow', 'error');
-                                        }
+                                        setConfirmModal({
+                                            isOpen: true,
+                                            message: 'Are you sure you want to cancel this workflow? Processing will stop at the current job.',
+                                            title: 'Cancel Workflow',
+                                            confirmText: 'Cancel Workflow',
+                                            cancelText: 'Keep Running',
+                                            confirmButtonStyle: 'danger',
+                                            onConfirm: async () => {
+                                                setConfirmModal(null);
+                                                try {
+                                                    await cancelWorkflow(currentRunId);
+                                                    showToast('Workflow cancelled successfully', 'success');
+                                                    const status = await getWorkflowStatus(currentRunId);
+                                                    setWorkflowProgress(status);
+                                                    setCurrentRunId(null);
+                                                    localStorage.removeItem('autoJobRunId');
+                                                } catch (err: any) {
+                                                    showToast(err.response?.data?.message || 'Failed to cancel workflow', 'error');
+                                                }
+                                            }
+                                        });
                                     }}
                                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-sm font-medium"
                                 >
@@ -960,66 +991,38 @@ const AutoJobsPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* Jobs Table with Filters */}
+                {/* Jobs Table */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    {/* Filters */}
-                    <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-                        <div className="flex flex-wrap gap-6">
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                                    </svg>
-                                    RELEVANCE
-                                </label>
-                                <select
-                                    value={filterRelevance}
-                                    onChange={(e) => { setFilterRelevance(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
-                                >
-                                    <option value="">All Relevance</option>
-                                    <option value="true">Relevant</option>
-                                    <option value="processing">Processing</option>
-                                    <option value="false">Not Relevant</option>
-                                </select>
-                            </div>
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    STATUS
-                                </label>
-                                <select
-                                    value={filterStatus}
-                                    onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
-                                >
-                                    <option value="">All Status</option>
-                                    <option value="generated">Generated</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="archived">Archived</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead className="bg-gray-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
                                 <tr>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">JOB</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">LOCATION</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">RELEVANCE</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">POST DATE</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">SKILL MATCH</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">STATUS</th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">ACTIONS</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
                                 {jobs.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                                            No jobs found yet. Click "Run Now" to start discovering jobs!
+                                        <td colSpan={5} className="px-6 py-12 text-center">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <p className="text-slate-500 dark:text-slate-400 text-base">
+                                                    {workflowProgress?.status === 'completed' && workflowProgress.stats.jobsFound === 0 ? (
+                                                        <>
+                                                            No jobs found matching your search criteria.
+                                                            <br />
+                                                            <span className="text-sm mt-2 block">
+                                                                Try adjusting your keywords, location, date filters, or job type settings.
+                                                            </span>
+                                                        </>
+                                                    ) : (
+                                                        'No jobs found yet. Click "Run Now" to start discovering jobs!'
+                                                    )}
+                                                </p>
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : (
@@ -1059,7 +1062,39 @@ const AutoJobsPage: React.FC = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                {renderRelevanceBadge(job.processingStatus, job.recommendation)}
+                                                {job.jobPostDate ? (() => {
+                                                    try {
+                                                        const postDate = typeof job.jobPostDate === 'string' 
+                                                            ? new Date(job.jobPostDate) 
+                                                            : job.jobPostDate;
+                                                        if (isNaN(postDate.getTime())) {
+                                                            return (
+                                                                <span className="text-sm text-slate-400 dark:text-slate-500 italic">
+                                                                    Not available
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <span className="text-sm text-slate-700 dark:text-slate-300">
+                                                                {postDate.toLocaleDateString('en-US', {
+                                                                    year: 'numeric',
+                                                                    month: 'short',
+                                                                    day: 'numeric'
+                                                                })}
+                                                            </span>
+                                                        );
+                                                    } catch (error) {
+                                                        return (
+                                                            <span className="text-sm text-slate-400 dark:text-slate-500 italic">
+                                                                Not available
+                                                            </span>
+                                                        );
+                                                    }
+                                                })() : (
+                                                    <span className="text-sm text-slate-400 dark:text-slate-500 italic">
+                                                        Not available
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <JobRecommendationBadge 
@@ -1072,33 +1107,24 @@ const AutoJobsPage: React.FC = () => {
                                                             ? job.recommendation.cachedAt.toISOString() 
                                                             : typeof job.recommendation.cachedAt === 'string' 
                                                                 ? job.recommendation.cachedAt 
-                                                                : new Date().toISOString()
+                                                                : new Date().toISOString(),
+                                                        error: (job.recommendation as any).error
+                                                    } : job.processingStatus === 'error' && job.errorMessage ? {
+                                                        score: null,
+                                                        shouldApply: false,
+                                                        reason: job.errorMessage,
+                                                        cached: false,
+                                                        error: job.errorMessage
                                                     } : null}
-                                                    isLoading={job.processingStatus === 'pending' || job.processingStatus === 'analyzed'}
+                                                    isLoading={
+                                                        // Only show loading if workflow is running AND job is still being processed
+                                                        isWorkflowRunning && 
+                                                        (job.processingStatus === 'pending' || job.processingStatus === 'analyzed') &&
+                                                        !job.recommendation
+                                                    }
+                                                    onRetry={() => handleRetrySkillMatch(job._id)}
+                                                    jobId={job._id}
                                                 />
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {job.processingStatus === 'generated' ? (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
-                                                        Generated
-                                                    </span>
-                                                ) : job.processingStatus === 'pending' || job.processingStatus === 'analyzed' ? (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                                                        Pending
-                                                    </span>
-                                                ) : job.processingStatus === 'error' ? (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                                                        Error
-                                                    </span>
-                                                ) : job.processingStatus ? (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 capitalize">
-                                                        {job.processingStatus.replace('_', ' ')}
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-                                                        Unknown
-                                                    </span>
-                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center justify-end gap-2">
@@ -1164,6 +1190,20 @@ const AutoJobsPage: React.FC = () => {
                     message={toast.message}
                     type={toast.type}
                     onClose={() => setToast(null)}
+                />
+            )}
+
+            {/* Confirmation Modal */}
+            {confirmModal && (
+                <ConfirmModal
+                    isOpen={confirmModal.isOpen}
+                    onClose={() => setConfirmModal(null)}
+                    onConfirm={confirmModal.onConfirm}
+                    title={confirmModal.title}
+                    message={confirmModal.message}
+                    confirmText={confirmModal.confirmText}
+                    cancelText={confirmModal.cancelText}
+                    confirmButtonStyle={confirmModal.confirmButtonStyle}
                 />
             )}
         </div>

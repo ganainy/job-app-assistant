@@ -24,6 +24,7 @@ export interface AutoJob {
     errorMessage?: string;
     discoveredAt?: Date;
     processedAt?: Date;
+    jobPostDate?: Date | string; // When the job was posted (from crawler)
     
     // Extracted data (for auto jobs)
     extractedData?: {
@@ -51,6 +52,7 @@ export interface AutoJob {
         shouldApply: boolean;
         reason: string;
         cachedAt: Date | string;
+        error?: string;
     };
     
     // Draft content (mapped from customizedResumeHtml/coverLetterText)
@@ -83,7 +85,6 @@ export interface WorkflowStats {
 }
 
 export interface AutoJobSettings {
-    enabled: boolean;
     keywords?: string;
     location?: string;
     jobType?: string[];
@@ -91,7 +92,6 @@ export interface AutoJobSettings {
     datePosted?: string;
     maxJobs?: number;
     avoidDuplicates?: boolean;
-    schedule: string;
 }
 
 export interface WorkflowRun {

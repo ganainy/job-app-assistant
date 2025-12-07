@@ -1,7 +1,6 @@
 // server/src/services/jobRelevanceService.ts
 import { analyzeWithGemini } from './atsGeminiService';
 import { JsonResumeSchema } from '../types/jsonresume';
-import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 
 /**
  * Result of relevance check

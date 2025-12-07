@@ -183,8 +183,10 @@ export const getAggregatedProfile = asyncHandler(
     // Ensure URLs are absolute
     const ensureFullUrl = (url: string | undefined): string | undefined => {
       if (!url) return url;
-      if (url.startsWith('http')) return url;
-      return `${req.protocol}://${req.get('host')}${url}`;
+      if (url.startsWith('http://') || url.startsWith('https://')) return url;
+      // Ensure the URL starts with a slash for proper path construction
+      const path = url.startsWith('/') ? url : `/${url}`;
+      return `${req.protocol}://${req.get('host')}${path}`;
     };
 
     // Sanitize profile to remove sensitive data
@@ -262,19 +264,16 @@ export const getCurrentUserProfile = asyncHandler(
 
     if (!profile) {
       // Create profile if it doesn't exist
-      // Explicitly set autoJobSettings.enabled to false for new users
       profile = await Profile.create({ 
         userId,
         autoJobSettings: {
-          enabled: false,
           keywords: '',
           location: '',
           jobType: [],
           experienceLevel: [],
           datePosted: 'any time',
           maxJobs: 100,
-          avoidDuplicates: false,
-          schedule: '0 9 * * *'
+          avoidDuplicates: false
         }
       });
     }

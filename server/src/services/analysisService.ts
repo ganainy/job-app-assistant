@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import CvAnalysis, { ICvAnalysis, IAtsScores } from '../models/CvAnalysis'; // Import model and interface
-import { generateAnalysisFromFile, generateJsonAnalysis, generateStructuredResponse } from '../utils/geminiClient'; // Import the file and JSON analysis functions
+import { generateContentWithFile, generateStructuredResponse } from '../utils/aiService'; // Import provider-agnostic AI functions
 import { calculateScores } from '../utils/analysis/scoringUtil'; // Import scoring utility
 import fs from 'fs'; // Import fs for cleanup
 import path from 'path'; // Import path for determining MIME type
@@ -8,7 +8,6 @@ import { JsonResumeSchema } from '../types/jsonresume'; // Import JSON resume sc
 import { analyzeWithGemini } from './atsGeminiService';
 import crypto from 'crypto';
 import User from '../models/User';
-import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 
 // Define the expected structure for the detailed results from Gemini
 // This should align with the IDetailedResultItem interface in CvAnalysis.ts
@@ -150,17 +149,30 @@ export const performAnalysis = async (filePath: string, userId: string | Types.O
     try {
         const mimeType = getMimeType(filePath);
         const userIdStr = userId.toString();
-        
-        // Get user's Gemini API key
-        const apiKey = await getGeminiApiKey(userIdStr);
 
-        // 1. Call Gemini with the file and master prompt
-        analysisResults = await generateAnalysisFromFile<GeminiAnalysisResult>(
-            apiKey,
+        // 1. Call AI service with the file and master prompt
+        const result = await generateContentWithFile(
+            userIdStr,
             MASTER_ANALYSIS_PROMPT,
             filePath,
             mimeType
         );
+        
+        // Parse the JSON response
+        const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+        const jsonMatch = result.text.match(jsonRegex);
+        if (jsonMatch && jsonMatch[1]) {
+            analysisResults = JSON.parse(jsonMatch[1].trim()) as GeminiAnalysisResult;
+        } else {
+            // Try to extract JSON from plain text
+            const startIndex = result.text.indexOf('{');
+            const endIndex = result.text.lastIndexOf('}');
+            if (startIndex !== -1 && endIndex !== -1) {
+                analysisResults = JSON.parse(result.text.substring(startIndex, endIndex + 1)) as GeminiAnalysisResult;
+            } else {
+                throw new Error('AI response did not contain valid JSON');
+            }
+        }
 
         // Basic validation of AI response structure (check if it's an object)
         if (typeof analysisResults !== 'object' || analysisResults === null) {
@@ -247,15 +259,13 @@ export const performJsonAnalysis = async (
 
         console.log('Analyzing sections:', sectionsToAnalyze);
 
-        // Get user's Gemini API key
+        // Generate initial analysis using provider-agnostic service
         const userIdStr = userId.toString();
-        const apiKey = await getGeminiApiKey(userIdStr);
-
-        // Generate initial analysis
-        analysisResults = await generateJsonAnalysis<GeminiAnalysisResult>(
-            apiKey,
-            prompt,
-            cvString
+        const combinedPrompt = `${prompt}\n\nAnalyze the following CV in JSON Resume format:\n\n${cvString}`;
+        
+        analysisResults = await generateStructuredResponse<GeminiAnalysisResult>(
+            userIdStr,
+            combinedPrompt
         );
 
         if (typeof analysisResults !== 'object' || analysisResults === null) {
@@ -389,8 +399,7 @@ Return the improved content in this format:
 
     try {
         const userIdString = String(analysis.userId);
-        const apiKey = await getGeminiApiKey(userIdString);
-        const response = await generateStructuredResponse<{ content: string }>(apiKey, fullPrompt);
+        const response = await generateStructuredResponse<{ content: string }>(userIdString, fullPrompt);
         const improvedContent = response?.content?.trim();
 
         if (!improvedContent) {
@@ -565,9 +574,8 @@ Guidelines:
 `;
 
     try {
-        const apiKey = await getGeminiApiKey(userIdString);
         const response = await generateStructuredResponse<Record<string, Array<{ needsImprovement: boolean; feedback: string }>>>(
-            apiKey,
+            userIdString,
             fullAnalysisPrompt
         );
 
@@ -683,9 +691,8 @@ Guidelines:
 `;
 
     try {
-        const apiKey = await getGeminiApiKey(userIdString);
         const response = await generateStructuredResponse<{ needsImprovement: boolean; feedback: string }>(
-            apiKey,
+            userIdString,
             sectionAnalysisPrompt
         );
 

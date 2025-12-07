@@ -4,7 +4,13 @@ import mongoose from 'mongoose';
 
 export const getJobApplicationStats = async (userId: string) => {
     const stats = await JobApplication.aggregate([
-        { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+        { 
+            $match: { 
+                userId: new mongoose.Types.ObjectId(userId),
+                showInDashboard: true, // Only count jobs shown in dashboard (excludes auto jobs that haven't been promoted)
+                deletedAt: null // Exclude soft-deleted jobs
+            } 
+        },
         {
             $facet: {
                 totalApplications: [{ $count: 'count' }],

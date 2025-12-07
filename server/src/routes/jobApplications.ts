@@ -2,7 +2,7 @@
 import express, { Router, Request, Response, RequestHandler } from 'express';
 import JobApplication from '../models/JobApplication';
 import authMiddleware from '../middleware/authMiddleware'; // Import the middleware
-import { scrapeJobDescription } from '../utils/scraper';
+import { ScraperService } from '../services/scraperService';
 import { extractJobDataFromUrl, ExtractedJobData } from '../utils/aiExtractor';
 import mongoose from 'mongoose'; // Import mongoose for ObjectId type
 import { JsonResumeSchema } from '../types/jsonresume'; // Import if needed for validation
@@ -261,9 +261,10 @@ const scrapeJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
 
     // Optional: Validate if the provided URL matches the stored one if both exist?
 
-    // 3. Call the scraper utility
+    // 3. Call the scraper service
     console.log(`Attempting to scrape description for job ${jobId} from URL: ${jobUrlToScrape}`);
-    const extractedText = await scrapeJobDescription(jobUrlToScrape, userIdString); // This can throw errors
+    const scraper = ScraperService.getJobDescriptionScraper();
+    const extractedText = await scraper.scrapeJobDescription(jobUrlToScrape, userIdString); // This can throw errors
 
     // 4. Update the job application in the database
     const updatedJob = await JobApplication.findOneAndUpdate(

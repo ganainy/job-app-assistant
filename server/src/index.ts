@@ -24,6 +24,8 @@ import autoJobRoutes from './routes/autoJobRoutes';
 // Correct the import for the default export
 import protect from './middleware/authMiddleware'; // Import default export and alias it as 'protect'
 import { errorHandler } from './middleware/errorHandler';
+// Import providers to ensure they register themselves
+import './providers';
 
 const app: Express = express();
 const port = process.env.PORT || 5001;
@@ -98,13 +100,7 @@ mongoose.connect(mongoUri)
   .then(() => {
     console.log('MongoDB Connected Successfully');
 
-    // Initialize AI providers
-    const { initializeProviders } = require('./domain/providers');
-    initializeProviders();
-
-    // Initialize auto-job scheduler
-    const { initializeScheduler } = require('./utils/scheduler');
-    initializeScheduler();
+    // Auto-job scheduling removed - jobs are now only manually triggered
 
     // Start listening only after successful DB connection
     const server = app.listen(port, () => {

@@ -89,13 +89,31 @@ export interface IProfile extends Document {
     maxJobs?: number; // Maximum number of jobs to retrieve (20-1000, default 100)
     avoidDuplicates?: boolean; // Skip already scraped jobs
     schedule?: string; // cron expression
-    // Multi-provider settings
-    provider?: string; // AI provider: "gemini", "openrouter", "ollama"
-    batchSize?: number; // Concurrent jobs (1-10)
+  };
+  aiProviderSettings?: {
+    defaultProvider?: 'gemini' | 'openrouter' | 'ollama';
+    defaultModel?: string;
+    providers?: {
+      gemini?: {
+        accessToken?: string;
+        enabled?: boolean;
+      };
+      openrouter?: {
+        accessToken?: string;
+        enabled?: boolean;
+      };
+      ollama?: {
+        baseUrl?: string;
+        enabled?: boolean;
+      };
+    };
+    // Multi-provider settings for batch processing
+    provider?: string;
+    batchSize?: number;
     models?: {
-      analysis?: string; // Model for job analysis
-      relevance?: string; // Model for relevance checking
-      generation?: string; // Model for content generation
+      analysis?: string;
+      relevance?: string;
+      generation?: string;
     };
   };
   isPublished?: boolean;
@@ -260,10 +278,6 @@ const ProfileSchema: Schema = new Schema(
       },
     },
     autoJobSettings: {
-      enabled: {
-        type: Boolean,
-        default: false,
-      },
       keywords: {
         type: String,
         default: '',
@@ -299,9 +313,40 @@ const ProfileSchema: Schema = new Schema(
         type: Boolean,
         default: false,
       },
-      schedule: {
+    },
+    aiProviderSettings: {
+      defaultProvider: {
         type: String,
-        default: '0 9 * * *', // Daily at 9 AM
+        enum: ['gemini', 'openrouter', 'ollama'],
+      },
+      defaultModel: {
+        type: String,
+      },
+      providers: {
+        gemini: {
+          accessToken: String,
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+        },
+        openrouter: {
+          accessToken: String,
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+        },
+        ollama: {
+          baseUrl: {
+            type: String,
+            default: 'http://localhost:11434',
+          },
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+        },
       },
       // Multi-provider settings
       provider: {

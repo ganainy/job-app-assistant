@@ -2,9 +2,8 @@ import express, { Router, Request, Response, RequestHandler } from 'express';
 import multer from 'multer';
 import authMiddleware from '../middleware/authMiddleware';
 import User from '../models/User';
-import { getGeminiModel } from '../utils/geminiClient';
+import { generateContentWithFile } from '../utils/aiService';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
-import { getGeminiApiKey } from '../utils/apiKeyHelpers';
 import { NotFoundError } from '../utils/errors/AppError';
 import { JsonResumeSchema } from '../types/jsonresume';
 import { generateCvPdfBuffer } from '../utils/pdfGenerator';
@@ -105,14 +104,33 @@ router.post(
             `;
 
             const userId = String(req.user._id);
-            const apiKey = await getGeminiApiKey(userId);
-            const model = getGeminiModel(apiKey);
+            
+            // Save file to temporary location for AI processing
+            const fs = require('fs');
+            const path = require('path');
+            const tempDir = path.join(process.cwd(), 'temp_uploads');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+            const tempFilePath = path.join(tempDir, `cv_${Date.now()}_${req.file.originalname}`);
+            fs.writeFileSync(tempFilePath, req.file.buffer);
 
-            console.log("Sending CV parsing request to Gemini...");
-            const result = await model.generateContent([prompt, fileDataPart]);
-            const response = result.response;
-            const responseText = response.text();
-            console.log("Received CV parsing response from Gemini.");
+            console.log("Sending CV parsing request to AI...");
+            const result = await generateContentWithFile(
+                userId,
+                prompt,
+                tempFilePath,
+                req.file.mimetype
+            );
+            const responseText = result.text;
+            console.log("Received CV parsing response from AI.");
+
+            // Clean up temp file
+            try {
+                fs.unlinkSync(tempFilePath);
+            } catch (err) {
+                console.error('Error deleting temp file:', err);
+            }
 
             const cvJsonResume = parseJsonResponseToSchema(responseText, 'JsonResume');
 

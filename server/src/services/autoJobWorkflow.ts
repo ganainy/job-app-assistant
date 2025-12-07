@@ -4,10 +4,9 @@ import Profile from '../models/Profile';
 import User from '../models/User';
 import WorkflowRun from '../models/WorkflowRun';
 import { retrieveJobs, extractJobId, JobSearchOptions } from './jobAcquisitionService';
-import { analyzeJobAndCompany } from './jobAnalysisService';
+import { analyzeJobCompanyAndRelevance } from './jobAnalysisService';
 import { getOrStructureResume } from './resumeCacheService';
-import { checkRelevance } from './jobRelevanceService';
-import { generateCustomizedResume, generateCoverLetterWithSkillMatch } from './generatorService';
+import { waitForRateLimit } from '../utils/rateLimiter';
 import { decrypt } from '../utils/encryption';
 import { convertJsonResumeToText } from '../utils/cvTextExtractor';
 import mongoose from 'mongoose';
@@ -84,7 +83,6 @@ export const runAutoJobWorkflow = async (userId: string, isManual: boolean = fal
             analyzed: 0,
             relevant: 0,
             notRelevant: 0,
-            generated: 0,
             errors: 0
         }
     });
@@ -156,37 +154,20 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
             profile = new Profile({
                 userId: new mongoose.Types.ObjectId(userId),
                 autoJobSettings: {
-                    enabled: false,
                     keywords: '',
-                    location: '',
-                    schedule: '0 9 * * *'
+                    location: ''
                 }
             });
             await profile.save();
         }
 
-        const geminiApiKeyEncrypted = profile.integrations?.gemini?.accessToken || process.env.GEMINI_API_KEY;
-        const geminiApiKey = geminiApiKeyEncrypted && geminiApiKeyEncrypted !== process.env.GEMINI_API_KEY
-            ? decrypt(geminiApiKeyEncrypted)
-            : geminiApiKeyEncrypted;
-
-        if (!geminiApiKey) {
-            throw new Error('Gemini API key not configured');
-        }
+        // AI provider will be retrieved by aiService when needed
 
         const apifyTokenEncrypted = profile.integrations?.apify?.accessToken;
         const apifyToken = apifyTokenEncrypted ? (decrypt(apifyTokenEncrypted) ?? undefined) : undefined;
 
         // Get auto-job settings
         const autoJobSettings = (profile as any).autoJobSettings;
-
-        // If not manual, check if enabled
-        if (!isManual && !autoJobSettings?.enabled) {
-            console.log('Auto-job workflow is disabled for this user');
-            await updateProgress('Initialize', 'completed', 0, 'Workflow disabled');
-            await WorkflowRun.findByIdAndUpdate(runId, { status: 'completed', stats });
-            return;
-        }
 
         const keywords = autoJobSettings.keywords || '';
         const location = autoJobSettings.location || '';
@@ -254,6 +235,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
 
         const newJobs = [];
         for (const job of rawJobs) {
+            // Check if job already exists (including soft-deleted ones, to prevent re-fetching)
             const exists = await JobApplication.findOne({
                 userId: new mongoose.Types.ObjectId(userId),
                 jobId: job.jobId
@@ -287,18 +269,18 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         console.log(`\n→ Retrieving and structuring resume...`);
 
         const resumeText = await getUserResumeText(userId);
-        const structuredResume = await getOrStructureResume(userId, resumeText, geminiApiKey);
+        const structuredResume = await getOrStructureResume(userId, resumeText);
         console.log(`✓ Resume structured`);
         await updateProgress('Structure Resume', 'completed', 3, 'Resume structured');
 
         // Step 5: Process Jobs in Parallel
         await updateProgress('Process Jobs', 'running', 4, `Processing ${newJobs.length} jobs...`);
 
-        // Get provider settings from profile
-        const providerSettings = (profile as any).autoJobSettings;
-        const provider = providerSettings?.provider || 'gemini';
-        const batchSize = providerSettings?.batchSize || 5;
-        const models = providerSettings?.models || {
+        // Get provider settings from profile (from aiProviderSettings, not autoJobSettings)
+        const aiProviderSettings = (profile as any).aiProviderSettings;
+        const provider = aiProviderSettings?.provider || aiProviderSettings?.defaultProvider || 'gemini';
+        const batchSize = aiProviderSettings?.batchSize || 5;
+        const models = aiProviderSettings?.models || {
             analysis: 'gemini-1.5-flash',
             relevance: 'gemini-1.5-flash',
             generation: 'gemini-1.5-pro'
@@ -327,35 +309,35 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         stats.errors = parallelStats.errors;
 
         await updateProgress('Process Jobs', 'completed', 4, `Processed ${newJobs.length} jobs`);
-       
-    // Step 6: Complete
-    console.log(`\n========================================`);
-    console.log(`Workflow Complete`);
-    console.log(`========================================`);
 
-    await updateProgress('Complete', 'completed', 5, 'Workflow completed successfully');
-    await WorkflowRun.findByIdAndUpdate(runId, {
-        status: 'completed',
-        stats,
-        completedAt: new Date()
-    });
+        // Step 6: Complete
+        console.log(`\n========================================`);
+        console.log(`Workflow Complete`);
+        console.log(`========================================`);
 
-} catch (error: any) {
-    // Check if error is due to cancellation
-    if (error.message === 'Workflow cancelled by user') {
-        console.log('Workflow cancelled successfully');
+        await updateProgress('Complete', 'completed', 5, 'Workflow completed successfully');
         await WorkflowRun.findByIdAndUpdate(runId, {
-            status: 'cancelled',
-            'progress.currentStep': 'Cancelled by user',
+            status: 'completed',
+            stats,
             completedAt: new Date()
         });
-    } else {
-        console.error('Workflow execution failed:', error);
-        await WorkflowRun.findByIdAndUpdate(runId, {
-            status: 'failed',
-            errorMessage: error.message,
-            completedAt: new Date()
-        });
+
+    } catch (error: any) {
+        // Check if error is due to cancellation
+        if (error.message === 'Workflow cancelled by user') {
+            console.log('Workflow cancelled successfully');
+            await WorkflowRun.findByIdAndUpdate(runId, {
+                status: 'cancelled',
+                'progress.currentStep': 'Cancelled by user',
+                completedAt: new Date()
+            });
+        } else {
+            console.error('Workflow execution failed:', error);
+            await WorkflowRun.findByIdAndUpdate(runId, {
+                status: 'failed',
+                errorMessage: error.message,
+                completedAt: new Date()
+            });
+        }
     }
-}
 }

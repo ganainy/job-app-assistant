@@ -77,7 +77,10 @@ export async function processBatchWithErrors<T, R>(
         console.log(`  Processing batch ${batchNumber}/${totalBatches} (${batch.length} items)`);
 
         // Process batch in parallel with individual error handling
-        const batchPromises = batch.map(async (item, batchIndex) => {
+        const batchPromises = batch.map(async (item, batchIndex): Promise<
+            | { success: true; result: R; item: T; index: number }
+            | { success: false; error: Error; item: T; index: number }
+        > => {
             const globalIndex = i + batchIndex;
             try {
                 const result = await processFn(item, globalIndex);
@@ -85,7 +88,7 @@ export async function processBatchWithErrors<T, R>(
             } catch (error) {
                 return {
                     success: false,
-                    error: error as Error,
+                    error: error instanceof Error ? error : new Error(String(error)),
                     item,
                     index: globalIndex
                 };

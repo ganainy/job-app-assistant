@@ -30,6 +30,7 @@ const PortfolioLayout: React.FC<PortfolioLayoutProps> = ({
     // Default to light mode
     return false;
   });
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     // Apply dark mode class to document
@@ -41,6 +42,11 @@ const PortfolioLayout: React.FC<PortfolioLayoutProps> = ({
     // Save preference to localStorage
     localStorage.setItem('portfolio-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
+
+  useEffect(() => {
+    // Reset image error when profile changes
+    setImageError(false);
+  }, [profile.profileImageUrl]);
 
   const toggleTheme = () => {
     setIsDarkMode((prev) => !prev);
@@ -270,8 +276,8 @@ const PortfolioLayout: React.FC<PortfolioLayoutProps> = ({
                 </div>
               )}
             </div>
-            <div className="md:col-span-4 flex justify-center md:justify-end">
-              {profile.profileImageUrl ? (
+            {profile.profileImageUrl && !imageError && (
+              <div className="md:col-span-4 flex justify-center md:justify-end">
                 <img
                   alt={`Portrait of ${displayName}`}
                   className="w-48 h-48 md:w-64 md:h-64 rounded-full object-cover border-4 shadow-lg transition-transform duration-300 hover:scale-105 hover:shadow-xl"
@@ -279,19 +285,13 @@ const PortfolioLayout: React.FC<PortfolioLayoutProps> = ({
                     borderColor: isDarkMode ? '#1e293b' : '#e2e8f0'
                   }}
                   src={profile.profileImageUrl}
-                />
-              ) : (
-                <div
-                  className="w-48 h-48 md:w-64 md:h-64 rounded-full flex items-center justify-center border-4 shadow-lg text-6xl font-bold text-white transition-transform duration-300 hover:scale-105 hover:shadow-xl"
-                  style={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    borderColor: isDarkMode ? '#1e293b' : '#e2e8f0'
+                  onError={() => {
+                    console.error('Failed to load profile image:', profile.profileImageUrl);
+                    setImageError(true);
                   }}
-                >
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              )}
-            </div>
+                />
+              </div>
+            )}
           </div>
         </section>
 

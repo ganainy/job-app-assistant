@@ -1,9 +1,10 @@
 // client/src/pages/SettingsPage.tsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getApiKeys, updateApiKeys, deleteApiKey, ApiKeys } from '../services/settingsApi';
+import { getApiKeys, updateApiKeys, deleteApiKey, getProviderModels, ApiKeys } from '../services/settingsApi';
 import Toast from '../components/common/Toast';
 import Spinner from '../components/common/Spinner';
+import SearchableSelect from '../components/common/SearchableSelect';
 
 // Icon Components
 const EyeIcon = () => (
@@ -130,12 +131,24 @@ const SettingsPage: React.FC = () => {
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showApifyToken, setShowApifyToken] = useState(false);
   
+  // AI Provider settings state
+  const [defaultProvider, setDefaultProvider] = useState<'gemini' | 'openrouter' | 'ollama'>('gemini');
+  const [defaultModel, setDefaultModel] = useState('');
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [openRouterKey, setOpenRouterKey] = useState('');
+  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
+  const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
+  const [showOllamaUrl, setShowOllamaUrl] = useState(false);
+  
   // Validation state
   const [geminiKeyTouched, setGeminiKeyTouched] = useState(false);
   const [apifyTokenTouched, setApifyTokenTouched] = useState(false);
+  const [openRouterKeyTouched, setOpenRouterKeyTouched] = useState(false);
+  const [ollamaUrlTouched, setOllamaUrlTouched] = useState(false);
   
   // Delete confirmation modal
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; service: 'gemini' | 'apify' | null }>({
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; service: 'gemini' | 'apify' | 'openrouter' | 'ollama' | null }>({
     isOpen: false,
     service: null,
   });
@@ -150,16 +163,55 @@ const SettingsPage: React.FC = () => {
     loadApiKeys();
   }, []);
 
+  // Fetch models when provider changes
+  useEffect(() => {
+    fetchModelsForProvider(defaultProvider).then((models) => {
+      // If current model is not in the new list, reset it
+      if (defaultModel && models.length > 0 && !models.includes(defaultModel)) {
+        setDefaultModel('');
+      }
+    });
+  }, [defaultProvider]);
+
   const loadApiKeys = async () => {
     try {
       setIsLoading(true);
       const keys = await getApiKeys();
       setApiKeys(keys);
+      
+      // Load AI provider settings
+      if (keys.aiProviders) {
+        if (keys.aiProviders.defaultProvider) {
+          setDefaultProvider(keys.aiProviders.defaultProvider);
+        }
+        if (keys.aiProviders.defaultModel) {
+          setDefaultModel(keys.aiProviders.defaultModel);
+        }
+        if (keys.aiProviders.providers?.ollama?.baseUrl) {
+          setOllamaUrl(keys.aiProviders.providers.ollama.baseUrl);
+        }
+      }
       // Don't pre-fill the form with masked keys
     } catch (error: any) {
       setToast({ message: error.message || 'Failed to load API keys', type: 'error' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Fetch models for the current provider
+  const fetchModelsForProvider = async (provider: 'gemini' | 'openrouter' | 'ollama'): Promise<string[]> => {
+    setLoadingModels(true);
+    try {
+      const models = await getProviderModels(provider);
+      setAvailableModels(models);
+      return models;
+    } catch (error: any) {
+      console.error('Error fetching models:', error);
+      setAvailableModels([]);
+      return [];
+    } finally {
+      setLoadingModels(false);
     }
   };
 
@@ -169,6 +221,19 @@ const SettingsPage: React.FC = () => {
 
   const validateApifyToken = (token: string): boolean => {
     return token.startsWith('apify_api_') && token.length > 20;
+  };
+
+  const validateOpenRouterKey = (key: string): boolean => {
+    return (key.startsWith('sk-or-v1-') || key.startsWith('sk-')) && key.length > 20;
+  };
+
+  const validateOllamaUrl = (url: string): boolean => {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
   };
 
   const getGeminiKeyValidation = () => {
@@ -188,19 +253,49 @@ const SettingsPage: React.FC = () => {
     return { valid: true, message: 'Valid Apify token format' };
   };
 
+  const getOpenRouterKeyValidation = () => {
+    if (!openRouterKeyTouched) return null;
+    if (!openRouterKey.trim()) return null; // Optional
+    if (!validateOpenRouterKey(openRouterKey.trim())) {
+      return { valid: false, message: 'Invalid format. Key should start with "sk-or-v1-" or "sk-" and be at least 20 characters' };
+    }
+    return { valid: true, message: 'Valid OpenRouter API key format' };
+  };
+
+  const getOllamaUrlValidation = () => {
+    if (!ollamaUrlTouched) return null;
+    if (!ollamaUrl.trim()) return { valid: false, message: 'Ollama base URL is required' };
+    if (!validateOllamaUrl(ollamaUrl.trim())) {
+      return { valid: false, message: 'Invalid URL format. Must be a valid HTTP or HTTPS URL' };
+    }
+    return { valid: true, message: 'Valid Ollama base URL format' };
+  };
+
   const handleSave = async () => {
-    // Check if at least one key is provided
+    // Check if at least one AI provider key is provided
     const hasGeminiKey = geminiKey.trim();
+    const hasOpenRouterKey = openRouterKey.trim();
+    const hasOllamaUrl = ollamaUrl.trim();
     const hasApifyToken = apifyToken.trim();
 
-    if (!hasGeminiKey && !hasApifyToken) {
+    if (!hasGeminiKey && !hasOpenRouterKey && !hasOllamaUrl && !hasApifyToken) {
       setToast({ message: 'Please provide at least one API key to save', type: 'error' });
       return;
     }
 
-    // Validate Gemini key if provided
+    // Validate keys if provided
     if (hasGeminiKey && !validateGeminiKey(geminiKey.trim())) {
       setToast({ message: 'Invalid Gemini API key format. Key should start with "AIza"', type: 'error' });
+      return;
+    }
+
+    if (hasOpenRouterKey && !validateOpenRouterKey(openRouterKey.trim())) {
+      setToast({ message: 'Invalid OpenRouter API key format. Key should start with "sk-or-v1-" or "sk-"', type: 'error' });
+      return;
+    }
+
+    if (hasOllamaUrl && !validateOllamaUrl(ollamaUrl.trim())) {
+      setToast({ message: 'Invalid Ollama base URL format. Must be a valid HTTP or HTTPS URL', type: 'error' });
       return;
     }
 
@@ -214,7 +309,7 @@ const SettingsPage: React.FC = () => {
       setIsSaving(true);
       const updateData: any = {};
 
-      // Add Gemini key if provided
+      // Add Gemini key if provided (legacy location)
       if (hasGeminiKey) {
         updateData.gemini = {
           accessToken: geminiKey.trim(),
@@ -230,25 +325,62 @@ const SettingsPage: React.FC = () => {
         };
       }
 
+      // Add AI provider settings
+      updateData.aiProviders = {
+        defaultProvider,
+        defaultModel: defaultModel.trim() || undefined,
+        providers: {},
+      };
+
+      // Add Gemini to AI providers if provided
+      if (hasGeminiKey) {
+        updateData.aiProviders.providers.gemini = {
+          accessToken: geminiKey.trim(),
+          enabled: true,
+        };
+      }
+
+      // Add OpenRouter if provided
+      if (hasOpenRouterKey) {
+        updateData.aiProviders.providers.openrouter = {
+          accessToken: openRouterKey.trim(),
+          enabled: true,
+        };
+      }
+
+      // Add Ollama if provided
+      if (hasOllamaUrl) {
+        updateData.aiProviders.providers.ollama = {
+          baseUrl: ollamaUrl.trim(),
+          enabled: true,
+        };
+      }
+
       await updateApiKeys(updateData);
       
       const savedKeys = [];
       if (hasGeminiKey) savedKeys.push('Gemini');
+      if (hasOpenRouterKey) savedKeys.push('OpenRouter');
+      if (hasOllamaUrl) savedKeys.push('Ollama');
       if (hasApifyToken) savedKeys.push('Apify');
       
-      setToast({ message: `${savedKeys.join(' and ')} API key${savedKeys.length > 1 ? 's' : ''} saved successfully!`, type: 'success' });
+      setToast({ message: `${savedKeys.join(', ')} API key${savedKeys.length > 1 ? 's' : ''} saved successfully!`, type: 'success' });
       
       // Clear form
       setGeminiKey('');
+      setOpenRouterKey('');
+      setOllamaUrl('http://localhost:11434');
       setApifyToken('');
       setGeminiKeyTouched(false);
+      setOpenRouterKeyTouched(false);
+      setOllamaUrlTouched(false);
       setApifyTokenTouched(false);
       
       // Reload keys to show masked versions
       await loadApiKeys();
       
-      // If new user with Gemini key, redirect to dashboard after a short delay
-      if (isNewUser && hasGeminiKey) {
+      // If new user with at least one AI provider key, redirect to dashboard after a short delay
+      if (isNewUser && (hasGeminiKey || hasOpenRouterKey || hasOllamaUrl)) {
         setTimeout(() => {
           navigate('/dashboard');
         }, 2000);
@@ -260,7 +392,7 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleDeleteClick = (service: 'gemini' | 'apify') => {
+  const handleDeleteClick = (service: 'gemini' | 'apify' | 'openrouter' | 'ollama') => {
     setDeleteModal({ isOpen: true, service });
   };
 
@@ -276,7 +408,13 @@ const SettingsPage: React.FC = () => {
       if (deleteModal.service === 'gemini') {
         setGeminiKey('');
         setGeminiKeyTouched(false);
-      } else {
+      } else if (deleteModal.service === 'openrouter') {
+        setOpenRouterKey('');
+        setOpenRouterKeyTouched(false);
+      } else if (deleteModal.service === 'ollama') {
+        setOllamaUrl('http://localhost:11434');
+        setOllamaUrlTouched(false);
+      } else if (deleteModal.service === 'apify') {
         setApifyToken('');
         setApifyTokenTouched(false);
       }
@@ -287,8 +425,12 @@ const SettingsPage: React.FC = () => {
 
   const geminiValidation = getGeminiKeyValidation();
   const apifyValidation = getApifyTokenValidation();
-  const isGeminiConfigured = apiKeys?.gemini?.accessToken ? true : false;
+  const openRouterValidation = getOpenRouterKeyValidation();
+  const ollamaValidation = getOllamaUrlValidation();
+  const isGeminiConfigured = apiKeys?.gemini?.accessToken || apiKeys?.aiProviders?.providers?.gemini?.accessToken ? true : false;
   const isApifyConfigured = apiKeys?.apify?.accessToken ? true : false;
+  const isOpenRouterConfigured = apiKeys?.aiProviders?.providers?.openrouter?.accessToken ? true : false;
+  const isOllamaConfigured = apiKeys?.aiProviders?.providers?.ollama?.enabled ? true : false;
 
   if (isLoading) {
     return (
@@ -399,110 +541,6 @@ const SettingsPage: React.FC = () => {
 
         {/* API Keys Form */}
         <div className="space-y-6">
-          {/* Gemini API Key Card */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <KeyIcon />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                      Gemini API Key
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                      Recommended for AI features
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isGeminiConfigured ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                      <CheckIcon />
-                      Configured
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
-                      Not Configured
-                    </span>
-                  )}
-                  {isGeminiConfigured && (
-                    <button
-                      onClick={() => handleDeleteClick('gemini')}
-                      className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      title="Delete Gemini API key"
-                    >
-                      <TrashIcon />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="p-4 sm:p-6 space-y-4">
-              <div>
-                <label htmlFor="gemini-key" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  API Key
-                </label>
-                <div className="relative">
-                  <input
-                    id="gemini-key"
-                    type={showGeminiKey ? 'text' : 'password'}
-                    value={geminiKey}
-                    onChange={(e) => {
-                      setGeminiKey(e.target.value);
-                      setGeminiKeyTouched(true);
-                    }}
-                    onBlur={() => setGeminiKeyTouched(true)}
-                    placeholder={isGeminiConfigured ? `Current: ${apiKeys?.gemini?.accessToken || '****'}` : 'Enter your Gemini API key (starts with AIza)'}
-                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${
-                      geminiValidation?.valid === false
-                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
-                        : geminiValidation?.valid === true
-                        ? 'border-green-300 dark:border-green-700 focus:ring-green-500'
-                        : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowGeminiKey(!showGeminiKey)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
-                    aria-label={showGeminiKey ? 'Hide key' : 'Show key'}
-                  >
-                    {showGeminiKey ? <EyeOffIcon /> : <EyeIcon />}
-                  </button>
-                  {geminiValidation && (
-                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${
-                      geminiValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}>
-                      {geminiValidation.valid ? <CheckIcon /> : <XIcon />}
-                    </div>
-                  )}
-                </div>
-                {geminiValidation && (
-                  <p className={`mt-2 text-xs flex items-center gap-1 ${
-                    geminiValidation.valid
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {geminiValidation.valid ? <CheckIcon /> : <XIcon />}
-                    {geminiValidation.message}
-                  </p>
-                )}
-                {!geminiValidation && (
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    Format: Starts with "AIza" and at least 20 characters
-                  </p>
-                )}
-                {isGeminiConfigured && (
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    Current key: {apiKeys?.gemini?.accessToken || '****'}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* Apify API Token Card */}
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
@@ -607,15 +645,315 @@ const SettingsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* AI Provider Settings Section */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                  <KeyIcon />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    AI Provider Settings
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                    Configure your AI provider preferences
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 space-y-6">
+              {/* Default Provider Selection */}
+              <div>
+                <label htmlFor="default-provider" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Default AI Provider
+                </label>
+                <select
+                  id="default-provider"
+                  value={defaultProvider}
+                  onChange={(e) => setDefaultProvider(e.target.value as 'gemini' | 'openrouter' | 'ollama')}
+                  className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="gemini">Gemini</option>
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="ollama">Ollama</option>
+                </select>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Select your preferred AI provider. The system will use this provider by default, with automatic fallback to other configured providers if needed.
+                </p>
+              </div>
+
+              {/* Default Model Selection */}
+              <div>
+                <label htmlFor="default-model" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Default Model <span className="text-slate-400 text-xs font-normal">(Optional)</span>
+                </label>
+                <SearchableSelect
+                  id="default-model"
+                  value={defaultModel}
+                  onChange={(value: string) => setDefaultModel(value === 'Use provider default' ? '' : value)}
+                  options={['Use provider default', ...availableModels]}
+                  placeholder="Use provider default"
+                  disabled={loadingModels || availableModels.length === 0}
+                  className=""
+                />
+                {loadingModels ? (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Loading available models...
+                  </p>
+                ) : availableModels.length === 0 ? (
+                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                    {defaultProvider === 'ollama' 
+                      ? 'No models found. Please ensure Ollama is running and you have installed models (e.g., run "ollama pull llama3" in your terminal).'
+                      : `No models available. Please configure your ${defaultProvider === 'gemini' ? 'Gemini' : 'OpenRouter'} API key in the settings above first.`}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Select a default model for {defaultProvider}. Leave empty to use provider default.
+                  </p>
+                )}
+              </div>
+
+              {/* Gemini API Key */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="gemini-key" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Gemini API Key <span className="text-slate-400 text-xs font-normal">(Recommended)</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {isGeminiConfigured ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                        <CheckIcon />
+                        Configured
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                        Not Configured
+                      </span>
+                    )}
+                    {isGeminiConfigured && (
+                      <button
+                        onClick={() => handleDeleteClick('gemini')}
+                        className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                        title="Delete Gemini API key"
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    id="gemini-key"
+                    type={showGeminiKey ? 'text' : 'password'}
+                    value={geminiKey}
+                    onChange={(e) => {
+                      setGeminiKey(e.target.value);
+                      setGeminiKeyTouched(true);
+                    }}
+                    onBlur={() => setGeminiKeyTouched(true)}
+                    placeholder={isGeminiConfigured ? `Current: ${apiKeys?.gemini?.accessToken || apiKeys?.aiProviders?.providers?.gemini?.accessToken || '****'}` : 'Enter your Gemini API key (starts with AIza)'}
+                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${
+                      geminiValidation?.valid === false
+                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
+                        : geminiValidation?.valid === true
+                        ? 'border-green-300 dark:border-green-700 focus:ring-green-500'
+                        : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowGeminiKey(!showGeminiKey)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                    aria-label={showGeminiKey ? 'Hide key' : 'Show key'}
+                  >
+                    {showGeminiKey ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                  {geminiValidation && (
+                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${
+                      geminiValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {geminiValidation.valid ? <CheckIcon /> : <XIcon />}
+                    </div>
+                  )}
+                </div>
+                {geminiValidation && (
+                  <p className={`mt-2 text-xs flex items-center gap-1 ${
+                    geminiValidation.valid
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {geminiValidation.valid ? <CheckIcon /> : <XIcon />}
+                    {geminiValidation.message}
+                  </p>
+                )}
+                {!geminiValidation && (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Format: Starts with "AIza" and at least 20 characters. Recommended for AI features.
+                  </p>
+                )}
+                {isGeminiConfigured && (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Current key: {apiKeys?.gemini?.accessToken || apiKeys?.aiProviders?.providers?.gemini?.accessToken || '****'}
+                  </p>
+                )}
+              </div>
+
+              {/* OpenRouter API Key */}
+              <div>
+                <label htmlFor="openrouter-key" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  OpenRouter API Key <span className="text-slate-400 text-xs font-normal">(Optional)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="openrouter-key"
+                    type={showOpenRouterKey ? 'text' : 'password'}
+                    value={openRouterKey}
+                    onChange={(e) => {
+                      setOpenRouterKey(e.target.value);
+                      setOpenRouterKeyTouched(true);
+                    }}
+                    onBlur={() => setOpenRouterKeyTouched(true)}
+                    placeholder={isOpenRouterConfigured ? `Current: ${apiKeys?.aiProviders?.providers?.openrouter?.accessToken || '****'}` : 'Enter your OpenRouter API key (starts with sk-or-v1- or sk-)'}
+                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${
+                      openRouterValidation?.valid === false
+                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
+                        : openRouterValidation?.valid === true
+                        ? 'border-green-300 dark:border-green-700 focus:ring-green-500'
+                        : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOpenRouterKey(!showOpenRouterKey)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                    aria-label={showOpenRouterKey ? 'Hide key' : 'Show key'}
+                  >
+                    {showOpenRouterKey ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                  {openRouterValidation && (
+                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${
+                      openRouterValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {openRouterValidation.valid ? <CheckIcon /> : <XIcon />}
+                    </div>
+                  )}
+                </div>
+                {openRouterValidation && (
+                  <p className={`mt-2 text-xs flex items-center gap-1 ${
+                    openRouterValidation.valid
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {openRouterValidation.valid ? <CheckIcon /> : <XIcon />}
+                    {openRouterValidation.message}
+                  </p>
+                )}
+                {!openRouterValidation && (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Format: Starts with "sk-or-v1-" or "sk-" and at least 20 characters (optional)
+                  </p>
+                )}
+                {isOpenRouterConfigured && (
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Current key: {apiKeys?.aiProviders?.providers?.openrouter?.accessToken || '****'}
+                    </p>
+                    <button
+                      onClick={() => handleDeleteClick('openrouter')}
+                      className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      title="Delete OpenRouter API key"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Ollama Base URL */}
+              <div>
+                <label htmlFor="ollama-url" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Ollama Base URL <span className="text-slate-400 text-xs font-normal">(Optional)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="ollama-url"
+                    type={showOllamaUrl ? 'text' : 'password'}
+                    value={ollamaUrl}
+                    onChange={(e) => {
+                      setOllamaUrl(e.target.value);
+                      setOllamaUrlTouched(true);
+                    }}
+                    onBlur={() => setOllamaUrlTouched(true)}
+                    placeholder="http://localhost:11434"
+                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${
+                      ollamaValidation?.valid === false
+                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
+                        : ollamaValidation?.valid === true
+                        ? 'border-green-300 dark:border-green-700 focus:ring-green-500'
+                        : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOllamaUrl(!showOllamaUrl)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                    aria-label={showOllamaUrl ? 'Hide URL' : 'Show URL'}
+                  >
+                    {showOllamaUrl ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                  {ollamaValidation && (
+                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${
+                      ollamaValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {ollamaValidation.valid ? <CheckIcon /> : <XIcon />}
+                    </div>
+                  )}
+                </div>
+                {ollamaValidation && (
+                  <p className={`mt-2 text-xs flex items-center gap-1 ${
+                    ollamaValidation.valid
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {ollamaValidation.valid ? <CheckIcon /> : <XIcon />}
+                    {ollamaValidation.message}
+                  </p>
+                )}
+                {!ollamaValidation && (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Default: http://localhost:11434 (change if your Ollama instance is running elsewhere)
+                  </p>
+                )}
+                {isOllamaConfigured && (
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Current URL: {apiKeys?.aiProviders?.providers?.ollama?.baseUrl || 'http://localhost:11434'}
+                    </p>
+                    <button
+                      onClick={() => handleDeleteClick('ollama')}
+                      className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      title="Delete Ollama configuration"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Save Button */}
           <div className="flex justify-end">
             <button
               onClick={handleSave}
               disabled={
                 isSaving || 
-                (geminiKey.trim() === '' && apifyToken.trim() === '') || 
+                (geminiKey.trim() === '' && apifyToken.trim() === '' && openRouterKey.trim() === '' && ollamaUrl.trim() === '') || 
                 (geminiKey.trim() !== '' && geminiValidation?.valid === false) ||
-                (apifyToken.trim() !== '' && apifyValidation?.valid === false)
+                (apifyToken.trim() !== '' && apifyValidation?.valid === false) ||
+                (openRouterKey.trim() !== '' && openRouterValidation?.valid === false) ||
+                (ollamaUrl.trim() !== '' && ollamaValidation?.valid === false)
               }
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shadow-sm"
             >
@@ -639,8 +977,8 @@ const SettingsPage: React.FC = () => {
           isOpen={deleteModal.isOpen}
           onClose={() => setDeleteModal({ isOpen: false, service: null })}
           onConfirm={handleDeleteConfirm}
-          title={`Delete ${deleteModal.service === 'gemini' ? 'Gemini' : 'Apify'} API Key?`}
-          message={`Are you sure you want to delete your ${deleteModal.service} API key? This action cannot be undone and you'll need to re-enter it to use ${deleteModal.service === 'gemini' ? 'AI features' : 'LinkedIn integration'}.`}
+          title={`Delete ${deleteModal.service === 'gemini' ? 'Gemini' : deleteModal.service === 'openrouter' ? 'OpenRouter' : deleteModal.service === 'ollama' ? 'Ollama' : 'Apify'} API Key?`}
+          message={`Are you sure you want to delete your ${deleteModal.service} ${deleteModal.service === 'ollama' ? 'configuration' : 'API key'}? This action cannot be undone and you'll need to re-enter it to use ${deleteModal.service === 'gemini' || deleteModal.service === 'openrouter' || deleteModal.service === 'ollama' ? 'AI features' : 'LinkedIn integration'}.`}
           confirmText="Delete"
           cancelText="Cancel"
         />
