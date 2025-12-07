@@ -98,6 +98,10 @@ mongoose.connect(mongoUri)
   .then(() => {
     console.log('MongoDB Connected Successfully');
 
+    // Initialize AI providers
+    const { initializeProviders } = require('./domain/providers');
+    initializeProviders();
+
     // Initialize auto-job scheduler
     const { initializeScheduler } = require('./utils/scheduler');
     initializeScheduler();

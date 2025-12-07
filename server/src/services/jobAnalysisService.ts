@@ -134,7 +134,7 @@ export const analyzeJobPosting = async (
     // If we have structured data, use it (much faster, no AI call needed)
     if (structuredData) {
         const extracted = extractFromStructuredData(structuredData);
-        
+
         // Only use AI to extract yearsExperience if not available in structured data
         const yearsExperience = await extractYearsExperience(
             jobDescription,
@@ -297,4 +297,39 @@ export const analyzeJobAndCompany = async (
         job: jobResult,
         company: companyResult
     };
+};
+
+/**
+ * Provider-aware job and company analysis
+ * Uses the specified provider with automatic fallback to Gemini
+ */
+export const analyzeJobAndCompanyWithProvider = async (
+    jobDescription: string,
+    companyName: string,
+    profile: any,
+    provider: string | undefined,
+    modelName: string,
+    structuredData?: LinkedInStructuredData
+): Promise<{ job: JobAnalysisResult; company: CompanyAnalysisResult }> => {
+    const { createAdapter, executeWithFallback, getGeminiApiKey } = require('./providerService');
+
+    // Create adapter with fallback
+    const adapter = createAdapter(profile, provider, modelName);
+    const geminiApiKey = getGeminiApiKey(profile);
+
+    console.log(`  Using ${adapter.getProvider()}/${adapter.getModelName()} for job analysis`);
+
+    // Define primary operation
+    const primaryOperation = async () => {
+        return analyzeJobAndCompany(jobDescription, companyName, geminiApiKey, structuredData);
+    };
+
+    // Define fallback operation
+    const fallbackOperation = async () => {
+        console.log('  Falling back to Gemini for job analysis');
+        return analyzeJobAndCompany(jobDescription, companyName, geminiApiKey, structuredData);
+    };
+
+    // Execute with fallback
+    return executeWithFallback(primaryOperation, fallbackOperation);
 };

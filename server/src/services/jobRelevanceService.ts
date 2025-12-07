@@ -108,12 +108,12 @@ export const checkRelevance = async (
         }
 
         const score = analysisResult.score;
-        
+
         // Use same threshold logic as dashboard:
         // >= 50% (moderate match or better) is considered relevant
         // This matches dashboard logic where >= 50% is "consider applying"
         const isRelevant = score >= relevanceThreshold;
-        
+
         // Generate reason using exact same logic as jobRecommendationService
         // >= 70%: Strong match → should apply
         // >= 50%: Moderate match → consider applying
@@ -146,4 +146,39 @@ export const checkRelevance = async (
             score: null
         };
     }
+};
+
+/**
+ * Provider-aware relevance checking
+ * Uses the specified provider with automatic fallback to Gemini
+ */
+export const checkRelevanceWithProvider = async (
+    structuredResume: any,
+    jobDescription: string,
+    userId: string,
+    profile: any,
+    provider: string | undefined,
+    modelName: string,
+    relevanceThreshold: number = 50
+): Promise<RelevanceResult> => {
+    const { createAdapter, executeWithFallback } = require('./providerService');
+
+    // Create adapter with fallback
+    const adapter = createAdapter(profile, provider, modelName, 0.3); // Lower temperature for consistency
+
+    console.log(`  Using ${adapter.getProvider()}/${adapter.getModelName()} for relevance check`);
+
+    // Define primary operation
+    const primaryOperation = async () => {
+        return checkRelevance(structuredResume, jobDescription, userId, relevanceThreshold);
+    };
+
+    // Define fallback operation
+    const fallbackOperation = async () => {
+        console.log('  Falling back to Gemini for relevance check');
+        return checkRelevance(structuredResume, jobDescription, userId, relevanceThreshold);
+    };
+
+    // Execute with fallback
+    return executeWithFallback(primaryOperation, fallbackOperation);
 };

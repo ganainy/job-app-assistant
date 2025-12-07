@@ -218,3 +218,53 @@ Return a JSON object:
         };
     }
 };
+
+/**
+ * Provider-aware cover letter generation with skill match scoring
+ * Uses the specified provider with automatic fallback to Gemini
+ */
+export const generateCoverLetterWithProvider = async (
+    structuredResume: any,
+    companyInsights: any,
+    jobDetails: {
+        jobTitle: string;
+        companyName: string;
+        jobDescription: string;
+        extractedData?: any;
+    },
+    profile: any,
+    provider: string | undefined,
+    modelName: string
+): Promise<{ coverLetter: string; skillMatchScore: number; skillMatchReason: string }> => {
+    const { createAdapter, executeWithFallback, getGeminiApiKey } = require('./providerService');
+
+    // Create adapter with fallback
+    const adapter = createAdapter(profile, provider, modelName, 0.8); // Higher temperature for creativity
+    const geminiApiKey = getGeminiApiKey(profile);
+
+    console.log(`  Using ${adapter.getProvider()}/${adapter.getModelName()} for cover letter generation`);
+
+    // Define primary operation
+    const primaryOperation = async () => {
+        return generateCoverLetterWithSkillMatch(
+            structuredResume,
+            companyInsights,
+            jobDetails,
+            geminiApiKey
+        );
+    };
+
+    // Define fallback operation
+    const fallbackOperation = async () => {
+        console.log('  Falling back to Gemini for cover letter generation');
+        return generateCoverLetterWithSkillMatch(
+            structuredResume,
+            companyInsights,
+            jobDetails,
+            geminiApiKey
+        );
+    };
+
+    // Execute with fallback
+    return executeWithFallback(primaryOperation, fallbackOperation);
+};

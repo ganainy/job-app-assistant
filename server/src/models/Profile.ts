@@ -59,6 +59,14 @@ export interface IProfile extends Document {
       accessToken?: string;
       enabled?: boolean;
     };
+    openRouter?: {
+      accessToken?: string;
+      enabled?: boolean;
+    };
+    ollama?: {
+      baseUrl?: string;
+      enabled?: boolean;
+    };
   };
   settings?: {
     theme?: string;
@@ -71,17 +79,25 @@ export interface IProfile extends Document {
     showLinkedInSkills?: boolean;
     showLinkedInLanguages?: boolean;
   };
-    autoJobSettings?: {
-      enabled?: boolean;
-      keywords?: string; // Job search keywords (max 200 chars)
-      location?: string; // Job search location (max 100 chars)
-      jobType?: string[]; // Job types: "full-time", "part-time", "contract", "internship"
-      experienceLevel?: string[]; // Experience levels: "entry level", "associate", "mid-senior level", "director", "internship"
-      datePosted?: string; // Date filter: "any time", "past 24 hours", "past week", "past month"
-      maxJobs?: number; // Maximum number of jobs to retrieve (20-1000, default 100)
-      avoidDuplicates?: boolean; // Skip already scraped jobs
-      schedule?: string; // cron expression
+  autoJobSettings?: {
+    enabled?: boolean;
+    keywords?: string; // Job search keywords (max 200 chars)
+    location?: string; // Job search location (max 100 chars)
+    jobType?: string[]; // Job types: "full-time", "part-time", "contract", "internship"
+    experienceLevel?: string[]; // Experience levels: "entry level", "associate", "mid-senior level", "director", "internship"
+    datePosted?: string; // Date filter: "any time", "past 24 hours", "past week", "past month"
+    maxJobs?: number; // Maximum number of jobs to retrieve (20-1000, default 100)
+    avoidDuplicates?: boolean; // Skip already scraped jobs
+    schedule?: string; // cron expression
+    // Multi-provider settings
+    provider?: string; // AI provider: "gemini", "openrouter", "ollama"
+    batchSize?: number; // Concurrent jobs (1-10)
+    models?: {
+      analysis?: string; // Model for job analysis
+      relevance?: string; // Model for relevance checking
+      generation?: string; // Model for content generation
     };
+  };
   isPublished?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -187,6 +203,23 @@ const ProfileSchema: Schema = new Schema(
           default: false,
         },
       },
+      openRouter: {
+        accessToken: String,
+        enabled: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      ollama: {
+        baseUrl: {
+          type: String,
+          default: 'http://localhost:11434',
+        },
+        enabled: {
+          type: Boolean,
+          default: false,
+        },
+      },
     },
     settings: {
       theme: {
@@ -269,6 +302,32 @@ const ProfileSchema: Schema = new Schema(
       schedule: {
         type: String,
         default: '0 9 * * *', // Daily at 9 AM
+      },
+      // Multi-provider settings
+      provider: {
+        type: String,
+        enum: ['gemini', 'openrouter', 'ollama'],
+        default: 'gemini',
+      },
+      batchSize: {
+        type: Number,
+        default: 5,
+        min: 1,
+        max: 10,
+      },
+      models: {
+        analysis: {
+          type: String,
+          default: 'gemini-1.5-flash',
+        },
+        relevance: {
+          type: String,
+          default: 'gemini-1.5-flash',
+        },
+        generation: {
+          type: String,
+          default: 'gemini-1.5-pro',
+        },
       },
     },
     isPublished: {

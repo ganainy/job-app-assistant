@@ -11,6 +11,7 @@ import { generateCustomizedResume, generateCoverLetterWithSkillMatch } from './g
 import { decrypt } from '../utils/encryption';
 import { convertJsonResumeToText } from '../utils/cvTextExtractor';
 import mongoose from 'mongoose';
+import { processJobsInParallel } from './parallelJobProcessor';
 
 /**
  * Interface for workflow execution statistics
@@ -189,7 +190,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
 
         const keywords = autoJobSettings.keywords || '';
         const location = autoJobSettings.location || '';
-        
+
         // Require keywords or location
         if (!keywords && !location) {
             throw new Error('Keywords or location must be configured');
@@ -209,9 +210,9 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         }
 
         // Step 2: Retrieve Jobs
-        const searchDescription = location && keywords 
+        const searchDescription = location && keywords
             ? `keywords: "${keywords}", location: "${location}"`
-            : keywords 
+            : keywords
                 ? `keywords: "${keywords}"`
                 : `location: "${location}"`;
         await updateProgress('Retrieve Jobs', 'running', 1, `Retrieving jobs - ${searchDescription}`);
@@ -224,7 +225,7 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         if (datePosted === 'past hour') {
             datePosted = 'past 24 hours';
         }
-        
+
         const jobSearchOptions = {
             keywords: keywords || undefined,
             location: location || undefined,
@@ -290,253 +291,71 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         console.log(`✓ Resume structured`);
         await updateProgress('Structure Resume', 'completed', 3, 'Resume structured');
 
-        // Step 5: Process Jobs
+        // Step 5: Process Jobs in Parallel
         await updateProgress('Process Jobs', 'running', 4, `Processing ${newJobs.length} jobs...`);
-        console.log(`\n→ Processing ${newJobs.length} jobs sequentially...`);
-        console.log(`  (Adding delay to respect Gemini API rate limits)\n`);
 
-        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        // Get provider settings from profile
+        const providerSettings = (profile as any).autoJobSettings;
+        const provider = providerSettings?.provider || 'gemini';
+        const batchSize = providerSettings?.batchSize || 5;
+        const models = providerSettings?.models || {
+            analysis: 'gemini-1.5-flash',
+            relevance: 'gemini-1.5-flash',
+            generation: 'gemini-1.5-pro'
+        };
 
-        for (let i = 0; i < newJobs.length; i++) {
-            // Check for cancellation before processing each job
-            if (await checkCancellation()) {
-                console.log(`\n⚠ Workflow cancelled by user. Stopping at job ${i + 1}/${newJobs.length}`);
-                await WorkflowRun.findByIdAndUpdate(runId, {
-                    status: 'cancelled',
-                    'progress.currentStep': `Cancelled at job ${i + 1}/${newJobs.length}`,
-                    completedAt: new Date()
-                });
-                return;
-            }
+        console.log(`\n→ Using parallel processing with provider: ${provider}`);
+        console.log(`  Batch size: ${batchSize} concurrent jobs`);
+        console.log(`  Models: Analysis=${models.analysis}, Relevance=${models.relevance}, Generation=${models.generation}\n`);
 
-            const job = newJobs[i];
-            const progressMsg = `Processing job ${i + 1}/${newJobs.length}: ${job.jobTitle}`;
-            console.log(`[${i + 1}/${newJobs.length}] Processing: ${job.jobTitle} at ${job.companyName}`);
+        // Process jobs in parallel batches
+        const parallelStats = await processJobsInParallel(
+            newJobs,
+            userId,
+            runId,
+            structuredResume,
+            batchSize,
+            provider,
+            models
+        );
 
-            // Update step progress
-            await WorkflowRun.findByIdAndUpdate(runId, {
-                'progress.currentStep': progressMsg,
-                'progress.percentage': Math.round(66 + ((i / newJobs.length) * 33)), // Map job processing to 66-99% range
-                'steps.4.count': i + 1,
-                'steps.4.total': newJobs.length,
-                'steps.4.message': progressMsg
-            });
-
-            try {
-                // Create JobApplication entry (unified model)
-                const jobApplication = new JobApplication({
-                    userId: new mongoose.Types.ObjectId(userId),
-                    workflowRunId: new mongoose.Types.ObjectId(runId),
-                    jobId: job.jobId,
-                    jobTitle: job.jobTitle,
-                    companyName: job.companyName,
-                    jobUrl: job.jobUrl,
-                    jobDescriptionText: job.jobDescriptionText,
-                    status: 'Not Applied', // Default status for auto jobs
-                    isAutoJob: true,
-                    showInDashboard: false, // Auto jobs hidden from dashboard by default
-                    processingStatus: 'pending',
-                    discoveredAt: new Date()
-                });
-                await jobApplication.save();
-                
-                // Update stats immediately after creating job
-                await WorkflowRun.findByIdAndUpdate(runId, { stats });
-
-                // Skip if no description
-                if (!job.jobDescriptionText || job.jobDescriptionText.length < 50) {
-                    console.log(`  ✗ Skipping: Job description empty or too short`);
-                    jobApplication.processingStatus = 'error';
-                    jobApplication.errorMessage = 'Job description missing from source';
-                    await jobApplication.save();
-                    stats.errors++;
-                    continue;
-                }
-
-                // Check for cancellation before AI calls
-                if (await checkCancellation()) {
-                    console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
-                    await WorkflowRun.findByIdAndUpdate(runId, {
-                        status: 'cancelled',
-                        'progress.currentStep': `Cancelled while processing job ${i + 1}/${newJobs.length}`,
-                        completedAt: new Date()
-                    });
-                    return;
-                }
-
-                // Rate limiting delay (10 seconds)
-                await delay(10000);
-
-                // Analyze job and company (pass structured data to reduce AI calls)
-                // Structured data contains skills, salary, location, remote_allow, company_description
-                const structuredData = job.structuredData;
-                if (structuredData) {
-                    console.log(`  → Using structured data from scraper (reducing AI calls)`);
-                }
-                
-                const analysis = await analyzeJobAndCompany(
-                    job.jobDescriptionText,
-                    job.companyName,
-                    geminiApiKey,
-                    structuredData // Pass structured data from scraper
-                );
-
-                jobApplication.extractedData = analysis.job.extractedData;
-                jobApplication.companyInsights = analysis.company;
-                jobApplication.processingStatus = 'analyzed';
-                jobApplication.processedAt = new Date();
-                await jobApplication.save();
-                stats.analyzed++;
-
-                // Check for cancellation before relevance check
-                if (await checkCancellation()) {
-                    console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
-                    await WorkflowRun.findByIdAndUpdate(runId, {
-                        status: 'cancelled',
-                        'progress.currentStep': `Cancelled while processing job ${i + 1}/${newJobs.length}`,
-                        completedAt: new Date()
-                    });
-                    return;
-                }
-
-                // Rate limiting delay (10 seconds)
-                await delay(10000);
-
-                // Check relevance using unified logic (same as dashboard)
-                // Uses analyzeWithGemini internally for consistency
-                // Thresholds match dashboard:
-                // - >= 70%: Strong match → should apply
-                // - >= 50%: Moderate match → consider applying
-                // - < 50%: Weak match → not recommended
-                const relevanceCheck = await checkRelevance(
-                    structuredResume,
-                    job.jobDescriptionText,
-                    userId,
-                    50 // Threshold: >=50% match is considered relevant (same as dashboard "consider applying")
-                );
-
-                // Build recommendation object (unified with dashboard)
-                const recommendation = {
-                    score: relevanceCheck.score ?? null,
-                    shouldApply: relevanceCheck.isRelevant, // >= 50% is considered relevant
-                    reason: relevanceCheck.reason,
-                    cachedAt: new Date()
-                };
-
-                jobApplication.recommendation = recommendation;
-
-                if (!relevanceCheck.isRelevant) {
-                    jobApplication.processingStatus = 'not_relevant';
-                    await jobApplication.save();
-                    stats.notRelevant++;
-                    
-                    // Update stats immediately after relevance check
-                    await WorkflowRun.findByIdAndUpdate(runId, { stats });
-                    
-                    console.log(`  ✗ Not relevant: ${relevanceCheck.reason}`);
-                    continue;
-                }
-
-                jobApplication.processingStatus = 'relevant';
-                await jobApplication.save();
-                stats.relevant++;
-                
-                // Update stats immediately after relevance check
-                await WorkflowRun.findByIdAndUpdate(runId, { stats });
-                
-                console.log(`  ✓ Relevant: ${relevanceCheck.reason} (${relevanceCheck.score ?? 'N/A'}% match)`);
-
-                // Check for cancellation before content generation
-                if (await checkCancellation()) {
-                    console.log(`  ⚠ Workflow cancelled. Stopping processing.`);
-                    await WorkflowRun.findByIdAndUpdate(runId, {
-                        status: 'cancelled',
-                        'progress.currentStep': `Cancelled while processing job ${i + 1}/${newJobs.length}`,
-                        completedAt: new Date()
-                    });
-                    return;
-                }
-
-                // Rate limiting delay (10 seconds)
-                await delay(10000);
-
-                // Generate content
-                const customizedResume = await generateCustomizedResume(
-                    resumeText,
-                    structuredResume,
-                    job.jobDescriptionText,
-                    geminiApiKey
-                );
-
-                const coverLetterResult = await generateCoverLetterWithSkillMatch(
-                    structuredResume,
-                    analysis.company,
-                    {
-                        jobTitle: job.jobTitle,
-                        companyName: job.companyName,
-                        jobDescription: job.jobDescriptionText,
-                        extractedData: analysis.job.extractedData
-                    },
-                    geminiApiKey
-                );
-
-                // Map generated content to draft fields (unified structure)
-                // draftCvJson is Mixed type, so we can store the HTML structure
-                jobApplication.draftCvJson = customizedResume ? { html: customizedResume } as any : undefined;
-                jobApplication.draftCoverLetterText = coverLetterResult.coverLetter;
-                jobApplication.generationStatus = (customizedResume || coverLetterResult.coverLetter) ? 'draft_ready' : 'none';
-                // Recommendation already set during relevance check, no need to update
-                jobApplication.processingStatus = 'generated';
-                await jobApplication.save();
-                stats.generated++;
-                
-                // Update stats immediately after content generation
-                await WorkflowRun.findByIdAndUpdate(runId, { stats });
-                
-                console.log(`  ✓ Generated resume and cover letter`);
-                if (jobApplication.recommendation?.score !== null && jobApplication.recommendation?.score !== undefined) {
-                    console.log(`  Match Score: ${jobApplication.recommendation.score}% (${jobApplication.recommendation.shouldApply ? 'Should apply' : 'Not recommended'})`);
-                }
-
-            } catch (error: any) {
-                console.error(`  Error processing job ${job.jobId}:`, error.message);
-                stats.errors++;
-                
-                // Update stats immediately after error
-                await WorkflowRun.findByIdAndUpdate(runId, { stats });
-            }
-        }
+        // Update stats from parallel processing
+        stats.analyzed = parallelStats.analyzed;
+        stats.relevant = parallelStats.relevant;
+        stats.notRelevant = parallelStats.notRelevant;
+        stats.generated = parallelStats.generated;
+        stats.errors = parallelStats.errors;
 
         await updateProgress('Process Jobs', 'completed', 4, `Processed ${newJobs.length} jobs`);
+       
+    // Step 6: Complete
+    console.log(`\n========================================`);
+    console.log(`Workflow Complete`);
+    console.log(`========================================`);
 
-        // Step 6: Complete
-        console.log(`\n========================================`);
-        console.log(`Workflow Complete`);
-        console.log(`========================================`);
+    await updateProgress('Complete', 'completed', 5, 'Workflow completed successfully');
+    await WorkflowRun.findByIdAndUpdate(runId, {
+        status: 'completed',
+        stats,
+        completedAt: new Date()
+    });
 
-        await updateProgress('Complete', 'completed', 5, 'Workflow completed successfully');
+} catch (error: any) {
+    // Check if error is due to cancellation
+    if (error.message === 'Workflow cancelled by user') {
+        console.log('Workflow cancelled successfully');
         await WorkflowRun.findByIdAndUpdate(runId, {
-            status: 'completed',
-            stats,
+            status: 'cancelled',
+            'progress.currentStep': 'Cancelled by user',
             completedAt: new Date()
         });
-
-    } catch (error: any) {
-        // Check if error is due to cancellation
-        if (error.message === 'Workflow cancelled by user') {
-            console.log('Workflow cancelled successfully');
-            await WorkflowRun.findByIdAndUpdate(runId, {
-                status: 'cancelled',
-                'progress.currentStep': 'Cancelled by user',
-                completedAt: new Date()
-            });
-        } else {
-            console.error('Workflow execution failed:', error);
-            await WorkflowRun.findByIdAndUpdate(runId, {
-                status: 'failed',
-                errorMessage: error.message,
-                completedAt: new Date()
-            });
-        }
+    } else {
+        console.error('Workflow execution failed:', error);
+        await WorkflowRun.findByIdAndUpdate(runId, {
+            status: 'failed',
+            errorMessage: error.message,
+            completedAt: new Date()
+        });
     }
+}
 }
