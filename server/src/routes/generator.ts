@@ -768,6 +768,10 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
 
     const { jobId } = req.validated!.params!;
     const requestedLanguage = req.validated!.body?.language === 'de' ? 'de' : 'en';
+    // Validate request body for baseCvData which might be passed
+    const requestBody = req.validated!.body as { language?: string; baseCvData?: any };
+    const baseCvDataOverride = requestBody?.baseCvData;
+
     const languageName = requestedLanguage === 'de' ? 'German' : 'English';
     const userId = user._id.toString();
 
@@ -778,8 +782,14 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
         if (!job.jobDescriptionText) { res.status(400).json({ message: 'Job description text is missing.' }); return; }
         const currentUser = await User.findById(userId);
         if (!currentUser) { res.status(404).json({ message: "User not found." }); return; }
-        const baseCvJson = currentUser.cvJson as JsonResumeSchema | null;
-        if (!baseCvJson?.basics) { res.status(400).json({ message: 'Valid base CV with basics section not found.' }); return; }
+
+        let baseCvJson = currentUser.cvJson as JsonResumeSchema | null;
+        if (baseCvDataOverride) {
+            console.log(`Using overridden Base CV data for job ${jobId}`);
+            baseCvJson = baseCvDataOverride;
+        }
+
+        if (!baseCvJson?.basics) { res.status(400).json({ message: 'Valid base CV with basics section not found in user profile or provided override.' }); return; }
 
         // Fetch Custom Prompt (if any)
         const profile = await Profile.findOne({ userId: userId });

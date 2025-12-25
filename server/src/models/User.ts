@@ -14,6 +14,7 @@ export interface IUser extends Document {
     analyzedAt: Date;
   };
   selectedTemplate?: string; // Selected CV template ID
+  cvFilename?: string; // Original filename of the uploaded CV
   createdAt?: Date; // Added by Mongoose timestamps
   updatedAt?: Date; // Added by Mongoose timestamps
   // Add other fields like name later if needed
@@ -57,6 +58,10 @@ const UserSchema: Schema = new Schema(
       type: String,
       required: false,
       default: 'modern-clean'
+    },
+    cvFilename: {
+      type: String,
+      required: false
     },
   },
   {

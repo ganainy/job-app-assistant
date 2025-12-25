@@ -28,7 +28,7 @@ export interface JobApplication {
     extractedData?: {
         location?: string;
         salaryRaw?: string;
-        keyDetails?: string;
+        keyDetails?: string | Array<{ key: string; value: string }>;
     };
     // userId?: string; // Add later
 }

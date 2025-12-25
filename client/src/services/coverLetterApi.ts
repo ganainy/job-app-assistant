@@ -19,12 +19,13 @@ export interface GenerateCoverLetterResponse {
  */
 export const generateCoverLetter = async (
     jobId: string,
-    language: 'en' | 'de' = 'en'
+    language: 'en' | 'de' = 'en',
+    baseCvData?: any
 ): Promise<string> => {
     try {
         const response = await axios.post<GenerateCoverLetterResponse>(
             `${API_BASE_URL}/cover-letter/${jobId}`,
-            { language }
+            { language, baseCvData }
         );
 
         if (!response.data.success || !response.data.coverLetterText) {
@@ -35,9 +36,9 @@ export const generateCoverLetter = async (
     } catch (error: any) {
         console.error('Error generating cover letter:', error);
         if (axios.isAxiosError(error) && error.response) {
-            const errorMessage = error.response.data?.message || 
-                                error.response.data?.error || 
-                                `HTTP error! status: ${error.response.status}`;
+            const errorMessage = error.response.data?.message ||
+                error.response.data?.error ||
+                `HTTP error! status: ${error.response.status}`;
             throw new Error(errorMessage);
         }
         throw new Error(error.message || 'Failed to generate cover letter');

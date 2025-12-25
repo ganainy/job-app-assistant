@@ -40,6 +40,7 @@ export interface IJobApplication extends Document {
         yearsExperience?: number;
         location?: string;
         remoteOption?: string;
+        keyDetails?: string | Array<{ key: string; value: string }>;
     };
 
     // Company insights from AI research (for auto jobs)
@@ -113,7 +114,7 @@ const JobApplicationSchema: Schema = new Schema(
                 currency: { type: String, default: 'USD' }
             },
             salaryRaw: String, // Store raw salary string from AI
-            keyDetails: String, // AI-extracted bullet points (formerly notes)
+            keyDetails: Schema.Types.Mixed, // AI-extracted highlights (array of {key, value} or legacy string)
             yearsExperience: Number,
             location: String,
             remoteOption: String

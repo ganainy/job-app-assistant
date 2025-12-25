@@ -77,12 +77,13 @@ export const generateDocuments = async (
 // Function to generate CV only (without cover letter)
 export const generateCvOnly = async (
     jobId: string,
-    language: 'en' | 'de' = 'en'
+    language: 'en' | 'de' = 'en',
+    baseCvData?: any
 ): Promise<GenerateDraftReadyResponse> => {
     try {
         const response = await axios.post<GenerateDraftReadyResponse>(
             `${API_BASE_URL}/generator/${jobId}/generate-cv`,
-            { language }
+            { language, baseCvData }
         );
         return response.data;
     } catch (error: any) {

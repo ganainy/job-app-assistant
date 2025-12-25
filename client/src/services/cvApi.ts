@@ -16,6 +16,7 @@ interface GetCvResponse {
         analyzedAt: string;
     } | null;
     selectedTemplate?: string;
+    cvFilename?: string;
 }
 
 interface UpdateCvResponse {

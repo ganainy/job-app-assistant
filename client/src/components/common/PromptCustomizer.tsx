@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { getCustomPrompts, updateCustomPrompts, CustomPrompts } from '../../services/settingsApi';
+import {
+    getCustomPrompts,
+    updateCustomPrompts,
+    CustomPrompts,
+    getPromptTemplates,
+    updatePromptTemplates,
+    PromptTemplate
+} from '../../services/settingsApi';
 
 interface PromptCustomizerProps {
     type: 'cv' | 'coverLetter';
@@ -19,31 +26,55 @@ const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
     const [useCustom, setUseCustom] = useState(false);
 
+    // Template State
+    const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+    const [newTemplateName, setNewTemplateName] = useState('');
+    const [showSaveTemplateInput, setShowSaveTemplateInput] = useState(false);
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
     useEffect(() => {
-        const loadPrompt = async () => {
+        const loadData = async () => {
             setIsLoading(true);
             try {
-                const prompts = await getCustomPrompts();
+                const [prompts, fetchedTemplates] = await Promise.all([
+                    getCustomPrompts(),
+                    getPromptTemplates()
+                ]);
+
+                // Filter templates by type
+                const relevantTemplates = fetchedTemplates.filter(t => t.type === type);
+                setTemplates(relevantTemplates);
+
                 const savedPrompt = type === 'cv' ? prompts.cvPrompt : prompts.coverLetterPrompt;
+
                 if (savedPrompt) {
                     setCustomPrompt(savedPrompt);
                     setUseCustom(true);
                     onPromptChange?.(savedPrompt);
+
+                    // Try to match with an existing template
+                    const matchingTemplate = relevantTemplates.find(t => t.content === savedPrompt);
+                    if (matchingTemplate) {
+                        setSelectedTemplateId(matchingTemplate.id);
+                    }
                 } else {
                     setCustomPrompt(defaultPrompt);
                     setUseCustom(false);
                     onPromptChange?.(null);
                 }
             } catch (error) {
-                console.error('Error loading custom prompt:', error);
+                console.error('Error loading data:', error);
                 setCustomPrompt(defaultPrompt);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        loadPrompt();
-    }, [type, defaultPrompt, onPromptChange]);
+        if (isExpanded) {
+            loadData();
+        }
+    }, [type, defaultPrompt, onPromptChange, isExpanded]);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -71,6 +102,111 @@ const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
     const handleReset = () => {
         setCustomPrompt(defaultPrompt);
         setUseCustom(false);
+        setSelectedTemplateId('');
+    };
+
+    const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const id = e.target.value;
+        setSelectedTemplateId(id);
+
+        if (id === 'default') {
+            setCustomPrompt(defaultPrompt);
+            // Don't disable custom mode automatically, let user decide if they want to save default as custom setting
+            // but usually selecting default means resetting. 
+            // setUseCustom(false); // Let's not force this, user might want to edit default.
+        } else {
+            const template = templates.find(t => t.id === id);
+            if (template) {
+                setCustomPrompt(template.content);
+                setUseCustom(true);
+            }
+        }
+    };
+
+    const handleSaveTemplate = async () => {
+        if (!newTemplateName.trim()) return;
+
+        setIsSavingTemplate(true);
+        try {
+            const newTemplate: PromptTemplate = {
+                id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substring(2),
+                name: newTemplateName,
+                type: type,
+                content: customPrompt,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            const updatedTemplates = [...templates, newTemplate];
+
+            // We need to fetch ALL templates to update (merged list)
+            // But efficiently we just assume we add to the list of THIS type.
+            // However, the API expects the FULL list of templates (replace all).
+            // So we should really fetch fresh, append, and save, OR rely on what we have + filter.
+            // The safest is to get all current templates first.
+            const allTemplates = await getPromptTemplates();
+            const newAllTemplates = [...allTemplates, newTemplate];
+
+            await updatePromptTemplates(newAllTemplates);
+
+            // Update local state
+            setTemplates(prev => [...prev, newTemplate]);
+            setSelectedTemplateId(newTemplate.id);
+            setNewTemplateName('');
+            setShowSaveTemplateInput(false);
+        } catch (error) {
+            console.error('Error saving template:', error);
+        } finally {
+            setIsSavingTemplate(false);
+        }
+    };
+
+    const handleDeleteTemplate = async () => {
+        if (!selectedTemplateId || selectedTemplateId === 'default') return;
+
+        if (!confirm('Are you sure you want to delete this template?')) return;
+
+        try {
+            // Get all, remove one, save
+            const allTemplates = await getPromptTemplates();
+            const newAllTemplates = allTemplates.filter(t => t.id !== selectedTemplateId);
+            await updatePromptTemplates(newAllTemplates);
+
+            setTemplates(prev => prev.filter(t => t.id !== selectedTemplateId));
+            setSelectedTemplateId('');
+        } catch (error) {
+            console.error('Error deleting template:', error);
+        }
+    };
+
+    const handleUpdateTemplate = async () => {
+        if (!selectedTemplateId || selectedTemplateId === 'default') return;
+
+        setIsSavingTemplate(true);
+        try {
+            const timestamp = new Date().toISOString();
+
+            // Optimistic update local state
+            setTemplates(prev => prev.map(t =>
+                t.id === selectedTemplateId
+                    ? { ...t, content: customPrompt, updatedAt: timestamp }
+                    : t
+            ));
+
+            // Update on server
+            const allTemplates = await getPromptTemplates();
+            const newAllTemplates = allTemplates.map(t =>
+                t.id === selectedTemplateId
+                    ? { ...t, content: customPrompt, updatedAt: timestamp }
+                    : t
+            );
+
+            await updatePromptTemplates(newAllTemplates);
+        } catch (error) {
+            console.error('Error updating template:', error);
+        } finally {
+            setIsSavingTemplate(false);
+        }
     };
 
     const label = type === 'cv' ? 'CV Generation' : 'Cover Letter Generation';
@@ -112,21 +248,102 @@ const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
                         </div>
                     ) : (
                         <>
-                            <div className="flex items-center gap-3 mb-3">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={useCustom}
-                                        onChange={(e) => setUseCustom(e.target.checked)}
-                                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                                    />
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Use custom prompt</span>
-                                </label>
+                            <div className="flex flex-col gap-3 mb-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={useCustom}
+                                            onChange={(e) => setUseCustom(e.target.checked)}
+                                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                        />
+                                        <span className="text-sm text-gray-700 dark:text-gray-300">Use custom prompt</span>
+                                    </label>
+
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={selectedTemplateId}
+                                            onChange={handleTemplateChange}
+                                            disabled={!useCustom}
+                                            className="text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                        >
+                                            <option value="">-- Select Template --</option>
+                                            <option value="default">Default System Prompt</option>
+                                            {templates.map(t => (
+                                                <option key={t.id} value={t.id}>{t.name}</option>
+                                            ))}
+                                        </select>
+
+                                        {selectedTemplateId && selectedTemplateId !== 'default' && (
+                                            <button
+                                                onClick={handleDeleteTemplate}
+                                                className="p-1 text-red-500 hover:text-red-700 transition-colors"
+                                                title="Delete Template"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {useCustom && (
+                                    <div className="flex items-center justify-end gap-2">
+                                        {selectedTemplateId && selectedTemplateId !== 'default' && !showSaveTemplateInput && (
+                                            <button
+                                                onClick={handleUpdateTemplate}
+                                                disabled={isSavingTemplate}
+                                                className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200 mr-2"
+                                            >
+                                                Update Template
+                                            </button>
+                                        )}
+                                        {!showSaveTemplateInput ? (
+                                            <button
+                                                onClick={() => setShowSaveTemplateInput(true)}
+                                                className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200"
+                                            >
+                                                + Save as new template
+                                            </button>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={newTemplateName}
+                                                    onChange={(e) => setNewTemplateName(e.target.value)}
+                                                    placeholder="Template Name"
+                                                    className="text-xs px-2 py-1 border rounded dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+                                                />
+                                                <button
+                                                    onClick={handleSaveTemplate}
+                                                    disabled={isSavingTemplate || !newTemplateName.trim()}
+                                                    className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 disabled:opacity-50"
+                                                >
+                                                    {isSavingTemplate ? 'Saving...' : 'Save'}
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowSaveTemplateInput(false)}
+                                                    className="text-xs text-gray-500 hover:text-gray-700"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <textarea
                                 value={customPrompt}
-                                onChange={(e) => setCustomPrompt(e.target.value)}
+                                onChange={(e) => {
+                                    setCustomPrompt(e.target.value);
+                                    if (selectedTemplateId) {
+                                        // If user edits a selected template, strictly speaking it's no longer that template
+                                        // But we can keep it selected to allow "update" if we implemented that. 
+                                        // For now, let's keep it simple.
+                                    }
+                                }}
                                 disabled={!useCustom}
                                 placeholder="Enter your custom prompt here..."
                                 className="w-full h-48 px-3 py-2 text-sm font-mono text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed resize-y"
@@ -167,7 +384,7 @@ const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
                                                 <span>Saving...</span>
                                             </>
                                         ) : (
-                                            <span>Save Prompt</span>
+                                            <span>Save & Apply Prompt</span>
                                         )}
                                     </button>
                                 </div>

@@ -44,16 +44,21 @@ const generateCoverLetterHandler: RequestHandler = async (req, res) => {
             return;
         }
 
-        // 2. Fetch User's Base CV
+        // 2. Fetch User's Base CV (or use override)
         const currentUser = await User.findById(userId);
         if (!currentUser) {
             res.status(404).json({ message: 'User not found.' });
             return;
         }
 
-        const baseCvJson = currentUser.cvJson as JsonResumeSchema | null;
+        let baseCvJson = currentUser.cvJson as JsonResumeSchema | null;
+        if (req.body.baseCvData) {
+            console.log(`Using overridden Base CV data for cover letter (Job: ${jobId})`);
+            baseCvJson = req.body.baseCvData;
+        }
+
         if (!baseCvJson?.basics) {
-            res.status(400).json({ message: 'Valid base CV with basics section not found. Please create a CV first.' });
+            res.status(400).json({ message: 'Valid base CV with basics section not found. Please create a CV first or provide base CV data.' });
             return;
         }
 

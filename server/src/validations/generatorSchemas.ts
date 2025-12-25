@@ -10,6 +10,7 @@ const languageEnum = z.enum(['en', 'de']);
  */
 export const generateDocumentsBodySchema = z.object({
   language: languageEnum.optional().default('en'),
+  baseCvData: z.any().optional(),
 }).optional();
 
 /**

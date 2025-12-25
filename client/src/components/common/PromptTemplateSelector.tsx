@@ -1,0 +1,254 @@
+import React, { useState, useEffect } from 'react';
+import {
+    getPromptTemplates,
+    updatePromptTemplates,
+    PromptTemplate
+} from '../../services/settingsApi';
+import Spinner from './Spinner';
+
+interface PromptTemplateSelectorProps {
+    type: 'cv' | 'coverLetter';
+    value: string;
+    onChange: (value: string) => void;
+    onTemplateSelect?: (id: string) => void;
+    label?: string;
+    placeholder?: string;
+    defaultContent?: string;
+}
+
+export const PromptTemplateSelector: React.FC<PromptTemplateSelectorProps> = ({
+    type,
+    value,
+    onChange,
+    onTemplateSelect,
+    label = "Custom Instructions",
+    placeholder = "Enter your instructions here...",
+    defaultContent = ""
+}) => {
+    const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string>('default-system');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // UI states for saving/naming
+    const [showSaveInput, setShowSaveInput] = useState(false);
+    const [newTemplateName, setNewTemplateName] = useState('');
+
+    useEffect(() => {
+        loadTemplates();
+    }, [type]);
+
+    const loadTemplates = async () => {
+        setIsLoading(true);
+        try {
+            const allTemplates = await getPromptTemplates();
+            setTemplates(allTemplates.filter(t => t.type === type));
+        } catch (error) {
+            console.error('Failed to load templates', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const id = e.target.value;
+        setSelectedTemplateId(id);
+        onTemplateSelect?.(id);
+
+        if (id === 'default-system') {
+            onChange(defaultContent);
+        } else if (id) {
+            const template = templates.find(t => t.id === id);
+            if (template) {
+                onChange(template.content);
+            }
+        }
+    };
+
+    const handleSaveNewTemplate = async () => {
+        if (!newTemplateName.trim() || !value.trim()) return;
+
+        setIsSaving(true);
+        try {
+            const newTemplate: PromptTemplate = {
+                id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substring(2),
+                name: newTemplateName,
+                type,
+                content: value,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            const allTemplates = await getPromptTemplates();
+            const updatedAll = [...allTemplates, newTemplate];
+            await updatePromptTemplates(updatedAll);
+
+            setTemplates(prev => [...prev, newTemplate]);
+            setSelectedTemplateId(newTemplate.id);
+            onTemplateSelect?.(newTemplate.id);
+            setShowSaveInput(false);
+            setNewTemplateName('');
+        } catch (error) {
+            console.error('Failed to save template', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleUpdateTemplate = async () => {
+        if (!selectedTemplateId) return;
+        setIsSaving(true);
+        try {
+            const allTemplates = await getPromptTemplates();
+            const updatedAll = allTemplates.map(t => {
+                if (t.id === selectedTemplateId) {
+                    return { ...t, content: value, updatedAt: new Date().toISOString() };
+                }
+                return t;
+            });
+            await updatePromptTemplates(updatedAll);
+
+            // Update local state
+            setTemplates(prev => prev.map(t =>
+                t.id === selectedTemplateId ? { ...t, content: value } : t
+            ));
+        } catch (error) {
+            console.error('Failed to update template', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteTemplate = async () => {
+        if (!selectedTemplateId || !confirm('Are you sure?')) return;
+        setIsSaving(true);
+        try {
+            const allTemplates = await getPromptTemplates();
+            const updatedAll = allTemplates.filter(t => t.id !== selectedTemplateId);
+            await updatePromptTemplates(updatedAll);
+
+            setTemplates(prev => prev.filter(t => t.id !== selectedTemplateId));
+            setSelectedTemplateId('');
+            onTemplateSelect?.('');
+            onChange(''); // Optional: clear input after delete?
+        } catch (error) {
+            console.error('Failed to delete template', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">tune</span>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{label}</h3>
+                </div>
+
+                {/* Template Controls */}
+                <div className="flex items-center gap-2">
+                    {isLoading ? (
+                        <Spinner size="sm" />
+                    ) : (
+                        <>
+                            <div className="relative flex items-center">
+                                {!selectedTemplateId && (
+                                    <div className="mr-2 flex items-center text-amber-500 animate-pulse" title="Please select a template to proceed">
+                                        <span className="material-symbols-outlined text-xl">warning</span>
+                                    </div>
+                                )}
+                                <select
+                                    value={selectedTemplateId}
+                                    onChange={handleTemplateChange}
+                                    className={`text-sm border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 py-2 pl-3 pr-10 ${!selectedTemplateId ? 'border-amber-300 ring-1 ring-amber-300 dark:border-amber-700 dark:ring-amber-900' : ''
+                                        }`}
+                                >
+                                    <option value="">Select a template...</option>
+                                    <option value="default-system">Default System Prompt</option>
+                                    {templates.map(t => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {selectedTemplateId && (
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={handleUpdateTemplate}
+                                        disabled={isSaving}
+                                        className="p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded"
+                                        title="Update selected template with current text"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">save</span>
+                                    </button>
+                                    <button
+                                        onClick={handleDeleteTemplate}
+                                        disabled={isSaving}
+                                        className="p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded"
+                                        title="Delete template"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">delete</span>
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+
+            <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-lg border border-purple-100 dark:border-purple-900/20">
+                <textarea
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="w-full bg-transparent border-0 p-0 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 text-sm resize-y min-h-[80px]"
+                    placeholder={placeholder}
+                    rows={3}
+                />
+
+                <div className="flex justify-between items-center mt-2 pt-2 border-t border-purple-200 dark:border-purple-800/30">
+                    <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                        {selectedTemplateId
+                            ? `Active Template: ${selectedTemplateId === 'default-system'
+                                ? 'Default System Prompt'
+                                : (templates.find(t => t.id === selectedTemplateId)?.name || 'Unknown Template')}`
+                            : 'No template selected'}
+                    </span>
+
+                    {!showSaveInput ? (
+                        <button
+                            onClick={() => setShowSaveInput(true)}
+                            className="text-xs flex items-center gap-1 text-purple-700 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-200"
+                        >
+                            <span className="material-symbols-outlined text-sm">add</span>
+                            Save as new template
+                        </button>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={newTemplateName}
+                                onChange={(e) => setNewTemplateName(e.target.value)}
+                                placeholder="Template name"
+                                className="text-xs px-2 py-1 rounded border border-purple-200 dark:border-purple-700 dark:bg-gray-800 dark:text-white focus:outline-none focus:border-purple-500"
+                            />
+                            <button
+                                onClick={handleSaveNewTemplate}
+                                disabled={isSaving || !newTemplateName}
+                                className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            >
+                                Save
+                            </button>
+                            <button
+                                onClick={() => setShowSaveInput(false)}
+                                className="text-xs text-gray-500 hover:text-gray-700"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};

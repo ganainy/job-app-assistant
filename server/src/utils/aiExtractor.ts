@@ -14,7 +14,7 @@ export interface ExtractedJobData {
     language: string | null; // e.g., "en", "de", "es"
     location?: string | null; // Extracted location
     salary?: string | null; // Extracted salary info
-    keyDetails?: string | null; // AI extracted highlights (bullet points)
+    keyDetails?: Array<{ key: string; value: string }> | null; // AI extracted highlights (key-value pairs)
     notes?: string; // Reserved for user, typically null from AI
 }
 
@@ -121,11 +121,12 @@ async function extractFieldsWithGemini(htmlContent: string, url: string, userId:
         4. Determine the primary language of the job posting (e.g., "en" for English, "de" for German, "es" for Spanish, etc.). Use standard ISO 639-1 language codes if possible.
         5. Extract the job location (e.g., "remote", "Berlin", "Hybrid").
         6. Extract any salary or compensation information provided (e.g., "€60k - €80k", "$120,000", "Competitive").
-        7. Place any other unexpected data, key details not covered above, or keywords relevant to the job application in the 'keyDetails' field. Format this strictly as a bulleted list (using '*' or '-') with newlines. Leave the 'notes' field NULL or empty.
+        7. Extract key highlights such as Employment Type, Experience Level, Remote Policy, Benefits, Tech Stack, Location, Salary, and any other important details. Return them as a structured list of key-value pairs in the 'keyDetails' field. Leave the 'notes' field NULL.
 
         Output Format:
         Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", "location", "salary", "keyDetails", and "notes".
-        - jobTitle, companyName, language, location, salary, and keyDetails should be strings if found, or null.
+        - jobTitle, companyName, language, location, salary should be strings if found, or null.
+        - keyDetails should be an array of objects with "key" and "value" strings, or null.
         - jobDescriptionText is REQUIRED.
         - 'notes' should be null.
 
@@ -138,7 +139,12 @@ async function extractFieldsWithGemini(htmlContent: string, url: string, userId:
           "language": "en",
           "location": "Berlin / Hybrid",
           "salary": "€80k",
-          "keyDetails": "* Contract: Full-time\n* Benefits: Health, Gym",
+          "keyDetails": [
+            { "key": "Contract", "value": "Full-time" },
+            { "key": "Location", "value": "Berlin / Hybrid" },
+            { "key": "Salary", "value": "€80k" },
+            { "key": "Benefits", "value": "Health, Gym" }
+          ],
           "notes": null
         }
         \`\`\`
@@ -220,11 +226,12 @@ export async function extractJobDataFromText(rawText: string, userId: string): P
         4. Determine the primary language of the job posting (e.g., "en" for English, "de" for German, "es" for Spanish). Use standard ISO 639-1 language codes.
         5. Extract the job location (e.g., "remote", "Berlin", "Hybrid").
         6. Extract any salary or compensation information provided.
-        7. Place any other unexpected data, key details not covered above, or keywords relevant to the job application in the 'keyDetails' field. Format this strictly as a bulleted list. Leave the 'notes' field NULL.
+        7. Extract key highlights such as Employment Type, Experience Level, Remote Policy, Benefits, Tech Stack, Location, Salary, and any other important details. Return them as a structured list of key-value pairs in the 'keyDetails' field. Leave the 'notes' field NULL.
 
         Output Format:
         Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", "location", "salary", "keyDetails", and "notes".
-        - jobTitle, companyName, language, location, salary, and keyDetails should be strings if found, or null.
+        - jobTitle, companyName, language, location, salary should be strings if found, or null.
+        - keyDetails should be an array of objects with "key" and "value" strings, or null.
         - jobDescriptionText is REQUIRED.
         - 'notes' should be null.
 
@@ -237,7 +244,12 @@ export async function extractJobDataFromText(rawText: string, userId: string): P
           "language": "en",
           "location": "SF",
           "salary": "$150k",
-          "keyDetails": "* Visa Sponsorship: Yes\n* Team: 5 ppl",
+          "keyDetails": [
+            { "key": "Contract", "value": "Full-time" },
+            { "key": "Experience", "value": "3+ years" },
+            { "key": "Visa Sponsorship", "value": "Yes" },
+            { "key": "Team", "value": "5 ppl" }
+          ],
           "notes": null
         }
         \`\`\`

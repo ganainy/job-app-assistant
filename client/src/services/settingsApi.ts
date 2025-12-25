@@ -204,3 +204,58 @@ export const updateCustomPrompts = async (prompts: Partial<CustomPrompts>): Prom
   }
 };
 
+export interface PromptTemplate {
+  id: string;
+  name: string;
+  type: 'cv' | 'coverLetter';
+  content: string;
+  isDefault?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Get user's custom prompt templates
+ */
+export const getPromptTemplates = async (): Promise<PromptTemplate[]> => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('No authentication token found.');
+  }
+
+  try {
+    const response = await axios.get<{ templates: PromptTemplate[] }>(`${API_BASE_URL}/settings/custom-prompts/templates`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return response.data.templates;
+  } catch (error: any) {
+    console.error('Error fetching prompt templates:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Failed to fetch prompt templates');
+  }
+};
+
+/**
+ * Update user's custom prompt templates
+ */
+export const updatePromptTemplates = async (templates: PromptTemplate[]): Promise<PromptTemplate[]> => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('No authentication token found.');
+  }
+
+  try {
+    const response = await axios.put<{ message: string; templates: PromptTemplate[] }>(`${API_BASE_URL}/settings/custom-prompts/templates`, { templates }, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data.templates;
+  } catch (error: any) {
+    console.error('Error updating prompt templates:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Failed to update prompt templates');
+  }
+};
+

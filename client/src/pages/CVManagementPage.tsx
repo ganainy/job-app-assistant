@@ -795,7 +795,7 @@ const CVManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <Sidebar
         masterCv={currentCvData}
         jobCvs={jobCvs}
@@ -1053,7 +1053,7 @@ const CVManagementPage: React.FC = () => {
                       </span>
                     </div>
                     <Link
-                      to={`/jobs/${activeCvId}/review`}
+                      to={`/jobs/${activeCvId}/review/cv`}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium text-sm shadow-sm hover:shadow-md transition-all"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -419,6 +419,12 @@ const DashboardPage: React.FC = () => {
     </svg>
   );
 
+  const SparklesIcon = () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+    </svg>
+  );
+
   // --- Render Loading State ---
   if (isLoading) {
     return (
@@ -453,6 +459,10 @@ const DashboardPage: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
+        <div className="mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Job Dashboard</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Manage your job applications and track your progress.</p>
+        </div>
         {/* Persistent API Key Warning Banner */}
         {!isCheckingApiKeys && isGeminiKeyMissing && (
           <div className="mb-6 p-4 rounded-lg border bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700">
@@ -495,17 +505,6 @@ const DashboardPage: React.FC = () => {
         {/* Add Job Section */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 space-y-6">
           <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleOpenAddModal}
-                className="flex-shrink-0 bg-indigo-600 dark:bg-indigo-600 text-white font-semibold py-2.5 px-6 rounded-md flex items-center justify-center gap-2 hover:bg-indigo-700 dark:hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-                disabled={isSubmitting || isCreatingFromText}
-              >
-                <AddIcon />
-                <span>Add New Job Manually</span>
-              </button>
-              <span className="text-slate-500 dark:text-slate-400 text-sm">or paste job description below</span>
-            </div>
             <form onSubmit={handleCreateFromTextSubmit} className="w-full">
               <div className="relative">
                 <div className="absolute left-4 top-4 text-slate-400 dark:text-slate-500 pointer-events-none">
@@ -514,9 +513,10 @@ const DashboardPage: React.FC = () => {
                 <textarea
                   value={jobTextInput}
                   onChange={(e) => { setJobTextInput(e.target.value); setCreateFromTextError(null); }}
-                  placeholder="Paste job description here... (Ctrl+A to select all, Ctrl+C to copy from job site, then Ctrl+V here)"
-                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-indigo-600 dark:focus:ring-indigo-500 rounded-md pl-12 py-3 pr-4 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 disabled:opacity-50 resize-none"
-                  rows={4}
+                  placeholder="Paste job description here..."
+                  title="Ctrl+A to select all, Ctrl+C to copy from job site, then Ctrl+V here"
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-indigo-600 dark:focus:ring-indigo-500 rounded-md pl-12 py-4 pr-4 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 disabled:opacity-50 resize-y min-h-[160px] transition-all"
+                  rows={6}
                   disabled={isCreatingFromText}
                 />
                 {/* Loading overlay */}
@@ -535,10 +535,11 @@ const DashboardPage: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="flex justify-end mt-3">
+
+              <div className="flex flex-col sm:flex-row items-center gap-3 mt-4">
                 <button
                   type="submit"
-                  className="bg-indigo-600 dark:bg-indigo-600 text-white font-medium py-2 px-6 rounded-md text-sm hover:bg-indigo-700 dark:hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  className="w-full sm:w-auto bg-indigo-600 dark:bg-indigo-600 text-white font-medium py-2.5 px-6 rounded-md text-sm hover:bg-indigo-700 dark:hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm flex items-center justify-center gap-2"
                   disabled={isCreatingFromText || !jobTextInput || jobTextInput.trim().length < 50}
                 >
                   {isCreatingFromText ? (
@@ -550,8 +551,23 @@ const DashboardPage: React.FC = () => {
                       <span>Extracting...</span>
                     </>
                   ) : (
-                    <span>Extract Job Details</span>
+                    <>
+                      <SparklesIcon />
+                      <span>Extract with AI</span>
+                    </>
                   )}
+                </button>
+
+                <div className="hidden sm:block text-slate-400 text-sm">or</div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddModal}
+                  className="w-full sm:w-auto text-slate-600 dark:text-slate-400 font-medium py-2.5 px-4 rounded-md text-sm hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  disabled={isSubmitting || isCreatingFromText}
+                >
+                  <AddIcon />
+                  <span>Add Manually</span>
                 </button>
               </div>
             </form>
@@ -603,6 +619,10 @@ const DashboardPage: React.FC = () => {
             </div>
           )}
 
+        </div>
+
+        {/* Job List Section */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 space-y-6">
           {/* Filter Controls */}
           <div>
             <div className="flex flex-col md:flex-row items-center gap-4 mb-4">

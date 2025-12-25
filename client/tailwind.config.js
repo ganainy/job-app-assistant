@@ -9,19 +9,25 @@ export default {
   theme: {
     extend: {
       colors: {
-        "primary": "#4F46E5", // Indigo
-        "background-light": "#F9FAFB", // Off-white
-        "background-dark": "#111827", // Dark Gray
-        "text-light-primary": "#1A202C", // Dark Charcoal
-        "text-dark-primary": "#F7FAFC", // Off-white
-        "text-light-secondary": "#A0AEC0", // Medium Gray
-        "text-dark-secondary": "#A0AEC0", // Medium Gray
-        "card-light": "#FFFFFF",
-        "card-dark": "#1A192F", // Dark Charcoal
+        "primary": "#9333ea", // Purple-600 (Updated from user request)
+        "primaryLight": "#a855f7", // Purple-500
+        "background-light": "#f3f4f6", // Gray-100
+        "background-dark": "#0f172a", // Slate-900
+        "card-light": "#ffffff",
+        "card-dark": "#1e293b", // Slate-800
+        "text-main-light": "#111827",
+        "text-main-dark": "#f8fafc",
+        "text-sub-light": "#6b7280",
+        "text-sub-dark": "#94a3b8",
+        // Kept existing for backward compatibility if needed, though some overlap
+        "text-light-primary": "#1A202C",
+        "text-dark-primary": "#F7FAFC",
+        "text-light-secondary": "#A0AEC0",
+        "text-dark-secondary": "#A0AEC0",
         "border-light": "#E2E8F0",
         "border-dark": "#2D3748",
-        "positive": "#38A169", // Muted Green
-        "negative": "#E53E3E", // Muted Red
+        "positive": "#38A169",
+        "negative": "#E53E3E",
         "accent": {
           "purple": "#764ba2",
           "purple-light": "#a8a8e6",
@@ -29,8 +35,8 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Roboto', 'sans-serif'],
-        display: ['Inter', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'], // Updated to Inter
+        display: ['Inter', 'sans-serif'], // Updated to Inter
       },
       borderRadius: {
         "DEFAULT": "0.25rem",

@@ -494,5 +494,55 @@ router.put('/custom-prompts', asyncHandler(async (req: Request, res: Response) =
   });
 }));
 
+
+/**
+ * GET /api/settings/custom-prompts/templates
+ * Get user's custom prompt templates
+ */
+router.get('/custom-prompts/templates', asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user || !req.user._id) {
+    throw new ValidationError('User not authenticated');
+  }
+  const userId = req.user._id.toString();
+  const profile = await Profile.findOne({ userId });
+
+  res.json({
+    templates: profile?.promptTemplates || []
+  });
+}));
+
+/**
+ * PUT /api/settings/custom-prompts/templates
+ * Update (replace) user's custom prompt templates
+ */
+router.put('/custom-prompts/templates', asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user || !req.user._id) {
+    throw new ValidationError('User not authenticated');
+  }
+  const userId = req.user._id.toString();
+  const { templates } = req.body;
+
+  if (!Array.isArray(templates)) {
+    throw new ValidationError('Templates must be an array');
+  }
+
+  // Basic validation (optional)
+  if (templates.length > 50) {
+    throw new ValidationError('Too many templates (max 50)');
+  }
+
+  await Profile.findOneAndUpdate(
+    { userId },
+    { $set: { promptTemplates: templates } },
+    { new: true, upsert: true }
+  );
+
+  const updatedProfile = await Profile.findOne({ userId });
+  res.json({
+    message: 'Prompt templates updated successfully',
+    templates: updatedProfile?.promptTemplates || []
+  });
+}));
+
 export default router;
 

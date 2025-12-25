@@ -104,7 +104,7 @@ router.post(
             `;
 
             const userId = String(req.user._id);
-            
+
             // Save file to temporary location for AI processing
             const fs = require('fs');
             const path = require('path');
@@ -141,7 +141,10 @@ router.post(
             const updatedUser = await User.findByIdAndUpdate(
                 req.user._id,
                 {
-                    $set: { cvJson: cvJsonResume },
+                    $set: {
+                        cvJson: cvJsonResume,
+                        cvFilename: req.file.originalname
+                    },
                     $unset: { cvAnalysisCache: "" }
                 },
                 { new: true }
@@ -191,11 +194,12 @@ router.get('/', authMiddleware as RequestHandler, async (req: Request, res: Resp
         return;
     }
     try {
-        const user = await User.findById(req.user._id).select('cvJson cvAnalysisCache selectedTemplate');
+        const user = await User.findById(req.user._id).select('cvJson cvAnalysisCache selectedTemplate cvFilename');
         res.status(200).json({
             cvData: user?.cvJson || null,
             analysisCache: user?.cvAnalysisCache || null,
-            selectedTemplate: user?.selectedTemplate || 'modern-clean'
+            selectedTemplate: user?.selectedTemplate || 'modern-clean',
+            cvFilename: user?.cvFilename || null
         });
     } catch (error) {
         console.error("Error fetching CV data:", error);

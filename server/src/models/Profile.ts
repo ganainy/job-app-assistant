@@ -120,6 +120,15 @@ export interface IProfile extends Document {
     cvPrompt?: string;
     coverLetterPrompt?: string;
   };
+  promptTemplates?: Array<{
+    id: string;
+    name: string;
+    type: 'cv' | 'coverLetter';
+    content: string;
+    isDefault?: boolean;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }>;
   isPublished?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -377,6 +386,7 @@ const ProfileSchema: Schema = new Schema(
           type: String,
           default: 'gemini-1.5-pro',
         },
+
       },
     },
     customPrompts: {
@@ -387,6 +397,17 @@ const ProfileSchema: Schema = new Schema(
         type: String,
       },
     },
+    promptTemplates: [
+      {
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        type: { type: String, enum: ['cv', 'coverLetter'], required: true },
+        content: { type: String, required: true },
+        isDefault: { type: Boolean, default: false },
+        createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date, default: Date.now }
+      }
+    ],
     isPublished: {
       type: Boolean,
       default: false,
