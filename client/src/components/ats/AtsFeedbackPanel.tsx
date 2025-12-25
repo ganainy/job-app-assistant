@@ -17,12 +17,12 @@ interface CollapsibleSectionProps {
     count?: number;
 }
 
-const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ 
-    title, 
-    icon, 
-    defaultOpen = false, 
+const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
+    title,
+    icon,
+    defaultOpen = false,
     children,
-    count 
+    count
 }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -66,9 +66,9 @@ interface CircularProgressProps {
     color?: string;
 }
 
-const CircularProgress: React.FC<CircularProgressProps> = ({ 
-    score, 
-    size = 120, 
+const CircularProgress: React.FC<CircularProgressProps> = ({
+    score,
+    size = 120,
     strokeWidth = 8,
     color = 'blue'
 }) => {
@@ -285,11 +285,10 @@ const AtsFeedbackPanel: React.FC<AtsFeedbackPanelProps> = ({ atsScores, isLoadin
                             <div className="flex flex-col items-center">
                                 <CircularProgress score={overallScore} size={100} color={overallColor} />
                                 <div className="mt-3 text-center">
-                                    <div className={`text-sm font-semibold mb-1 ${
-                                        overallColor === 'green' ? 'text-green-700 dark:text-green-400' :
+                                    <div className={`text-sm font-semibold mb-1 ${overallColor === 'green' ? 'text-green-700 dark:text-green-400' :
                                         overallColor === 'yellow' ? 'text-yellow-700 dark:text-yellow-400' :
-                                        'text-red-700 dark:text-red-400'
-                                    }`}>
+                                            'text-red-700 dark:text-red-400'
+                                        }`}>
                                         {getScoreInterpretation(overallScore)}
                                     </div>
                                     <div className="text-xs text-gray-600 dark:text-gray-400">
@@ -321,11 +320,10 @@ const AtsFeedbackPanel: React.FC<AtsFeedbackPanelProps> = ({ atsScores, isLoadin
                             <div className="flex flex-col items-center">
                                 <CircularProgress score={skillMatchScore} size={100} color={skillColor} />
                                 <div className="mt-3 text-center">
-                                    <div className={`text-sm font-semibold mb-1 ${
-                                        skillColor === 'green' ? 'text-green-700 dark:text-green-400' :
+                                    <div className={`text-sm font-semibold mb-1 ${skillColor === 'green' ? 'text-green-700 dark:text-green-400' :
                                         skillColor === 'yellow' ? 'text-yellow-700 dark:text-yellow-400' :
-                                        'text-red-700 dark:text-red-400'
-                                    }`}>
+                                            'text-red-700 dark:text-red-400'
+                                        }`}>
                                         {getScoreInterpretation(skillMatchScore)}
                                     </div>
                                     <div className="text-xs text-gray-600 dark:text-gray-400">
@@ -343,6 +341,48 @@ const AtsFeedbackPanel: React.FC<AtsFeedbackPanelProps> = ({ atsScores, isLoadin
                         )}
                     </div>
                 </div>
+
+                {/* Score Breakdown - Enhanced visualization */}
+                {complianceDetails?.scoreBreakdown && (
+                    <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+                            <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            Score Breakdown
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {[
+                                { label: 'Technical Skills', score: complianceDetails.scoreBreakdown.technicalSkills, weight: '40%' },
+                                { label: 'Experience', score: complianceDetails.scoreBreakdown.experienceRelevance, weight: '30%' },
+                                { label: 'Additional Skills', score: complianceDetails.scoreBreakdown.additionalSkills, weight: '20%' },
+                                { label: 'Formatting', score: complianceDetails.scoreBreakdown.formatting, weight: '10%' },
+                            ].map((item, idx) => (
+                                <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{item.label}</span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-500">({item.weight})</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                            <div
+                                                className={`h-2 rounded-full transition-all duration-500 ${item.score >= 80 ? 'bg-green-500' :
+                                                    item.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                                    }`}
+                                                style={{ width: `${item.score}%` }}
+                                            ></div>
+                                        </div>
+                                        <span className={`text-sm font-bold w-10 text-right ${item.score >= 80 ? 'text-green-600 dark:text-green-400' :
+                                            item.score >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
+                                            }`}>
+                                            {item.score}%
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {hasError && (
                     <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -377,20 +417,18 @@ const AtsFeedbackPanel: React.FC<AtsFeedbackPanelProps> = ({ atsScores, isLoadin
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ${
-                                activeTab === tab.id
-                                    ? 'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800'
-                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-                            }`}
+                            className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ${activeTab === tab.id
+                                ? 'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800'
+                                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
                         >
                             {tab.icon}
                             <span>{tab.label}</span>
                             {tab.count !== undefined && tab.count > 0 && (
-                                <span className={`px-2 py-0.5 rounded-full text-xs ${
-                                    activeTab === tab.id
-                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                }`}>
+                                <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                    }`}>
                                     {tab.count}
                                 </span>
                             )}
@@ -681,7 +719,95 @@ const AtsFeedbackPanel: React.FC<AtsFeedbackPanelProps> = ({ atsScores, isLoadin
                 {/* Recommendations Tab */}
                 {activeTab === 'recommendations' && (
                     <div className="space-y-4">
-                        {uniqueRecommendations.length > 0 ? (
+                        {/* Actionable Feedback with Priority and Impact */}
+                        {complianceDetails?.actionableFeedback && complianceDetails.actionableFeedback.length > 0 ? (
+                            <div className="space-y-3">
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                    Prioritized actions to improve your ATS score, sorted by impact.
+                                </p>
+                                {/* High Priority */}
+                                {complianceDetails.actionableFeedback.filter(f => f.priority === 'high').length > 0 && (
+                                    <div className="space-y-2">
+                                        <h5 className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wide flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                            High Priority
+                                        </h5>
+                                        {complianceDetails.actionableFeedback.filter(f => f.priority === 'high').map((feedback, index) => (
+                                            <div
+                                                key={`high-${index}`}
+                                                className="p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-lg"
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <svg className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                    </svg>
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{feedback.action}</p>
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
+                                                            <span className="font-medium text-green-600 dark:text-green-400">Impact:</span> {feedback.impact}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {/* Medium Priority */}
+                                {complianceDetails.actionableFeedback.filter(f => f.priority === 'medium').length > 0 && (
+                                    <div className="space-y-2">
+                                        <h5 className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 uppercase tracking-wide flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                            Medium Priority
+                                        </h5>
+                                        {complianceDetails.actionableFeedback.filter(f => f.priority === 'medium').map((feedback, index) => (
+                                            <div
+                                                key={`medium-${index}`}
+                                                className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 rounded-lg"
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{feedback.action}</p>
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
+                                                            <span className="font-medium text-green-600 dark:text-green-400">Impact:</span> {feedback.impact}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {/* Low Priority */}
+                                {complianceDetails.actionableFeedback.filter(f => f.priority === 'low').length > 0 && (
+                                    <div className="space-y-2">
+                                        <h5 className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wide flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                            Low Priority
+                                        </h5>
+                                        {complianceDetails.actionableFeedback.filter(f => f.priority === 'low').map((feedback, index) => (
+                                            <div
+                                                key={`low-${index}`}
+                                                className="p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded-lg"
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                                    </svg>
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{feedback.action}</p>
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
+                                                            <span className="font-medium text-green-600 dark:text-green-400">Impact:</span> {feedback.impact}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : uniqueRecommendations.length > 0 ? (
                             <div className="space-y-3">
                                 {uniqueRecommendations.map((rec, index) => (
                                     <div

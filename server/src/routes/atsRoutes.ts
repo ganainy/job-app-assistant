@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { scanAts, scanAtsForAnalysis, getAtsScores, getAtsForJob, getLatestAts } from '../controllers/atsController';
+import { scanAts, scanAtsForAnalysis, getAtsScores, getAtsForJob, getLatestAts, deleteAts } from '../controllers/atsController';
 import authMiddleware from '../middleware/authMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 import { validateRequest } from '../middleware/validateRequest';
@@ -17,6 +17,7 @@ router.post('/scan/:analysisId', validateRequest({ params: atsScanParamsSchema, 
 router.get('/scores/:analysisId', validateRequest({ params: atsScoresParamsSchema }), asyncHandler(getAtsScores));
 router.get('/job/:jobApplicationId', validateRequest({ params: jobApplicationIdParamSchema }), asyncHandler(getAtsForJob));
 router.get('/latest', asyncHandler(getLatestAts));
+router.delete('/:analysisId', validateRequest({ params: atsScoresParamsSchema }), asyncHandler(deleteAts));
 
 export default router;
 

@@ -342,3 +342,29 @@ export const getLatestAts = async (req: ValidatedRequest, res: Response) => {
     });
 };
 
+/**
+ * Delete an ATS analysis
+ * DELETE /api/ats/:analysisId
+ */
+export const deleteAts = async (req: ValidatedRequest, res: Response) => {
+    const userId = req.user?.id;
+    if (!userId) {
+        throw new AuthorizationError('User not authenticated');
+    }
+
+    const { analysisId } = req.validated!.params!;
+
+    const analysis = await CvAnalysis.findById(analysisId);
+    if (!analysis) {
+        throw new NotFoundError('Analysis not found');
+    }
+
+    if (analysis.userId.toString() !== userId) {
+        throw new AuthorizationError('Unauthorized access to analysis');
+    }
+
+    await CvAnalysis.findByIdAndDelete(analysisId);
+
+    res.json({ message: 'ATS analysis deleted successfully' });
+};
+

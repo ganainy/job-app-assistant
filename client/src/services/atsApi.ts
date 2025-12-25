@@ -51,6 +51,28 @@ export interface AtsScores {
             nonStandardHeaders: string[];
             score: number;
         };
+        // Enhanced fields for improved ATS analysis
+        scoreBreakdown?: {
+            technicalSkills: number;
+            experienceRelevance: number;
+            additionalSkills: number;
+            formatting: number;
+        };
+        prioritizedMissingKeywords?: Array<{
+            keyword: string;
+            priority: 'high' | 'medium' | 'low';
+            context: string;
+        }>;
+        prioritizedMissingSkills?: Array<{
+            skill: string;
+            priority: 'high' | 'medium' | 'low';
+            context: string;
+        }>;
+        actionableFeedback?: Array<{
+            priority: 'high' | 'medium' | 'low';
+            action: string;
+            impact: string;
+        }>;
     } | null;
     lastAnalyzedAt?: string;
     jobApplicationId?: string;
@@ -219,6 +241,31 @@ export const getLatestAts = async (): Promise<AtsScoresResponse> => {
     } catch (error: any) {
         console.error('Error fetching latest ATS scores:', error.response?.data || error.message);
         throw new Error(error.response?.data?.message || 'Failed to fetch latest ATS scores');
+    }
+};
+
+/**
+ * Delete an ATS analysis
+ * @param analysisId - The analysis ID to delete
+ */
+export const deleteAtsAnalysis = async (analysisId: string): Promise<void> => {
+    const token = getAuthToken();
+    if (!token) {
+        throw new Error('No authentication token found.');
+    }
+
+    try {
+        await axios.delete(
+            `${API_BASE_URL}/ats/${analysisId}`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            }
+        );
+    } catch (error: any) {
+        console.error(`Error deleting ATS analysis ${analysisId}:`, error.response?.data || error.message);
+        throw new Error(error.response?.data?.message || 'Failed to delete ATS analysis');
     }
 };
 

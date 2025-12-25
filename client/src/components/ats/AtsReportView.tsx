@@ -4,9 +4,10 @@ import { AtsScores } from '../../services/atsApi';
 interface AtsReportViewProps {
     atsScores: AtsScores | null;
     onEditCv: () => void;
+    onDelete?: () => void;
 }
 
-const AtsReportView: React.FC<AtsReportViewProps> = ({ atsScores, onEditCv }) => {
+const AtsReportView: React.FC<AtsReportViewProps> = ({ atsScores, onEditCv, onDelete }) => {
     const score = atsScores?.score || 0;
 
     // Use real data from atsScores
@@ -73,6 +74,18 @@ const AtsReportView: React.FC<AtsReportViewProps> = ({ atsScores, onEditCv }) =>
 
                 {/* Actions */}
                 <div className="flex gap-3">
+                    {onDelete && (
+                        <button
+                            onClick={onDelete}
+                            className="px-4 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg font-medium transition-colors flex items-center gap-2"
+                            title="Delete Analysis"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span className="hidden sm:inline">Delete</span>
+                        </button>
+                    )}
                     <button
                         onClick={onEditCv}
                         className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg font-medium transition-colors"
@@ -82,6 +95,47 @@ const AtsReportView: React.FC<AtsReportViewProps> = ({ atsScores, onEditCv }) =>
                 </div>
             </div>
 
+            {/* Score Breakdown - Enhanced visualization */}
+            {atsScores?.complianceDetails?.scoreBreakdown && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+                    <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Score Breakdown
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                            { label: 'Technical Skills', score: atsScores.complianceDetails.scoreBreakdown.technicalSkills, weight: '40%' },
+                            { label: 'Experience', score: atsScores.complianceDetails.scoreBreakdown.experienceRelevance, weight: '30%' },
+                            { label: 'Additional Skills', score: atsScores.complianceDetails.scoreBreakdown.additionalSkills, weight: '20%' },
+                            { label: 'Formatting', score: atsScores.complianceDetails.scoreBreakdown.formatting, weight: '10%' },
+                        ].map((item, idx) => (
+                            <div key={idx} className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{item.label}</span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-500">({item.weight})</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                                        <div
+                                            className={`h-2.5 rounded-full transition-all duration-500 ${item.score >= 80 ? 'bg-green-500' :
+                                                item.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                                }`}
+                                            style={{ width: `${item.score}%` }}
+                                        ></div>
+                                    </div>
+                                    <span className={`text-sm font-bold w-12 text-right ${item.score >= 80 ? 'text-green-600 dark:text-green-400' :
+                                        item.score >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
+                                        }`}>
+                                        {item.score}%
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
             {/* Keyword Analysis */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
                 <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
@@ -116,6 +170,78 @@ const AtsReportView: React.FC<AtsReportViewProps> = ({ atsScores, onEditCv }) =>
             </div>
 
             {/* Collapsible Sections */}
+            {/* Actionable Feedback - shown first since it has priority content */}
+            <CollapsibleCard title="Actionable Feedback" isOpen={true}>
+                {/* Priority-based actionable feedback (new enhanced format) */}
+                {atsScores?.complianceDetails?.actionableFeedback && atsScores.complianceDetails.actionableFeedback.length > 0 ? (
+                    <div className="space-y-4">
+                        {/* High Priority */}
+                        {atsScores.complianceDetails.actionableFeedback.filter(f => f.priority === 'high').length > 0 && (
+                            <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wide flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                    High Priority
+                                </h5>
+                                {atsScores.complianceDetails.actionableFeedback.filter(f => f.priority === 'high').map((feedback, idx) => (
+                                    <div key={`high-${idx}`} className="p-3 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-r-lg">
+                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{feedback.action}</p>
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                            <span className="font-medium text-green-600 dark:text-green-400">Impact:</span> {feedback.impact}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {/* Medium Priority */}
+                        {atsScores.complianceDetails.actionableFeedback.filter(f => f.priority === 'medium').length > 0 && (
+                            <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 uppercase tracking-wide flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                    Medium Priority
+                                </h5>
+                                {atsScores.complianceDetails.actionableFeedback.filter(f => f.priority === 'medium').map((feedback, idx) => (
+                                    <div key={`medium-${idx}`} className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 rounded-r-lg">
+                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{feedback.action}</p>
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                            <span className="font-medium text-green-600 dark:text-green-400">Impact:</span> {feedback.impact}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {/* Low Priority */}
+                        {atsScores.complianceDetails.actionableFeedback.filter(f => f.priority === 'low').length > 0 && (
+                            <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wide flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                    Low Priority
+                                </h5>
+                                {atsScores.complianceDetails.actionableFeedback.filter(f => f.priority === 'low').map((feedback, idx) => (
+                                    <div key={`low-${idx}`} className="p-3 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded-r-lg">
+                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{feedback.action}</p>
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                            <span className="font-medium text-green-600 dark:text-green-400">Impact:</span> {feedback.impact}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ) : atsScores?.complianceDetails?.suggestions && atsScores.complianceDetails.suggestions.length > 0 ? (
+                    <ul className="space-y-3">
+                        {atsScores.complianceDetails.suggestions.map((suggestion, idx) => (
+                            <li key={idx} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400">
+                                <span className="flex-shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full bg-blue-500"></span>
+                                <span>{suggestion}</span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-gray-500 italic">No specific suggestions available at this time.</p>
+                )}
+            </CollapsibleCard>
+
+            {/* Sections with no issues - moved to bottom */}
             <CollapsibleCard title="Formatting Check">
                 {atsScores?.complianceDetails?.formattingIssues && atsScores.complianceDetails.formattingIssues.length > 0 ? (
                     <ul className="list-disc list-inside space-y-2 text-sm text-gray-600 dark:text-gray-400">
@@ -133,26 +259,7 @@ const AtsReportView: React.FC<AtsReportViewProps> = ({ atsScores, onEditCv }) =>
                 )}
             </CollapsibleCard>
 
-            <CollapsibleCard title="Contact Info">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Contact information analysis is not yet available in the ATS report. Please check the CV editor for details.
-                </p>
-            </CollapsibleCard>
 
-            <CollapsibleCard title="Actionable Feedback" isOpen={true}>
-                {atsScores?.complianceDetails?.suggestions && atsScores.complianceDetails.suggestions.length > 0 ? (
-                    <ul className="space-y-3">
-                        {atsScores.complianceDetails.suggestions.map((suggestion, idx) => (
-                            <li key={idx} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400">
-                                <span className="flex-shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full bg-blue-500"></span>
-                                <span>{suggestion}</span>
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <p className="text-sm text-gray-500 italic">No specific suggestions available at this time.</p>
-                )}
-            </CollapsibleCard>
         </div>
     );
 };

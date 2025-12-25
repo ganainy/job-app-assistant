@@ -5,7 +5,7 @@ import { updateCustomPrompts } from '../services/settingsApi';
 import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, updateJobDraft, getJobsWithCvs } from '../services/jobApi';
 import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments, generateCvOnly } from '../services/generatorApi';
 import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi';
-import { scanAts, getAtsScores, getAtsForJob, AtsScores } from '../services/atsApi';
+import { scanAts, getAtsScores, getAtsForJob, AtsScores, deleteAtsAnalysis } from '../services/atsApi';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
 import CvLivePreview, { CvLivePreviewRef } from '../components/cv-editor/CvLivePreview';
@@ -14,7 +14,6 @@ import { DEFAULT_CV_PROMPT, DEFAULT_COVER_LETTER_PROMPT } from '../constants/pro
 import { getAllTemplates, TemplateConfig } from '../templates/config';
 import { generateCoverLetter } from '../services/coverLetterApi';
 import { getCurrentCv, previewCv } from '../services/cvApi';
-import { AtsFeedbackPanel } from '../components/ats';
 import AtsReportView from '../components/ats/AtsReportView';
 import CvPreviewModal from '../components/cv-editor/CvPreviewModal';
 import axios from 'axios';
@@ -406,8 +405,10 @@ const ReviewFinalizePage: React.FC = () => {
             return;
         }
 
-        if (!hasMasterCv && !jobApplication.draftCvJson) {
-            showToast('Please upload your master CV or generate a tailored CV first', 'error');
+        // Require a tailored CV to be generated before ATS scan
+        // ATS should analyze the tailored CV, not the master CV
+        if (!jobApplication.draftCvJson || Object.keys(jobApplication.draftCvJson).length === 0) {
+            showToast('Please generate a tailored CV first before running ATS scan', 'error');
             return;
         }
 
@@ -457,6 +458,21 @@ const ReviewFinalizePage: React.FC = () => {
             showToast(error.message || 'Failed to start ATS scan.', 'error');
             setIsScanningAts(false);
             setAtsProgressMessage('');
+        }
+    };
+
+    const handleDeleteAts = async () => {
+        if (!atsAnalysisId) return;
+        if (!window.confirm('Are you sure you want to delete this ATS analysis? This cannot be undone.')) return;
+
+        try {
+            await deleteAtsAnalysis(atsAnalysisId);
+            setAtsScores(null);
+            setAtsAnalysisId(null);
+            showToast('ATS analysis deleted successfully', 'success');
+        } catch (error: any) {
+            console.error('Error deleting ATS analysis:', error);
+            showToast(error.message || 'Failed to delete ATS analysis', 'error');
         }
     };
 
@@ -1464,6 +1480,7 @@ const ReviewFinalizePage: React.FC = () => {
                                         handleTabChange('cv');
                                         setCvViewMode('edit');
                                     }}
+                                    onDelete={handleDeleteAts}
                                 />
                             )}
                         </div>

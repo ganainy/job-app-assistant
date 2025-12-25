@@ -55,6 +55,35 @@ export interface IStandardHeaders {
     score: number;
 }
 
+// Interface for score breakdown by category
+export interface IScoreBreakdown {
+    technicalSkills: number;
+    experienceRelevance: number;
+    additionalSkills: number;
+    formatting: number;
+}
+
+// Interface for prioritized missing keyword
+export interface IPrioritizedKeyword {
+    keyword: string;
+    priority: 'high' | 'medium' | 'low';
+    context: string;
+}
+
+// Interface for prioritized missing skill
+export interface IPrioritizedSkill {
+    skill: string;
+    priority: 'high' | 'medium' | 'low';
+    context: string;
+}
+
+// Interface for actionable feedback item
+export interface IActionableFeedback {
+    priority: 'high' | 'medium' | 'low';
+    action: string;
+    impact: string;
+}
+
 // Interface for ATS compliance analysis details
 export interface IAtsComplianceDetails {
     keywordsMatched?: string[];
@@ -69,6 +98,11 @@ export interface IAtsComplianceDetails {
     readabilityScore?: number;
     atsBlockingElements?: string[];
     standardHeaders?: IStandardHeaders;
+    // Enhanced fields for improved ATS analysis
+    scoreBreakdown?: IScoreBreakdown;
+    prioritizedMissingKeywords?: IPrioritizedKeyword[];
+    prioritizedMissingSkills?: IPrioritizedSkill[];
+    actionableFeedback?: IActionableFeedback[];
 }
 
 export interface IAtsScores {
@@ -167,6 +201,35 @@ const StandardHeadersSchema = new Schema<IStandardHeaders>({
     score: { type: Number, min: 0, max: 100 }
 }, { _id: false });
 
+// Schema for score breakdown
+const ScoreBreakdownSchema = new Schema<IScoreBreakdown>({
+    technicalSkills: { type: Number, min: 0, max: 100 },
+    experienceRelevance: { type: Number, min: 0, max: 100 },
+    additionalSkills: { type: Number, min: 0, max: 100 },
+    formatting: { type: Number, min: 0, max: 100 }
+}, { _id: false });
+
+// Schema for prioritized missing keyword
+const PrioritizedKeywordSchema = new Schema<IPrioritizedKeyword>({
+    keyword: { type: String, required: true },
+    priority: { type: String, enum: ['high', 'medium', 'low'], required: true },
+    context: { type: String, required: true }
+}, { _id: false });
+
+// Schema for prioritized missing skill
+const PrioritizedSkillSchema = new Schema<IPrioritizedSkill>({
+    skill: { type: String, required: true },
+    priority: { type: String, enum: ['high', 'medium', 'low'], required: true },
+    context: { type: String, required: true }
+}, { _id: false });
+
+// Schema for actionable feedback
+const ActionableFeedbackSchema = new Schema<IActionableFeedback>({
+    priority: { type: String, enum: ['high', 'medium', 'low'], required: true },
+    action: { type: String, required: true },
+    impact: { type: String, required: true }
+}, { _id: false });
+
 // Schema for ATS compliance details
 const AtsComplianceDetailsSchema = new Schema<IAtsComplianceDetails>({
     keywordsMatched: [{ type: String }],
@@ -180,7 +243,12 @@ const AtsComplianceDetailsSchema = new Schema<IAtsComplianceDetails>({
     lengthAnalysis: { type: LengthAnalysisSchema },
     readabilityScore: { type: Number, min: 0, max: 100 },
     atsBlockingElements: [{ type: String }],
-    standardHeaders: { type: StandardHeadersSchema }
+    standardHeaders: { type: StandardHeadersSchema },
+    // Enhanced fields
+    scoreBreakdown: { type: ScoreBreakdownSchema },
+    prioritizedMissingKeywords: [{ type: PrioritizedKeywordSchema }],
+    prioritizedMissingSkills: [{ type: PrioritizedSkillSchema }],
+    actionableFeedback: [{ type: ActionableFeedbackSchema }]
 }, { _id: false });
 
 // Schema for ATS scores

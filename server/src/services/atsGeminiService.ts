@@ -1,9 +1,9 @@
-// ATS analysis service (provider-agnostic)
+// ATS analysis service (provider-agnostic) - Enhanced with improved prompting
 import { generateStructuredResponse } from '../utils/aiService';
 import { JsonResumeSchema } from '../types/jsonresume';
 import { convertJsonResumeToText } from '../utils/cvTextExtractor';
-import { 
-    ISkillMatchDetails, 
+import {
+    ISkillMatchDetails,
     IAtsComplianceDetails,
     ISectionCompleteness,
     IQuantifiableMetrics,
@@ -11,19 +11,47 @@ import {
     ILengthAnalysis,
     IStandardHeaders
 } from '../models/CvAnalysis';
+import {
+    validateAtsResponse,
+    isPrioritizedMissingKeywords,
+    isPrioritizedMissingSkills,
+    convertToMissingKeyword,
+    convertToMissingSkill,
+    type MissingKeyword,
+    type MissingSkill,
+    type ActionableFeedback,
+    type ScoreBreakdown
+} from '../validations/atsResponseSchema';
+import { getCondensedExamples } from '../constants/atsPromptExamples';
 
+// Enhanced GeminiAtsResponse interface with priority-based feedback
 interface GeminiAtsResponse {
     atsScore: number; // Overall ATS compatibility score (0-100)
-    matchedKeywords: string[]; // Keywords from job description found in CV
-    missingKeywords: string[]; // Important keywords from job description missing in CV
-    matchedSkills: string[]; // Skills from job description found in CV
-    missingSkills: string[]; // Important skills from job description missing in CV
-    formattingIssues: string[]; // Formatting problems that affect ATS parsing
-    recommendations: string[]; // Specific actionable recommendations
-    sectionScores?: Record<string, number>; // Scores for different CV sections
-    skillMatchPercentage?: number; // Percentage of required skills matched
-    gapAnalysis?: Record<string, any>; // Detailed gap analysis
-    // New comprehensive metrics
+
+    // NEW: Score breakdown by category
+    scoreBreakdown?: ScoreBreakdown;
+
+    // Keywords analysis - enhanced with priority
+    matchedKeywords: string[];
+    missingKeywords: string[] | MissingKeyword[];
+
+    // Skills analysis - enhanced with priority
+    matchedSkills: string[];
+    missingSkills: string[] | MissingSkill[];
+
+    // Issues and recommendations
+    formattingIssues: string[];
+    recommendations: string[];
+
+    // NEW: Actionable feedback with impact
+    actionableFeedback?: ActionableFeedback[];
+
+    // Section scores
+    sectionScores?: Record<string, number>;
+    skillMatchPercentage?: number;
+    gapAnalysis?: Record<string, any>;
+
+    // Comprehensive metrics
     sectionCompleteness?: {
         present: string[];
         missing: string[];
@@ -52,10 +80,20 @@ interface GeminiAtsResponse {
         nonStandardHeaders: string[];
         score: number;
     };
-    // Enhanced keyword analysis for general CV
-    industryKeywords?: string[]; // Industry-standard keywords found in CV
-    missingIndustryKeywords?: string[]; // Common industry keywords missing
+
+    // Industry keywords (for general CV analysis)
+    industryKeywords?: string[];
+    missingIndustryKeywords?: string[];
 }
+
+// ============ SCORING WEIGHTS ============
+// These weights determine how the overall ATS score is calculated
+const SCORING_WEIGHTS = {
+    technicalSkills: 0.40,      // 40% - Critical technical skills match
+    experienceRelevance: 0.30,  // 30% - Experience alignment
+    additionalSkills: 0.20,     // 20% - Nice-to-have skills
+    formatting: 0.10            // 10% - ATS-friendly formatting
+} as const;
 
 /**
  * Safely converts a value to a number, returning undefined if NaN or invalid
@@ -75,6 +113,207 @@ function safeNumberWithDefault(value: any, defaultValue: number): number {
 }
 
 /**
+ * Builds the enhanced ATS analysis prompt with chain-of-thought reasoning
+ */
+function buildAtsPrompt(cvText: string, cvJsonString: string, jobDescription?: string): string {
+    // System role and context
+    let prompt = `You are an expert ATS (Applicant Tracking System) analyzer with deep knowledge of resume parsing, keyword matching, and hiring systems. Your task is to analyze a CV/resume for ATS compatibility${jobDescription ? ' and match it against a job description' : ''}.
+
+**IMPORTANT INSTRUCTIONS:**
+
+1. **Chain-of-Thought Analysis**: Before providing scores, mentally walk through each analysis step:
+   - First, extract all requirements from the job description (if provided)
+   - Second, identify all skills and experience from the CV
+   - Third, match keywords considering synonyms and variations
+   - Fourth, calculate component scores before the final score
+
+2. **Scoring Weights**: Calculate the overall ATS score using these weights:
+   - **Technical Skills Match: 40%** - How well do the candidate's technical skills match requirements?
+   - **Experience Relevance: 30%** - How relevant is the candidate's experience?
+   - **Additional Skills: 20%** - Does the candidate have nice-to-have skills?
+   - **Formatting: 10%** - Is the CV ATS-friendly in structure?
+
+3. **Keyword Matching Rules**:
+   - Consider synonyms (JavaScript/JS, C#/C-Sharp, AWS/Amazon Web Services)
+   - Handle German/English variations (Berufserfahrung/Work Experience, Ausbildung/Education)
+   - Match abbreviations to full forms and vice versa
+   - Don't penalize for equivalent certifications (PMP/PRINCE2, AWS Certified/Azure Certified)
+
+4. **Priority Levels for Missing Items**:
+   - **high**: Critical requirement explicitly stated as "required" or "must have" - CV will likely be rejected without this
+   - **medium**: Important skill listed in requirements but not marked as mandatory
+   - **low**: Nice-to-have or implied skill that would strengthen the application
+
+**Comprehensive Analysis Requirements - Evaluate ALL Key Metrics:**
+
+1. **Score Breakdown**: Provide individual scores (0-100) for each weight category:
+   - technicalSkills: Match of required technical skills/tools
+   - experienceRelevance: How well experience aligns with role
+   - additionalSkills: Presence of nice-to-have skills
+   - formatting: ATS-friendliness of CV structure
+
+2. **Keyword Analysis**:
+   - List all matched keywords from job description found in CV
+   - For each missing keyword, provide: keyword, priority (high/medium/low), and context explaining why it matters
+
+3. **Skills Analysis**:
+   - List all matched skills
+   - For each missing skill, provide: skill, priority (high/medium/low), and context
+
+4. **Actionable Feedback**:
+   - Provide specific, actionable recommendations
+   - For each recommendation, include: priority, specific action to take, expected impact on ATS score
+
+5. **Section Scores**: Score each major CV section (0-100) for ATS compatibility:
+   - Work Experience, Education, Skills, Summary, Contact Information, etc.
+
+6. **Additional Metrics**:
+   - Section Completeness (present/missing sections)
+   - Quantifiable Metrics (numbers, percentages in achievements)
+   - Hard/Soft Skills breakdown
+   - Length Analysis (page count, word count)
+   - Readability Score
+   - ATS Blocking Elements
+   - Standard Headers check
+
+**CV Content:**
+${cvText}
+
+**CV JSON Structure:**
+${cvJsonString}
+`;
+
+    // Add job description context if provided
+    if (jobDescription) {
+        prompt += `
+**Job Description:**
+${jobDescription}
+
+**Analysis Focus**: 
+Analyze the CV specifically against this job description. Your score should reflect how well the resume would perform in an ATS system screening for this specific role.
+
+- Heavily weight keywords that appear in the job title and "required" sections
+- Identify critical gaps that would cause automatic rejection
+- Provide actionable feedback ranked by impact on getting past ATS
+`;
+    } else {
+        prompt += `
+**Note:** No job description provided. Perform general ATS compatibility analysis:
+- Check for industry-standard keywords
+- Evaluate overall ATS-friendliness
+- Provide general optimization suggestions
+`;
+    }
+
+    // Add few-shot examples summary
+    prompt += `
+
+**Example Output Quality Reference:**
+${getCondensedExamples()}
+`;
+
+    // Output format specification
+    prompt += `
+
+**Output Format:**
+Return ONLY a JSON object wrapped in triple backticks (\`\`\`json ... \`\`\`) with the following structure:
+
+{
+  "atsScore": <number 0-100 - weighted combination of category scores>,
+  "scoreBreakdown": {
+    "technicalSkills": <number 0-100>,
+    "experienceRelevance": <number 0-100>,
+    "additionalSkills": <number 0-100>,
+    "formatting": <number 0-100>
+  },
+  "matchedKeywords": <array of strings - keywords from job description found in CV>,
+  "missingKeywords": [
+    {"keyword": "<string>", "priority": "high|medium|low", "context": "<why this keyword matters>"}
+  ],
+  "matchedSkills": <array of strings>,
+  "missingSkills": [
+    {"skill": "<string>", "priority": "high|medium|low", "context": "<why this skill matters>"}
+  ],
+  "formattingIssues": <array of strings>,
+  "recommendations": <array of strings>,
+  "actionableFeedback": [
+    {"priority": "high|medium|low", "action": "<specific action>", "impact": "<expected score improvement>"}
+  ],
+  "sectionScores": {"Work Experience": 85, "Skills": 70, ...},
+  "skillMatchPercentage": <number 0-100>,
+  "sectionCompleteness": {
+    "present": <array of section names>,
+    "missing": <array of section names>,
+    "score": <number 0-100>
+  },
+  "quantifiableMetrics": {
+    "hasMetrics": <boolean>,
+    "examples": <array of examples found>,
+    "score": <number 0-100>
+  },
+  "skillsAnalysis": {
+    "hardSkills": <array of technical skills>,
+    "softSkills": <array of soft skills>,
+    "score": <number 0-100>
+  },
+  "lengthAnalysis": {
+    "pageCount": <number>,
+    "wordCount": <number>,
+    "isOptimal": <boolean - true if 1-2 pages>,
+    "score": <number 0-100>
+  },
+  "readabilityScore": <number 0-100>,
+  "atsBlockingElements": <array of blocking elements found>,
+  "standardHeaders": {
+    "isStandard": <boolean>,
+    "nonStandardHeaders": <array of non-standard headers>,
+    "score": <number 0-100>
+  }
+}`;
+
+    return prompt;
+}
+
+/**
+ * Extracts plain strings from prioritized missing keywords
+ */
+function extractMissingKeywordStrings(keywords: string[] | MissingKeyword[]): string[] {
+    if (!keywords || keywords.length === 0) return [];
+
+    if (isPrioritizedMissingKeywords(keywords)) {
+        return keywords.map(k => k.keyword);
+    }
+    return keywords;
+}
+
+/**
+ * Extracts plain strings from prioritized missing skills
+ */
+function extractMissingSkillStrings(skills: string[] | MissingSkill[]): string[] {
+    if (!skills || skills.length === 0) return [];
+
+    if (isPrioritizedMissingSkills(skills)) {
+        return skills.map(s => s.skill);
+    }
+    return skills;
+}
+
+/**
+ * Calculates weighted overall score from breakdown
+ */
+function calculateWeightedScore(breakdown: ScoreBreakdown | undefined): number | null {
+    if (!breakdown) return null;
+
+    const weightedScore =
+        (breakdown.technicalSkills * SCORING_WEIGHTS.technicalSkills) +
+        (breakdown.experienceRelevance * SCORING_WEIGHTS.experienceRelevance) +
+        (breakdown.additionalSkills * SCORING_WEIGHTS.additionalSkills) +
+        (breakdown.formatting * SCORING_WEIGHTS.formatting);
+
+    return Math.round(weightedScore);
+}
+
+/**
  * Analyzes CV against job description using Gemini AI for ATS compatibility
  * @param userId - User ID (required to get their Gemini API key)
  * @param cvJson - The CV in JSON Resume format
@@ -85,8 +324,8 @@ export async function analyzeWithGemini(
     userId: string,
     cvJson: JsonResumeSchema,
     jobDescription?: string
-): Promise<{ 
-    score: number | null; 
+): Promise<{
+    score: number | null;
     details: {
         skillMatchDetails: ISkillMatchDetails | null;
         complianceDetails: IAtsComplianceDetails | null;
@@ -98,197 +337,90 @@ export async function analyzeWithGemini(
         const cvText = convertJsonResumeToText(cvJson);
         const cvJsonString = JSON.stringify(cvJson, null, 2);
 
-        // Create comprehensive ATS analysis prompt
-        let prompt = `
-You are an expert ATS (Applicant Tracking System) analyzer. Your task is to analyze a CV/resume for ATS compatibility and match it against a job description if provided.
+        // Build enhanced prompt with chain-of-thought reasoning
+        const prompt = buildAtsPrompt(cvText, cvJsonString, jobDescription);
 
-**Comprehensive Analysis Requirements - Evaluate ALL 11 Key Metrics:**
-
-1. **ATS Compatibility Score (0-100):**
-   - Calculate overall ATS compatibility score (0-100)
-   - When job description provided: reflect keyword matching, skill alignment, and overall fit
-   - When no job description: evaluate general ATS compatibility (structure, formatting, keyword optimization, completeness)
-   - Higher scores indicate better ATS compatibility
-
-2. **Keyword Presence:**
-   - If job description provided: identify keywords from job description found/missing in CV
-   - If no job description: identify industry-standard keywords and common terms that ATS typically look for
-   - Check for relevant technical terms, skills, qualifications, industry-specific terminology
-   - Provide lists of matched keywords and missing keywords (or industry keywords found/missing for general analysis)
-
-3. **Formatting Quality:**
-   - Check for ATS-friendly format: simple layouts without complex tables, images, or graphics
-   - Identify formatting problems that could confuse ATS parsing
-   - Examples: complex tables, graphics, non-standard section names, special characters, unusual fonts
-   - List specific formatting issues found
-
-4. **Section Completeness:**
-   - Verify presence of essential sections: Contact Information, Summary/Profile, Work Experience, Education, Skills
-   - List which essential sections are present and which are missing
-   - Provide a completeness score (0-100) based on presence of essential sections
-
-5. **Quantifiable Metrics Usage:**
-   - Check for presence of measurable achievements or data points that highlight impact
-   - Identify examples of quantifiable metrics (percentages, numbers, dollar amounts, timeframes, etc.)
-   - Assess whether achievements are quantified with specific metrics
-   - Provide score (0-100) and list examples found
-
-6. **Hard and Soft Skills Inclusion:**
-   - Identify both technical/hard skills (programming languages, tools, certifications) and interpersonal/soft skills (communication, leadership, teamwork)
-   - List hard skills and soft skills separately
-   - Assess whether both types are appropriately included
-   - Provide score (0-100) based on comprehensive skills coverage
-
-7. **Length and Word Count:**
-   - Evaluate CV length (optimal is usually 1-2 pages)
-   - Count approximate word count
-   - Assess if length balances detail without overwhelming
-   - Determine if length is optimal (1-2 pages is ideal)
-   - Provide score (0-100) based on optimal length
-
-8. **Readability and Consistency:**
-   - Check for consistent fonts throughout the document
-   - Verify consistent bullet point usage and formatting
-   - Assess logical flow and organization
-   - Ensure ATS and human readers can navigate easily
-   - Provide readability score (0-100)
-
-9. **Absence of ATS-Blocking Elements:**
-   - Check for headers/footers (these can confuse ATS parsing)
-   - Identify text boxes or unusual formatting
-   - Check for unusual fonts that hinder parsing
-   - Look for graphics, images, or visual elements that block parsing
-   - List all ATS-blocking elements found
-
-10. **Use of Standard Job Titles and Section Headers:**
-    - Verify use of standard, recognizable section headers (e.g., "Work Experience", "Education", "Skills")
-    - Check for creative or non-standard names for roles or sections
-    - Identify any non-standard headers that could confuse ATS
-    - Assess whether job titles are standard and clear
-    - Provide score (0-100) and list non-standard headers found
-
-11. **Individual Section Scores:**
-    - Evaluate and score each major CV section individually (0-100) for ATS compatibility
-    - Score sections like: "Work Experience", "Education", "Skills", "Summary", "Contact Information", "Certifications", "Languages", "Projects"
-    - For each section, consider: completeness, keyword usage, formatting, ATS-friendliness, and relevance
-    - Provide sectionScores as an object with section names as keys and scores (0-100) as values
-    - Only include sections that exist in the CV
-
-**CV Content:**
-${cvText}
-
-**CV JSON Structure:**
-${cvJsonString}
-`;
-
-        if (jobDescription) {
-            prompt += `\n\n**Job Description:**\n${jobDescription}\n\nAnalyze the CV specifically against this job description. Calculate the ATS compatibility score that shows how well the resume aligns with these job requirements. Focus on keyword matching (highlight matched keywords, identify missing keywords crucial for shortlisting), skill alignment, and overall fit. Evaluate all 11 metrics comprehensively, including individual section scores for each major CV section.`;
-        } else {
-            prompt += `\n\n**Note:** No job description provided. Perform comprehensive general ATS compatibility analysis evaluating all 11 key metrics:
-- ATS Compatibility Score (general ATS compatibility)
-- Keyword Presence (industry-standard keywords)
-- Formatting Quality
-- Section Completeness
-- Quantifiable Metrics Usage
-- Hard and Soft Skills Inclusion
-- Length and Word Count
-- Readability and Consistency
-- Absence of ATS-Blocking Elements
-- Use of Standard Job Titles and Section Headers
-- Individual Section Scores (score each major CV section separately)
-
-Provide detailed analysis for each metric to ensure the CV can pass through ATS systems smoothly.`;
-        }
-
-        prompt += `\n\n**Output Format:**\nReturn ONLY a JSON object wrapped in triple backticks (\`\`\`json ... \`\`\`) with the following structure:
-{
-  "atsScore": <number 0-100>,
-  "matchedKeywords": <array of strings - keywords from job description found in CV, or industry keywords if no job description>,
-  "missingKeywords": <array of strings - keywords from job description missing, or missing industry keywords if no job description>,
-  "industryKeywords": <array of strings - industry-standard keywords found, only if no job description>,
-  "missingIndustryKeywords": <array of strings - common industry keywords missing, only if no job description>,
-  "matchedSkills": <array of strings>,
-  "missingSkills": <array of strings>,
-  "formattingIssues": <array of strings>,
-  "recommendations": <array of strings>,
-  "sectionScores": <REQUIRED object with section names as keys and scores 0-100 as values. Must include scores for all major sections present in the CV (e.g., "Work Experience": 85, "Education": 90, "Skills": 75, "Summary": 80, "Contact Information": 95, etc.). Each score reflects ATS compatibility for that specific section.>,
-  "skillMatchPercentage": <number 0-100, optional>,
-  "gapAnalysis": <object with gap details, optional>,
-  "sectionCompleteness": {
-    "present": <array of strings - essential sections found>,
-    "missing": <array of strings - essential sections missing>,
-    "score": <number 0-100>
-  },
-  "quantifiableMetrics": {
-    "hasMetrics": <boolean>,
-    "examples": <array of strings - examples of quantifiable achievements>,
-    "score": <number 0-100>
-  },
-  "skillsAnalysis": {
-    "hardSkills": <array of strings - technical skills identified>,
-    "softSkills": <array of strings - interpersonal skills identified>,
-    "score": <number 0-100>
-  },
-  "lengthAnalysis": {
-    "pageCount": <number - approximate page count>,
-    "wordCount": <number - approximate word count>,
-    "isOptimal": <boolean - true if 1-2 pages>,
-    "score": <number 0-100>
-  },
-  "readabilityScore": <number 0-100>,
-  "atsBlockingElements": <array of strings - headers/footers, text boxes, unusual fonts, etc.>,
-  "standardHeaders": {
-    "isStandard": <boolean>,
-    "nonStandardHeaders": <array of strings - non-standard section headers found>,
-    "score": <number 0-100>
-  }
-}`;
+        console.log('[ATS] Starting enhanced Gemini analysis with weighted scoring');
 
         // Call AI service
-        const combinedPrompt = `${prompt}\n\nAnalyze the following CV in JSON Resume format:\n\n${cvJsonString}`;
         const geminiResult: GeminiAtsResponse = await generateStructuredResponse<GeminiAtsResponse>(
             userId,
-            combinedPrompt
+            prompt
         );
 
-        // Map Gemini results to existing interface structure
-        const atsScore = safeNumber(geminiResult.atsScore) ?? null;
-        
+        // Validate response structure
+        const validation = validateAtsResponse(geminiResult);
+        if (!validation.success) {
+            console.warn('[ATS] Response validation warnings:', validation.error.errors);
+            // Continue with best-effort processing - the response may still be usable
+        }
+
+        // Calculate or use provided ATS score
+        let atsScore: number | null;
+        if (geminiResult.scoreBreakdown) {
+            // Calculate weighted score from breakdown
+            const calculatedScore = calculateWeightedScore(geminiResult.scoreBreakdown);
+            // Use calculated score, but allow LLM score if reasonable (within 10 points)
+            const llmScore = safeNumber(geminiResult.atsScore);
+            if (llmScore !== undefined && calculatedScore !== null) {
+                const diff = Math.abs(llmScore - calculatedScore);
+                if (diff > 10) {
+                    console.log(`[ATS] Score discrepancy: LLM=${llmScore}, Calculated=${calculatedScore}. Using calculated.`);
+                    atsScore = calculatedScore;
+                } else {
+                    atsScore = llmScore;
+                }
+            } else {
+                atsScore = calculatedScore ?? safeNumber(geminiResult.atsScore) ?? null;
+            }
+        } else {
+            atsScore = safeNumber(geminiResult.atsScore) ?? null;
+        }
+
         // Calculate skillMatchPercentage safely, avoiding NaN
         let skillMatchPercentage: number | undefined = safeNumber(geminiResult.skillMatchPercentage);
         if (skillMatchPercentage === undefined) {
             const matchedCount = geminiResult.matchedSkills?.length || 0;
-            const missingCount = geminiResult.missingSkills?.length || 0;
+            const missingSkillsArray = geminiResult.missingSkills || [];
+            const missingCount = isPrioritizedMissingSkills(missingSkillsArray)
+                ? missingSkillsArray.length
+                : missingSkillsArray.length;
             const totalCount = matchedCount + missingCount;
-            
+
             if (totalCount > 0) {
                 const calculated = Math.round((matchedCount / totalCount) * 100);
                 skillMatchPercentage = safeNumber(calculated);
             }
         }
 
+        // Extract plain string arrays for backward compatibility
+        const missingSkillsStrings = extractMissingSkillStrings(geminiResult.missingSkills);
+        const missingKeywordsStrings = extractMissingKeywordStrings(geminiResult.missingKeywords);
+
         // Map to skill matching details
         const skillMatchDetails: ISkillMatchDetails = {
             skillMatchPercentage: skillMatchPercentage,
             matchedSkills: geminiResult.matchedSkills || [],
-            missingSkills: geminiResult.missingSkills || [],
-            recommendations: geminiResult.recommendations?.filter(rec => 
-                rec.toLowerCase().includes('skill') || 
+            missingSkills: missingSkillsStrings,
+            recommendations: geminiResult.recommendations?.filter(rec =>
+                rec.toLowerCase().includes('skill') ||
                 rec.toLowerCase().includes('experience') ||
                 rec.toLowerCase().includes('qualification')
             ) || [],
             gapAnalysis: geminiResult.gapAnalysis || {}
         };
 
-        // Map to ATS compliance details
+        // Map to ATS compliance details with enhanced data
         const complianceDetails: IAtsComplianceDetails = {
             keywordsMatched: geminiResult.matchedKeywords || geminiResult.industryKeywords || [],
-            keywordsMissing: geminiResult.missingKeywords || geminiResult.missingIndustryKeywords || [],
+            keywordsMissing: missingKeywordsStrings.length > 0
+                ? missingKeywordsStrings
+                : geminiResult.missingIndustryKeywords || [],
             formattingIssues: geminiResult.formattingIssues || [],
             suggestions: geminiResult.recommendations || [],
             sectionScores: geminiResult.sectionScores ? (() => {
                 const scores: Record<string, number> = {};
-                for (const [key, value] of Object.entries(geminiResult.sectionScores)) {
+                for (const [key, value] of Object.entries(geminiResult.sectionScores!)) {
                     const safeValue = safeNumber(value);
                     if (safeValue !== undefined) {
                         scores[key] = safeValue;
@@ -323,8 +455,42 @@ Provide detailed analysis for each metric to ensure the CV can pass through ATS 
                 isStandard: geminiResult.standardHeaders.isStandard || false,
                 nonStandardHeaders: geminiResult.standardHeaders.nonStandardHeaders || [],
                 score: safeNumberWithDefault(geminiResult.standardHeaders.score, 0)
-            } : undefined
+            } : undefined,
+            // Enhanced fields
+            scoreBreakdown: geminiResult.scoreBreakdown ? {
+                technicalSkills: safeNumberWithDefault(geminiResult.scoreBreakdown.technicalSkills, 0),
+                experienceRelevance: safeNumberWithDefault(geminiResult.scoreBreakdown.experienceRelevance, 0),
+                additionalSkills: safeNumberWithDefault(geminiResult.scoreBreakdown.additionalSkills, 0),
+                formatting: safeNumberWithDefault(geminiResult.scoreBreakdown.formatting, 0)
+            } : undefined,
+            prioritizedMissingKeywords: isPrioritizedMissingKeywords(geminiResult.missingKeywords)
+                ? geminiResult.missingKeywords.map(k => ({
+                    keyword: k.keyword,
+                    priority: k.priority,
+                    context: k.context
+                }))
+                : undefined,
+            prioritizedMissingSkills: isPrioritizedMissingSkills(geminiResult.missingSkills)
+                ? geminiResult.missingSkills.map(s => ({
+                    skill: s.skill,
+                    priority: s.priority,
+                    context: s.context
+                }))
+                : undefined,
+            actionableFeedback: geminiResult.actionableFeedback?.map(f => ({
+                priority: f.priority,
+                action: f.action,
+                impact: f.impact
+            })) || undefined
         };
+
+        // Log enhanced metrics for debugging
+        if (geminiResult.scoreBreakdown) {
+            console.log('[ATS] Score breakdown:', geminiResult.scoreBreakdown);
+        }
+        if (geminiResult.actionableFeedback) {
+            console.log(`[ATS] Generated ${geminiResult.actionableFeedback.length} actionable feedback items`);
+        }
 
         return {
             score: atsScore,
@@ -346,4 +512,3 @@ Provide detailed analysis for each metric to ensure the CV can pass through ATS 
         };
     }
 }
-
