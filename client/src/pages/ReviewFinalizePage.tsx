@@ -2,14 +2,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, updateJobDraft } from '../services/jobApi';
-import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments } from '../services/generatorApi';
+import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments, generateCvOnly } from '../services/generatorApi';
 import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi';
 import { scanAts, getAtsScores, getAtsForJob, AtsScores } from '../services/atsApi';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
+import CvLivePreview from '../components/cv-editor/CvLivePreview';
+import { DEFAULT_CV_PROMPT, DEFAULT_COVER_LETTER_PROMPT } from '../constants/prompts';
+import { getAllTemplates, TemplateConfig } from '../templates/config';
 import { generateCoverLetter } from '../services/coverLetterApi';
 import { getCurrentCv, previewCv } from '../services/cvApi';
 import { AtsFeedbackPanel } from '../components/ats';
+import AtsReportView from '../components/ats/AtsReportView';
 import CvPreviewModal from '../components/cv-editor/CvPreviewModal';
 import axios from 'axios';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
@@ -19,6 +23,9 @@ import Toast from '../components/common/Toast';
 import JobStatusBadge from '../components/jobs/JobStatusBadge';
 import CoverLetterEditor from '../components/CoverLetterEditor';
 import { JobChatWindow, FloatingChatButton } from '../components/chat';
+import PromptCustomizer from '../components/common/PromptCustomizer';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { saveAs } from 'file-saver';
 
 interface ToastState {
     message: string;
@@ -65,7 +72,7 @@ const ReviewFinalizePage: React.FC = () => {
     const [atsAnalysisId, setAtsAnalysisId] = useState<string | null>(null);
     const [atsPollingIntervalId, setAtsPollingIntervalId] = useState<NodeJS.Timeout | null>(null);
     const [atsProgressMessage, setAtsProgressMessage] = useState<string>('');
-    const [activeTab, setActiveTab] = useState<'ai-review' | 'job-description' | 'cover-letter' | 'cv'>('ai-review');
+    const [activeTab, setActiveTab] = useState<'ai-review' | 'job-description' | 'cover-letter' | 'cv'>('job-description');
     const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isInitialLoadRef = useRef<boolean>(true);
     const lastSavedCvDataRef = useRef<string | null>(null);
@@ -74,6 +81,9 @@ const ReviewFinalizePage: React.FC = () => {
     const [previewPdfBase64, setPreviewPdfBase64] = useState<string | null>(null);
     const [isGeneratingPreview, setIsGeneratingPreview] = useState<boolean>(false);
     const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+    const [cvViewMode, setCvViewMode] = useState<'edit' | 'preview' | 'split'>('split');
+    const [selectedTemplate, setSelectedTemplate] = useState<string>('modern-clean');
+    const [availableTemplates, setAvailableTemplates] = useState<TemplateConfig[]>([]);
 
     const ATS_POLLING_INTERVAL_MS = 3000; // Poll more frequently for ATS
     const ATS_POLLING_TIMEOUT_MS = 120000; // 2 minutes timeout
@@ -177,6 +187,11 @@ const ReviewFinalizePage: React.FC = () => {
             }
         };
     }, [atsPollingIntervalId]);
+
+    // Load available templates
+    useEffect(() => {
+        setAvailableTemplates(getAllTemplates());
+    }, []);
 
     const pollAtsScores = useCallback(async (analysisIdToPoll: string, startTime: number, intervalIdRef: NodeJS.Timeout | null) => {
         try {
@@ -694,6 +709,49 @@ const ReviewFinalizePage: React.FC = () => {
         }
     };
 
+    const handleDownloadWord = async () => {
+        if (!coverLetterText || !jobApplication) return;
+
+        try {
+            // Split text by newlines to create paragraphs
+            const paragraphs = coverLetterText.split('\n').map(line => {
+                return new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: line,
+                            font: "Calibri",
+                            size: 24, // 12pt
+                        }),
+                    ],
+                    spacing: {
+                        after: 0, // Minimize spacing to look like plain text lines unless double newline
+                    }
+                });
+            });
+
+            const doc = new Document({
+                sections: [{
+                    properties: {},
+                    children: paragraphs,
+                }],
+            });
+
+            const blob = await Packer.toBlob(doc);
+
+            // Filename generation
+            const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
+            const companyName = sanitize(jobApplication.companyName || 'Company');
+            const docType = (jobApplication.language === 'de') ? 'Anschreiben' : 'Cover_Letter';
+            const filename = `${docType}_${companyName}.docx`;
+
+            saveAs(blob, filename);
+            showToast('Word document downloaded', 'success');
+        } catch (error: any) {
+            console.error('Error generating Word document:', error);
+            showToast('Failed to generate Word document', 'error');
+        }
+    };
+
     const handleGenerateSpecificCv = async () => {
         if (!jobId || !jobApplication) return;
 
@@ -712,7 +770,7 @@ const ReviewFinalizePage: React.FC = () => {
             }
 
             const language = jobApplication.language || 'en';
-            const response = await generateDocuments(jobId, language as 'en' | 'de');
+            const response = await generateCvOnly(jobId, language as 'en' | 'de');
 
             if (response.status === 'draft_ready') {
                 await fetchJobData();
@@ -940,98 +998,7 @@ const ReviewFinalizePage: React.FC = () => {
                     </p>
                 </div>
 
-                {/* Job Details Section - Keep visible above tabs */}
-                <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
-                    <div className="p-4 sm:p-5 md:p-6">
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-                            {/* Job Details */}
-                            <div className="lg:col-span-1 space-y-4">
-                                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Job Details</h2>
-                                <div className="space-y-3 text-sm">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-gray-500 dark:text-gray-400">Status:</span>
-                                        <span className="bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium px-3 py-1 rounded-full">
-                                            {jobApplication.status}
-                                        </span>
-                                    </div>
-                                    {jobApplication.dateApplied && (
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-gray-500 dark:text-gray-400">Date Applied:</span>
-                                            <span className="font-medium text-gray-900 dark:text-gray-100">
-                                                {formatDate(jobApplication.dateApplied)}
-                                            </span>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-gray-500 dark:text-gray-400">Created:</span>
-                                        <span className="font-medium text-gray-900 dark:text-gray-100">
-                                            {formatDate(jobApplication.createdAt)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-gray-500 dark:text-gray-400">Updated:</span>
-                                        <span className="font-medium text-gray-900 dark:text-gray-100">
-                                            {formatDate(jobApplication.updatedAt)}
-                                        </span>
-                                    </div>
-                                </div>
-                                {jobApplication.jobUrl && (
-                                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                        <a
-                                            href={jobApplication.jobUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold hover:underline"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                            </svg>
-                                            View Job Posting
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
 
-                            {/* Notes Section */}
-                            <div className="lg:col-span-2">
-                                <div className="flex items-center justify-between mb-3">
-                                    <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Notes</h2>
-                                    <button
-                                        onClick={() => handleSaveNotes(notes)}
-                                        disabled={!notesHasChanged || isSavingNotes}
-                                        className={`bg-purple-600 dark:bg-purple-700 text-white font-semibold py-1.5 px-3 rounded-lg flex items-center gap-2 transition-opacity duration-300 text-sm ${notesHasChanged || notesSaveStatus === 'saved' ? 'opacity-100' : 'opacity-0'
-                                            } disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-700 dark:hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500`}
-                                    >
-                                        {notesSaveStatus === 'saved' ? (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                Saved!
-                                            </>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                                </svg>
-                                                Save
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                                <div className="relative">
-                                    <textarea
-                                        value={notes}
-                                        onChange={handleNotesChange}
-                                        rows={6}
-                                        placeholder="Start typing your notes here..."
-                                        className="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-150 ease-in-out placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 resize-y"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 {/* Tabs Navigation with Integrated Progress Indicators */}
                 <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
@@ -1133,75 +1100,237 @@ const ReviewFinalizePage: React.FC = () => {
 
                     {/* Tab Content */}
                     <div className="p-6">
-                        {/* Tab 1: AI Review (Redirect) */}
+                        {/* Tab 1: AI Review with ATS Report */}
                         {activeTab === 'ai-review' && (
-                            <div className="flex flex-col items-center justify-center py-16 px-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-6">
-                                    <svg className="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                                    </svg>
+                            <div>
+                                {/* Header with Scan ATS button */}
+                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-700 mb-4">
+                                    <div className="flex items-center justify-between">
+                                        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">ATS Analysis</h2>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={handleScanAts}
+                                                disabled={isScanningAts || !jobApplication?.jobDescriptionText || !hasMasterCv}
+                                                className="group flex items-center gap-2.5 px-4 py-2.5 bg-blue-600 dark:bg-blue-600 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600 dark:disabled:hover:bg-blue-600 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md"
+                                                title={!hasMasterCv ? 'Please upload your master CV first' : !jobApplication?.jobDescriptionText ? 'Please scrape the job description first' : 'Run ATS analysis'}
+                                            >
+                                                {isScanningAts ? (
+                                                    <>
+                                                        <Spinner size="sm" />
+                                                        <span>{atsProgressMessage || 'Analyzing...'}</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                                        </svg>
+                                                        <span>{atsScores ? 'Re-scan ATS' : 'Scan ATS'}</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3 text-center">
-                                    Advanced AI Analysis
-                                </h2>
-                                <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-8">
-                                    We've moved the AI analysis tools to the CV Management page for a better editing experience. View detailed insights and optimize your CV specifically for this job.
-                                </p>
-                                <Link
-                                    to={`/manage-cv?jobId=${jobId}`}
-                                    className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
-                                >
-                                    <span>Go to CV Analysis</span>
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                    </svg>
-                                </Link>
+
+                                {/* Loading state */}
+                                {isLoadingAts && (
+                                    <div className="flex items-center justify-center py-12">
+                                        <Spinner size="lg" />
+                                        <span className="ml-3 text-gray-600 dark:text-gray-400">Loading ATS scores...</span>
+                                    </div>
+                                )}
+
+                                {/* No ATS scores yet */}
+                                {!isLoadingAts && !atsScores && !isScanningAts && (
+                                    <div className="flex flex-col items-center justify-center py-16 px-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                        <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-6">
+                                            <svg className="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                            </svg>
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3 text-center">
+                                            ATS Compatibility Analysis
+                                        </h2>
+                                        <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-8">
+                                            Run an ATS scan to see how well your CV matches this job's requirements. Get actionable feedback to improve your match score.
+                                        </p>
+                                        {!hasMasterCv && (
+                                            <p className="text-amber-600 dark:text-amber-400 text-sm mb-4">
+                                                ⚠️ Please upload your master CV first on the <Link to="/manage-cv" className="underline">CV Management page</Link>.
+                                            </p>
+                                        )}
+                                        {hasMasterCv && !jobApplication?.jobDescriptionText && (
+                                            <p className="text-amber-600 dark:text-amber-400 text-sm mb-4">
+                                                ⚠️ Please scrape the job description first using the "Refresh Job Details" button.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* ATS Report */}
+                                {!isLoadingAts && atsScores && (
+                                    <AtsReportView
+                                        atsScores={atsScores}
+                                        onEditCv={() => {
+                                            setActiveTab('cv');
+                                            setCvViewMode('edit');
+                                        }}
+                                        onDownloadReport={() => {
+                                            showToast('Downloading report...', 'info');
+                                        }}
+                                    />
+                                )}
                             </div>
                         )}
 
                         {/* Tab 2: Job Description */}
                         {activeTab === 'job-description' && (
-                            <div>
-                                {/* Grey rounded card containing title and button */}
-                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-700 mb-4">
-                                    <div className="flex items-center justify-between">
-                                        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Job Description</h2>
-                                        <button
-                                            onClick={handleRefreshJobDetails}
-                                            disabled={isRefreshing || !jobApplication.jobUrl}
-                                            className="group flex items-center gap-2.5 px-4 py-2.5 bg-blue-600 dark:bg-blue-600 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600 dark:disabled:hover:bg-blue-600 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md active:shadow-sm transform hover:scale-[1.02] active:scale-[0.98]"
-                                        >
-                                            {isRefreshing ? (
-                                                <>
-                                                    <Spinner size="sm" />
-                                                    <span>Refreshing...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                    </svg>
-                                                    <span>Refresh Job Details</span>
-                                                </>
+                            <div className="space-y-8">
+                                {/* Metadata and Notes Grid */}
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {/* Job Details Metadata */}
+                                    <div className="lg:col-span-1 space-y-4">
+                                        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Job Details</h2>
+                                        <div className="space-y-3 text-sm">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                                                <span className="bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium px-3 py-1 rounded-full">
+                                                    {jobApplication.status}
+                                                </span>
+                                            </div>
+                                            {jobApplication.dateApplied && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-gray-500 dark:text-gray-400">Date Applied:</span>
+                                                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                                                        {formatDate(jobApplication.dateApplied)}
+                                                    </span>
+                                                </div>
                                             )}
-                                        </button>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-500 dark:text-gray-400">Created:</span>
+                                                <span className="font-medium text-gray-900 dark:text-gray-100">
+                                                    {formatDate(jobApplication.createdAt)}
+                                                </span>
+                                            </div>
+
+                                        </div>
+                                        {jobApplication.jobUrl && (
+                                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                                <a
+                                                    href={jobApplication.jobUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-2 text-purple-600 dark:text-purple-400 font-semibold hover:underline"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                    </svg>
+                                                    View Job Posting
+                                                </a>
+                                            </div>
+                                        )}
+
+                                        {jobApplication.extractedData?.location && (
+                                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                <span className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                                                    Location
+                                                </span>
+                                                <span className="text-gray-900 dark:text-gray-100 font-medium">
+                                                    {jobApplication.extractedData.location}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {jobApplication.extractedData?.salaryRaw && (
+                                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                <span className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                                                    Salary
+                                                </span>
+                                                <span className="text-gray-900 dark:text-gray-100 font-medium">
+                                                    {jobApplication.extractedData.salaryRaw}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Notes Section */}
+                                    <div className="lg:col-span-2">
+                                        {jobApplication.extractedData?.keyDetails && (
+                                            <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                                                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
+                                                    <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    Key Highlights
+                                                </h2>
+                                                <ul className="space-y-2">
+                                                    {jobApplication.extractedData.keyDetails.split('\n').filter(line => line.trim()).map((line, idx) => (
+                                                        <li key={idx} className="flex items-start text-sm text-gray-700 dark:text-gray-300">
+                                                            <span className="mr-2 text-purple-500 font-bold">•</span>
+                                                            <span className="flex-1 leading-relaxed">{line.replace(/^[\*\-]\s*/, '')}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Notes</h2>
+                                            <button
+                                                onClick={() => handleSaveNotes(notes)}
+                                                disabled={!notesHasChanged || isSavingNotes}
+                                                className={`bg-purple-600 dark:bg-purple-700 text-white font-semibold py-1.5 px-3 rounded-lg flex items-center gap-2 transition-opacity duration-300 text-sm ${notesHasChanged || notesSaveStatus === 'saved' ? 'opacity-100' : 'opacity-0'
+                                                    } disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-700 dark:hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                                            >
+                                                {notesSaveStatus === 'saved' ? (
+                                                    <>
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                        Saved!
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                                        </svg>
+                                                        Save
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                        <div className="relative">
+                                            <textarea
+                                                value={notes}
+                                                onChange={handleNotesChange}
+                                                rows={6}
+                                                placeholder="Start typing your notes here..."
+                                                className="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-150 ease-in-out placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 resize-y"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
-                                {refreshError && (
-                                    <div className="mb-4">
-                                        <ErrorAlert
-                                            message={refreshError}
-                                            onDismiss={() => setRefreshError(null)}
-                                            onRetry={handleRefreshJobDetails}
-                                        />
-                                    </div>
-                                )}
+                                <div className="border-t border-gray-200 dark:border-gray-700"></div>
 
-                                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-gray-900 dark:text-gray-300 whitespace-pre-wrap max-h-[calc(100vh-400px)] overflow-y-auto">
-                                    {jobApplication.jobDescriptionText || (
-                                        <p className="text-gray-500 dark:text-gray-400 italic">No job description available. Click "Refresh Job Details" to scrape it.</p>
+                                <div>
+
+
+                                    {refreshError && (
+                                        <div className="mb-4">
+                                            <ErrorAlert
+                                                message={refreshError}
+                                                onDismiss={() => setRefreshError(null)}
+                                                onRetry={handleRefreshJobDetails}
+                                            />
+                                        </div>
                                     )}
+
+                                    <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-gray-900 dark:text-gray-300 whitespace-pre-wrap max-h-[calc(100vh-400px)] overflow-y-auto">
+                                        {jobApplication.jobDescriptionText || (
+                                            <p className="text-gray-500 dark:text-gray-400 italic">No job description available. Click "Refresh Job Details" to scrape it.</p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1247,18 +1376,37 @@ const ReviewFinalizePage: React.FC = () => {
                                                             )}
                                                         </button>
 
-                                                        {/* Download button - only shown when PDF exists */}
-                                                        {finalPdfFiles.cl && (
+                                                        {/* Download Buttons Group */}
+                                                        <div className="flex items-center gap-2">
+                                                            {/* Download PDF Button */}
                                                             <button
-                                                                onClick={() => handleDownload(finalPdfFiles.cl)}
-                                                                className="group flex items-center gap-2.5 px-4 py-2.5 bg-blue-600 dark:bg-blue-600 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md active:shadow-sm transform hover:scale-[1.02] active:scale-[0.98]"
+                                                                onClick={finalPdfFiles.cl ? () => handleDownload(finalPdfFiles.cl) : handleGenerateCoverLetterPdf}
+                                                                disabled={isRenderingCoverLetterPdf}
+                                                                className="group flex items-center gap-2 px-3 py-2 bg-blue-600 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 transition-all duration-200 font-medium text-xs shadow-sm hover:shadow-md disabled:opacity-70 disabled:cursor-not-allowed"
+                                                                title="Download as PDF"
+                                                            >
+                                                                {isRenderingCoverLetterPdf ? (
+                                                                    <Spinner size="sm" />
+                                                                ) : (
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                                    </svg>
+                                                                )}
+                                                                <span>PDF</span>
+                                                            </button>
+
+                                                            {/* Download Word Button */}
+                                                            <button
+                                                                onClick={handleDownloadWord}
+                                                                className="group flex items-center gap-2 px-3 py-2 bg-blue-500 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-600 active:bg-blue-700 dark:active:bg-blue-700 transition-all duration-200 font-medium text-xs shadow-sm hover:shadow-md"
+                                                                title="Download as Word Document"
                                                             >
                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                                                                 </svg>
-                                                                <span>Download PDF</span>
+                                                                <span>Word</span>
                                                             </button>
-                                                        )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1271,6 +1419,14 @@ const ReviewFinalizePage: React.FC = () => {
                                                     />
                                                 </div>
                                             )}
+
+                                            <div className="mb-4">
+                                                <PromptCustomizer
+                                                    key="cl-customizer-edit"
+                                                    type="coverLetter"
+                                                    defaultPrompt={DEFAULT_COVER_LETTER_PROMPT}
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="h-[calc(100vh-500px)] min-h-[600px] flex flex-col">
@@ -1296,6 +1452,14 @@ const ReviewFinalizePage: React.FC = () => {
                                                 />
                                             </div>
                                         )}
+
+                                        {/* Prompt Customizer for Cover Letter */}
+                                        <PromptCustomizer
+                                            key="cl-customizer-gen"
+                                            type="coverLetter"
+                                            defaultPrompt={DEFAULT_COVER_LETTER_PROMPT}
+                                        />
+
                                         <button
                                             onClick={handleGenerateCoverLetter}
                                             disabled={isGeneratingCoverLetter || !hasMasterCv || !jobApplication.jobDescriptionText}
@@ -1338,35 +1502,51 @@ const ReviewFinalizePage: React.FC = () => {
                                 {jobApplication.draftCvJson ? (
                                     <>
                                         <div className="mb-4">
-                                            {/* Grey rounded card containing title and buttons */}
+                                            {/* Grey rounded card containing title, view mode toggle, and buttons */}
                                             <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-700 mb-4">
                                                 <div className="flex items-center justify-between">
-                                                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV</h2>
+                                                    <div className="flex items-center gap-4">
+                                                        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Edit CV</h2>
+
+                                                        {/* View Mode Toggle */}
+                                                        <div className="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
+                                                            <button
+                                                                onClick={() => setCvViewMode('edit')}
+                                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${cvViewMode === 'edit' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setCvViewMode('split')}
+                                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${cvViewMode === 'split' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+                                                            >
+                                                                Split
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setCvViewMode('preview')}
+                                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${cvViewMode === 'preview' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+                                                            >
+                                                                Preview
+                                                            </button>
+                                                        </div>
+                                                    </div>
 
                                                     {/* Action buttons - positioned on the right */}
                                                     <div className="flex items-center gap-3">
-                                                        {/* Preview button */}
-                                                        <button
-                                                            onClick={handlePreviewCv}
-                                                            disabled={isGeneratingPreview || !jobApplication.draftCvJson}
-                                                            className="group flex items-center gap-2.5 px-4 py-2.5 bg-emerald-600 dark:bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 dark:hover:bg-emerald-700 active:bg-emerald-800 dark:active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-600 dark:disabled:hover:bg-emerald-600 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md active:shadow-sm transform hover:scale-[1.02] active:scale-[0.98]"
-                                                            title="Preview ATS CV"
-                                                        >
-                                                            {isGeneratingPreview ? (
-                                                                <>
-                                                                    <Spinner size="sm" />
-                                                                    <span>Generating...</span>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                                    </svg>
-                                                                    <span>Preview ATS CV</span>
-                                                                </>
-                                                            )}
-                                                        </button>
+                                                        {/* Template Selection */}
+                                                        {availableTemplates.length > 0 && (
+                                                            <select
+                                                                value={selectedTemplate}
+                                                                onChange={(e) => setSelectedTemplate(e.target.value)}
+                                                                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                            >
+                                                                {availableTemplates.map((template) => (
+                                                                    <option key={template.id} value={template.id}>
+                                                                        {template.name}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        )}
 
                                                         {/* Primary action: Generate/Regenerate PDF */}
                                                         <button
@@ -1413,15 +1593,58 @@ const ReviewFinalizePage: React.FC = () => {
                                                     />
                                                 </div>
                                             )}
+
+                                            <div className="mb-4">
+                                                <PromptCustomizer
+                                                    key="cv-customizer-edit"
+                                                    type="cv"
+                                                    defaultPrompt={DEFAULT_CV_PROMPT}
+                                                />
+                                            </div>
+
                                         </div>
 
-                                        {cvData && (
-                                            <CvFormEditor
-                                                data={cvData}
-                                                onChange={handleCvChange}
-                                                analysisResult={analysisResult}
-                                            />
-                                        )}
+                                        {/* CV Editor with View Modes */}
+                                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                            <div className="p-6">
+                                                {cvViewMode === 'edit' && cvData && (
+                                                    <CvFormEditor
+                                                        data={cvData}
+                                                        onChange={handleCvChange}
+                                                        analysisResult={analysisResult}
+                                                    />
+                                                )}
+                                                {cvViewMode === 'preview' && (
+                                                    <div style={{ minHeight: '800px' }}>
+                                                        <CvLivePreview
+                                                            data={cvData}
+                                                            templateId={selectedTemplate}
+                                                            onTemplateChange={setSelectedTemplate}
+                                                        />
+                                                    </div>
+                                                )}
+                                                {cvViewMode === 'split' && (
+                                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                        <div>
+                                                            {cvData && (
+                                                                <CvFormEditor
+                                                                    data={cvData}
+                                                                    onChange={handleCvChange}
+                                                                    analysisResult={analysisResult}
+                                                                />
+                                                            )}
+                                                        </div>
+                                                        <div style={{ minHeight: '800px' }}>
+                                                            <CvLivePreview
+                                                                data={cvData}
+                                                                templateId={selectedTemplate}
+                                                                onTemplateChange={setSelectedTemplate}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </>
                                 ) : (
                                     <div>
@@ -1437,6 +1660,14 @@ const ReviewFinalizePage: React.FC = () => {
                                                 />
                                             </div>
                                         )}
+
+                                        {/* Prompt Customizer for CV */}
+                                        <PromptCustomizer
+                                            key="cv-customizer-gen"
+                                            type="cv"
+                                            defaultPrompt={DEFAULT_CV_PROMPT}
+                                        />
+
                                         <button
                                             onClick={handleGenerateSpecificCv}
                                             disabled={isGeneratingCv || !hasMasterCv || !jobApplication.jobDescriptionText}

@@ -4,6 +4,7 @@ import * as path from 'path';
 import authMiddleware from '../middleware/authMiddleware';
 import JobApplication from '../models/JobApplication';
 import User, { IUser } from '../models/User'; // Import IUser interface
+import Profile from '../models/Profile';
 import { generateContent } from '../utils/aiService';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 import { JsonResumeSchema } from '../types/jsonresume';
@@ -531,12 +532,14 @@ const renderFinalPdfsHandler: RequestHandler = async (req: ValidatedRequest, res
         // 3. Prepare Filenames for New PDFs
         const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
         const cvJsonData = job.draftCvJson as JsonResumeSchema;
-        const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
+        // const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant'); // Removed from filename
         const companySanitized = sanitize(job.companyName);
-        const titleSanitized = sanitize(job.jobTitle);
-        const baseFilename = `${applicantName}_${companySanitized}_${titleSanitized}`;
-        const cvFilenamePrefix = `CV_${baseFilename}`;
-        const clFilenamePrefix = `CoverLetter_${baseFilename}`;
+        // const titleSanitized = sanitize(job.jobTitle); // Removed from filename
+        // const baseFilename = `${applicantName}_${companySanitized}_${titleSanitized}`; // Simplified
+
+        const langSuffix = language.toUpperCase();
+        const cvFilenamePrefix = `CV_${companySanitized}_${langSuffix}`;
+        const clFilenamePrefix = (language === 'de') ? `Anschreiben_${companySanitized}` : `Cover_Letter_${companySanitized}`;
 
         // 4. Call PDF Generators
         console.log(`Generating final CV PDF for job ${jobId}...`);
@@ -657,11 +660,12 @@ const renderCvPdfHandler: RequestHandler = async (req: ValidatedRequest, res): P
 
         // Generate new CV PDF
         const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
-        const cvJsonData = job.draftCvJson as JsonResumeSchema;
-        const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
+        const cvJsonData = job.draftCvJson as JsonResumeSchema; // Restored
+        // const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
         const companySanitized = sanitize(job.companyName);
-        const titleSanitized = sanitize(job.jobTitle);
-        const cvFilenamePrefix = `CV_${applicantName}_${companySanitized}_${titleSanitized}_${language}`;
+        // const titleSanitized = sanitize(job.jobTitle);
+        const langSuffix = language.toUpperCase();
+        const cvFilenamePrefix = `CV_${companySanitized}_${langSuffix}`;
 
         const generatedCvFilename = await generateCvPdfFromJsonResume(cvJsonData, cvFilenamePrefix);
 
@@ -725,10 +729,10 @@ const renderCoverLetterPdfHandler: RequestHandler = async (req: ValidatedRequest
         // Generate new Cover Letter PDF
         const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
         const cvJsonData = job.draftCvJson as JsonResumeSchema;
-        const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
+        // const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
         const companySanitized = sanitize(job.companyName);
-        const titleSanitized = sanitize(job.jobTitle);
-        const clFilenamePrefix = `CoverLetter_${applicantName}_${companySanitized}_${titleSanitized}_${language}`;
+        // const titleSanitized = sanitize(job.jobTitle);
+        const clFilenamePrefix = (language === 'de') ? `Anschreiben_${companySanitized}` : `Cover_Letter_${companySanitized}`;
 
         const generatedClFilename = await generateCoverLetterPdf(
             job.draftCoverLetterText,
@@ -757,12 +761,162 @@ const renderCoverLetterPdfHandler: RequestHandler = async (req: ValidatedRequest
     }
 };
 
+// --- NEW: Generate CV Only Endpoint ---
+const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res) => {
+    const user = req.user as AuthenticatedUser;
+    if (!user) { res.status(401).json({ message: 'User not authenticated correctly.' }); return; }
+
+    const { jobId } = req.validated!.params!;
+    const requestedLanguage = req.validated!.body?.language === 'de' ? 'de' : 'en';
+    const languageName = requestedLanguage === 'de' ? 'German' : 'English';
+    const userId = user._id.toString();
+
+    try {
+        // 1. Fetch Job & User data
+        const job = await JobApplication.findOne({ _id: jobId, userId: userId });
+        if (!job) { res.status(404).json({ message: 'Job application not found or access denied.' }); return; }
+        if (!job.jobDescriptionText) { res.status(400).json({ message: 'Job description text is missing.' }); return; }
+        const currentUser = await User.findById(userId);
+        if (!currentUser) { res.status(404).json({ message: "User not found." }); return; }
+        const baseCvJson = currentUser.cvJson as JsonResumeSchema | null;
+        if (!baseCvJson?.basics) { res.status(400).json({ message: 'Valid base CV with basics section not found.' }); return; }
+
+        // Fetch Custom Prompt (if any)
+        const profile = await Profile.findOne({ userId: userId });
+        const customPrompt = profile?.customPrompts?.cvPrompt;
+
+        // 2. Construct CV-only Gemini Prompt
+        let prompt: string;
+
+        if (customPrompt) {
+            // Use custom prompt but inject necessary context variables
+            prompt = customPrompt
+                .replace('{{language}}', languageName)
+                .replace('{{baseCv}}', JSON.stringify(baseCvJson, null, 2))
+                .replace('{{jobDescription}}', job.jobDescriptionText);
+
+            // Fallback: If variables aren't used, append context at the end
+            if (!customPrompt.includes('{{baseCv}}')) {
+                prompt += `\n\n**Context Data:**\nBase CV Data: ${JSON.stringify(baseCvJson, null, 2)}\nJob Description: ${job.jobDescriptionText}\nTarget Language: ${languageName}`;
+            }
+        } else {
+            // Default Prompt
+            prompt = `
+            You are an expert career advisor specialized in the ${languageName} job market.
+            Your task is to tailor a provided base CV (in JSON Resume format) for a specific job application.
+            
+            **Target Language:** ${languageName} (${requestedLanguage})
+
+            **Inputs:**
+            1.  **Base CV Data (JSON Resume Schema):**
+                \`\`\`json
+                ${JSON.stringify(baseCvJson, null, 2)}
+                \`\`\`
+            2.  **Target Job Description (Text):**
+                ---
+                ${job.jobDescriptionText}
+                ---
+
+            **Instructions:**
+            *   Analyze the Base CV Data and the Target Job Description.
+            *   Identify relevant skills, experiences, and qualifications from the Base CV that match the job requirements.
+            *   Rewrite/rephrase content (summaries, work descriptions, project details) to emphasize relevance IN ${languageName}, using keywords from the job description where appropriate.
+            *   Maintain factual integrity; do not invent skills or experiences.
+            *   Optimize the order of items within sections (e.g., work experience) to highlight the most relevant roles first.
+            *   CRITICAL OUTPUT STRUCTURE: The output MUST be a complete JSON object strictly adhering to the JSON Resume Schema (https://jsonresume.org/schema/).
+            *   Use standard JSON Resume keys like \`basics\`, \`work\`, \`volunteer\`, \`education\`, \`awards\`, \`certificates\`, \`publications\`, \`skills\`, \`languages\`, \`interests\`, \`references\`, \`projects\`.
+            *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in ${languageName}.
+
+            **Output Format:**
+            Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object should be the complete, tailored CV data as a valid JSON Resume Schema object (in ${languageName}).
+
+            Example output structure:
+            \`\`\`json
+            {
+              "basics": { ... },
+              "work": [ ... ],
+              "education": [ ... ],
+              "skills": [ ... ],
+              // ... other JSON Resume sections ...
+            }
+            \`\`\`
+        `;
+        }
+
+        // 3. Generate CV using AI service
+        console.log(`Generating ${languageName} CV only for job ${jobId}...`);
+        await JobApplication.updateOne({ _id: jobId, userId: userId }, { $set: { generationStatus: 'pending_generation' } });
+
+        const result = await generateContent(userId, prompt);
+        const responseText = result.text;
+        console.log("Received CV generation response from AI.");
+
+        // 4. Parse Response (extract JSON from ```json block)
+        let jsonStringToParse = responseText.trim();
+        const prefix = "```json";
+        const suffix = "```";
+
+        if (jsonStringToParse.startsWith(prefix) && jsonStringToParse.endsWith(suffix)) {
+            jsonStringToParse = jsonStringToParse.substring(prefix.length, jsonStringToParse.length - suffix.length).trim();
+        } else if (jsonStringToParse.startsWith(prefix)) {
+            jsonStringToParse = jsonStringToParse.substring(prefix.length).trim();
+        }
+
+        let tailoredCvJson;
+        try {
+            tailoredCvJson = JSON.parse(jsonStringToParse);
+        } catch (parseError: any) {
+            console.error("Failed to parse CV JSON:", parseError.message);
+            throw new Error("AI failed to return valid JSON for CV.");
+        }
+
+        // 5. Validate CV structure
+        if (!tailoredCvJson || typeof tailoredCvJson !== 'object' || !tailoredCvJson.basics) {
+            console.error("Parsed CV JSON is invalid or missing basics:", tailoredCvJson);
+            throw new Error("Parsed CV JSON is invalid or missing the 'basics' section.");
+        }
+
+        // 6. Save ONLY the CV draft (not cover letter)
+        console.log(`Saving CV draft for job ${jobId}...`);
+        await JobApplication.findOneAndUpdate(
+            { _id: jobId, userId: userId },
+            {
+                $set: {
+                    draftCvJson: tailoredCvJson,
+                    language: requestedLanguage,
+                    generationStatus: 'draft_ready'
+                }
+            },
+            { new: true }
+        );
+        console.log(`CV draft saved successfully for job ${jobId}.`);
+
+        res.status(200).json({
+            status: "draft_ready",
+            message: `CV generated successfully in ${languageName}. Ready for review.`,
+            jobId: jobId
+        });
+
+    } catch (error: any) {
+        console.error(`Error generating CV for job ${jobId}:`, error);
+        const currentUserId = (req.user as AuthenticatedUser)?._id?.toString();
+        if (currentUserId) {
+            await JobApplication.updateOne(
+                { _id: jobId, userId: currentUserId, generationStatus: { $ne: 'draft_ready' } },
+                { $set: { generationStatus: 'error' } }
+            ).catch(err => console.error("Failed to update job status to error:", err));
+        }
+        res.status(500).json({ message: error.message || 'Failed to generate CV.' });
+    }
+};
+
 // === ROUTE DEFINITIONS (Order Matters!) ===
 router.post('/improve-section', validateRequest({ body: improveSectionBodySchema }), asyncHandler(improveCvSection)); // Improve CV section
 router.post('/finalize', validateRequest({ body: finalizeGenerationBodySchema }), finalizeGenerationHandler); // Finalize draft content
 router.post('/:jobId/render-pdf', validateRequest({ params: jobIdParamSchema }), renderFinalPdfsHandler); // Render both PDFs
 router.post('/:jobId/render-cv-pdf', validateRequest({ params: jobIdParamSchema }), renderCvPdfHandler); // Render CV PDF only
 router.post('/:jobId/render-cover-letter-pdf', validateRequest({ params: jobIdParamSchema }), renderCoverLetterPdfHandler); // Render Cover Letter PDF only
+router.post('/:jobId/generate-cv', validateRequest({ params: jobIdParamSchema, body: generateDocumentsBodySchema }), generateCvOnlyHandler); // Generate CV only (no cover letter)
 router.post('/:jobId', validateRequest({ params: jobIdParamSchema, body: generateDocumentsBodySchema }), generateDocumentsHandler); // Generate initial draft or ask for input
 router.get('/download/:filename', validateRequest({ params: filenameParamSchema }), downloadFileHandler); // Download generated files
 

@@ -3,6 +3,7 @@ import express, { Router, Request, Response, RequestHandler } from 'express';
 import authMiddleware from '../middleware/authMiddleware';
 import JobApplication from '../models/JobApplication';
 import User, { IUser } from '../models/User';
+import Profile from '../models/Profile';
 import { generateCoverLetter } from '../services/coverLetterService';
 import { JsonResumeSchema } from '../types/jsonresume';
 import mongoose from 'mongoose';
@@ -56,7 +57,11 @@ const generateCoverLetterHandler: RequestHandler = async (req, res) => {
             return;
         }
 
-        // 3. Generate Cover Letter
+        // 3. Fetch Custom Prompt (if any)
+        const profile = await Profile.findOne({ userId: userId });
+        const customPrompt = profile?.customPrompts?.coverLetterPrompt;
+
+        // 4. Generate Cover Letter
         console.log(`Generating cover letter for job ${jobId}...`);
         const coverLetterText = await generateCoverLetter(
             userId,
@@ -64,10 +69,11 @@ const generateCoverLetterHandler: RequestHandler = async (req, res) => {
             job.jobDescriptionText,
             job.jobTitle,
             job.companyName,
-            requestedLanguage
+            requestedLanguage,
+            customPrompt
         );
 
-        // 4. Return the generated cover letter
+        // 5. Return the generated cover letter
         res.status(200).json({
             success: true,
             coverLetterText: coverLetterText,
@@ -76,7 +82,7 @@ const generateCoverLetterHandler: RequestHandler = async (req, res) => {
 
     } catch (error: any) {
         console.error(`Error generating cover letter for job ${jobId}:`, error);
-        
+
         let statusCode = 500;
         let errorMessage = 'Failed to generate cover letter.';
 

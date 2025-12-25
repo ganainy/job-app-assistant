@@ -116,6 +116,10 @@ export interface IProfile extends Document {
       generation?: string;
     };
   };
+  customPrompts?: {
+    cvPrompt?: string;
+    coverLetterPrompt?: string;
+  };
   isPublished?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -373,6 +377,14 @@ const ProfileSchema: Schema = new Schema(
           type: String,
           default: 'gemini-1.5-pro',
         },
+      },
+    },
+    customPrompts: {
+      cvPrompt: {
+        type: String,
+      },
+      coverLetterPrompt: {
+        type: String,
       },
     },
     isPublished: {

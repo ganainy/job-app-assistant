@@ -12,7 +12,10 @@ export interface ExtractedJobData {
     companyName: string | null;
     jobDescriptionText: string | null;
     language: string | null; // e.g., "en", "de", "es"
-    notes?: string; // Optional additional notes/keywords extracted
+    location?: string | null; // Extracted location
+    salary?: string | null; // Extracted salary info
+    keyDetails?: string | null; // AI extracted highlights (bullet points)
+    notes?: string; // Reserved for user, typically null from AI
 }
 
 // Fetch HTML with retry logic and increased timeout
@@ -20,7 +23,7 @@ async function fetchHtml(url: string, retries: number = 3): Promise<string> {
     const maxRetries = retries;
     const timeout = 45000; // Increased to 45 seconds for slow-responding sites
     const baseDelay = 2000; // Base delay of 2 seconds between retries
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         console.log(`Fetching HTML for AI extraction (attempt ${attempt}/${maxRetries}): ${url}`);
         try {
@@ -42,24 +45,24 @@ async function fetchHtml(url: string, retries: number = 3): Promise<string> {
         } catch (error: any) {
             const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
             const isLastAttempt = attempt === maxRetries;
-            
+
             if (isLastAttempt) {
                 console.error(`Error fetching URL ${url} for AI after ${maxRetries} attempts:`, error.message);
-                const errorMessage = isTimeout 
+                const errorMessage = isTimeout
                     ? `Request timed out after ${timeout}ms. The website may be slow or unresponsive.`
                     : error.message;
                 throw new Error(`Could not fetch content from URL for AI processing. ${errorMessage}`);
             }
-            
+
             // Calculate exponential backoff delay: 2s, 4s, 8s, etc.
             const delay = baseDelay * Math.pow(2, attempt - 1);
             console.warn(`Attempt ${attempt} failed for ${url}: ${error.message}. Retrying in ${delay}ms...`);
-            
+
             // Wait before retrying
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
-    
+
     // This should never be reached, but TypeScript requires it
     throw new Error(`Failed to fetch HTML after ${maxRetries} attempts`);
 }
@@ -80,8 +83,8 @@ function parseExtractionResponse(responseText: string): ExtractedJobData {
                 // If jobDescriptionText is null, provide a fallback
                 if (parsed.jobDescriptionText === null) {
                     console.warn("AI returned null for jobDescriptionText. Using fallback description.");
-                    parsed.jobDescriptionText = parsed.notes 
-                        ? `Job details: ${parsed.notes}` 
+                    parsed.jobDescriptionText = parsed.notes
+                        ? `Job details: ${parsed.notes}`
                         : `Job posting at ${parsed.companyName || 'the company'}. Please refer to the original job posting for full details.`;
                 }
                 return parsed as ExtractedJobData; // Assume structure matches if key fields exist
@@ -116,22 +119,27 @@ async function extractFieldsWithGemini(htmlContent: string, url: string, userId:
         2. Identify the hiring company's name.
         3. Extract the full job description text, focusing on responsibilities, qualifications, requirements, benefits, and any other relevant details. This is CRITICAL - make every effort to extract the complete job description text. Look for sections like "Job Description", "Responsibilities", "Requirements", "Qualifications", "What we offer", etc. Ignore irrelevant page elements like headers, footers, navigation, ads, and unrelated content, but DO extract all job-related content.
         4. Determine the primary language of the job posting (e.g., "en" for English, "de" for German, "es" for Spanish, etc.). Use standard ISO 639-1 language codes if possible.
-        5. Optionally, extract any other key details or keywords relevant to the job application (e.g., location, salary if explicitly mentioned, required technologies) and provide them as a single string in the 'notes' field.
+        5. Extract the job location (e.g., "remote", "Berlin", "Hybrid").
+        6. Extract any salary or compensation information provided (e.g., "€60k - €80k", "$120,000", "Competitive").
+        7. Place any other unexpected data, key details not covered above, or keywords relevant to the job application in the 'keyDetails' field. Format this strictly as a bulleted list (using '*' or '-') with newlines. Leave the 'notes' field NULL or empty.
 
         Output Format:
-        Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", and optionally "notes".
-        - jobTitle, companyName, and language should always be strings if found. If not found, return null.
-        - jobDescriptionText is REQUIRED and should be a string containing the full job description. Only return null if absolutely no job description content can be found anywhere on the page (this should be very rare).
-        - For 'notes', return a string or null if no extra details are found.
+        Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", "location", "salary", "keyDetails", and "notes".
+        - jobTitle, companyName, language, location, salary, and keyDetails should be strings if found, or null.
+        - jobDescriptionText is REQUIRED.
+        - 'notes' should be null.
 
         Example structure:
         \`\`\`json
         {
           "jobTitle": "Software Engineer",
           "companyName": "Tech Corp",
-          "jobDescriptionText": "We are looking for a skilled engineer...",
+          "jobDescriptionText": "...",
           "language": "en",
-          "notes": "Location: Berlin, Salary: €80k, Required: React, Node.js"
+          "location": "Berlin / Hybrid",
+          "salary": "€80k",
+          "keyDetails": "* Contract: Full-time\n* Benefits: Health, Gym",
+          "notes": null
         }
         \`\`\`
 
@@ -149,23 +157,23 @@ async function extractFieldsWithGemini(htmlContent: string, url: string, userId:
 
     } catch (error: any) {
         console.error("Error during Gemini field extraction:", error);
-        
+
         // Preserve NotFoundError (e.g., missing API key) with its detailed message
         if (error instanceof NotFoundError) {
             throw error;
         }
-        
+
         // Handle Gemini API errors
         if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
             const blockReason = error.response?.promptFeedback?.blockReason;
             throw new Error(`AI content generation blocked during extraction: ${blockReason || 'Unknown reason'}`);
         }
-        
+
         // For other errors, preserve the original message if available
         if (error?.message) {
             throw new Error(error.message);
         }
-        
+
         throw new Error("Failed to get valid extraction response from AI service.");
     }
 }
@@ -186,4 +194,93 @@ export async function extractJobDataFromUrl(url: string, userId: string): Promis
     }
 
     return extractedData;
+}
+
+// Extract job data from pasted text content (no URL fetching)
+export async function extractJobDataFromText(rawText: string, userId: string): Promise<ExtractedJobData> {
+    if (!rawText || rawText.trim().length < 50) {
+        throw new Error("Please paste more job description text. The content seems too short.");
+    }
+
+    console.log(`Extracting job data from pasted text (length: ${rawText.length})`);
+
+    // Truncate if too long
+    const maxLength = 100000;
+    const textContent = rawText.length > maxLength ? rawText.substring(0, maxLength) : rawText;
+
+    // Prompt for extracting from raw text
+    const prompt = `
+        Analyze the following text that was copied from a job posting webpage.
+        Your task is to extract specific details about the job posting.
+
+        Instructions:
+        1. Identify the main job title.
+        2. Identify the hiring company's name.
+        3. Extract the full job description text, focusing on responsibilities, qualifications, requirements, benefits, and any other relevant details.
+        4. Determine the primary language of the job posting (e.g., "en" for English, "de" for German, "es" for Spanish). Use standard ISO 639-1 language codes.
+        5. Extract the job location (e.g., "remote", "Berlin", "Hybrid").
+        6. Extract any salary or compensation information provided.
+        7. Place any other unexpected data, key details not covered above, or keywords relevant to the job application in the 'keyDetails' field. Format this strictly as a bulleted list. Leave the 'notes' field NULL.
+
+        Output Format:
+        Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", "location", "salary", "keyDetails", and "notes".
+        - jobTitle, companyName, language, location, salary, and keyDetails should be strings if found, or null.
+        - jobDescriptionText is REQUIRED.
+        - 'notes' should be null.
+
+        Example structure:
+        \`\`\`json
+        {
+          "jobTitle": "Software Engineer",
+          "companyName": "Tech Corp",
+          "jobDescriptionText": "...",
+          "language": "en",
+          "location": "SF",
+          "salary": "$150k",
+          "keyDetails": "* Visa Sponsorship: Yes\n* Team: 5 ppl",
+          "notes": null
+        }
+        \`\`\`
+
+        Job Posting Text:
+        ---
+        ${textContent}
+        ---
+    `;
+
+    try {
+        const result = await generateContent(userId, prompt);
+        const responseText = result.text;
+        console.log("Received field extraction response from AI for pasted text.");
+        const extractedData = parseExtractionResponse(responseText);
+
+        // Validate essential fields
+        if (!extractedData.jobTitle || !extractedData.companyName || !extractedData.jobDescriptionText || !extractedData.language) {
+            console.warn("AI failed to extract essential fields from pasted text. Extracted:", extractedData);
+            throw new Error("Could not extract all essential job details from the pasted text. Please paste more complete job information.");
+        }
+
+        return extractedData;
+
+    } catch (error: any) {
+        console.error("Error during AI extraction from pasted text:", error);
+
+        // Preserve NotFoundError (e.g., missing API key)
+        if (error instanceof NotFoundError) {
+            throw error;
+        }
+
+        // Handle Gemini API errors
+        if (error instanceof GoogleGenerativeAIError || (error.response && error.response.promptFeedback)) {
+            const blockReason = error.response?.promptFeedback?.blockReason;
+            throw new Error(`AI content generation blocked: ${blockReason || 'Unknown reason'}`);
+        }
+
+        // Preserve original message if available
+        if (error?.message) {
+            throw new Error(error.message);
+        }
+
+        throw new Error("Failed to extract job details from the pasted text.");
+    }
 }

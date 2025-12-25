@@ -124,15 +124,15 @@ const SettingsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  
+
   // Form state
   const [geminiKey, setGeminiKey] = useState('');
   const [apifyToken, setApifyToken] = useState('');
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showApifyToken, setShowApifyToken] = useState(false);
-  
+
   // AI Provider settings state
-  const [defaultProvider, setDefaultProvider] = useState<'gemini' | 'openrouter' | 'ollama'>('gemini');
+  const [defaultProvider, setDefaultProvider] = useState<'gemini' | 'openrouter' | 'ollama' | ''>('');
   const [defaultModel, setDefaultModel] = useState('');
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -140,22 +140,22 @@ const SettingsPage: React.FC = () => {
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
   const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
   const [showOllamaUrl, setShowOllamaUrl] = useState(false);
-  
+
   // Validation state
   const [geminiKeyTouched, setGeminiKeyTouched] = useState(false);
   const [apifyTokenTouched, setApifyTokenTouched] = useState(false);
   const [openRouterKeyTouched, setOpenRouterKeyTouched] = useState(false);
   const [ollamaUrlTouched, setOllamaUrlTouched] = useState(false);
-  
+
   // Delete confirmation modal
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; service: 'gemini' | 'apify' | 'openrouter' | 'ollama' | null }>({
     isOpen: false,
     service: null,
   });
-  
+
   // Onboarding collapse state
   const [isOnboardingExpanded, setIsOnboardingExpanded] = useState(true);
-  
+
   // Check if this is a new user (from registration)
   const isNewUser = location.state?.fromRegistration === true;
 
@@ -165,12 +165,16 @@ const SettingsPage: React.FC = () => {
 
   // Fetch models when provider changes
   useEffect(() => {
-    fetchModelsForProvider(defaultProvider).then((models) => {
-      // If current model is not in the new list, reset it
-      if (defaultModel && models.length > 0 && !models.includes(defaultModel)) {
-        setDefaultModel('');
-      }
-    });
+    if (defaultProvider) {
+      fetchModelsForProvider(defaultProvider).then((models) => {
+        // If current model is not in the new list, reset it
+        if (defaultModel && models.length > 0 && !models.includes(defaultModel)) {
+          setDefaultModel('');
+        }
+      });
+    } else {
+      setAvailableModels([]);
+    }
   }, [defaultProvider]);
 
   const loadApiKeys = async () => {
@@ -178,7 +182,7 @@ const SettingsPage: React.FC = () => {
       setIsLoading(true);
       const keys = await getApiKeys();
       setApiKeys(keys);
-      
+
       // Load AI provider settings
       if (keys.aiProviders) {
         if (keys.aiProviders.defaultProvider) {
@@ -201,6 +205,10 @@ const SettingsPage: React.FC = () => {
 
   // Fetch models for the current provider
   const fetchModelsForProvider = async (provider: 'gemini' | 'openrouter' | 'ollama'): Promise<string[]> => {
+    if (!provider) {
+      setAvailableModels([]);
+      return [];
+    }
     setLoadingModels(true);
     try {
       const models = await getProviderModels(provider);
@@ -357,15 +365,15 @@ const SettingsPage: React.FC = () => {
       }
 
       await updateApiKeys(updateData);
-      
+
       const savedKeys = [];
       if (hasGeminiKey) savedKeys.push('Gemini');
       if (hasOpenRouterKey) savedKeys.push('OpenRouter');
       if (hasOllamaUrl) savedKeys.push('Ollama');
       if (hasApifyToken) savedKeys.push('Apify');
-      
+
       setToast({ message: `${savedKeys.join(', ')} API key${savedKeys.length > 1 ? 's' : ''} saved successfully!`, type: 'success' });
-      
+
       // Clear form
       setGeminiKey('');
       setOpenRouterKey('');
@@ -375,10 +383,10 @@ const SettingsPage: React.FC = () => {
       setOpenRouterKeyTouched(false);
       setOllamaUrlTouched(false);
       setApifyTokenTouched(false);
-      
+
       // Reload keys to show masked versions
       await loadApiKeys();
-      
+
       // If new user with at least one AI provider key, redirect to dashboard after a short delay
       if (isNewUser && (hasGeminiKey || hasOpenRouterKey || hasOllamaUrl)) {
         setTimeout(() => {
@@ -403,7 +411,7 @@ const SettingsPage: React.FC = () => {
       await deleteApiKey(deleteModal.service);
       setToast({ message: `${deleteModal.service} API key deleted successfully`, type: 'success' });
       await loadApiKeys();
-      
+
       // Clear form if deleting
       if (deleteModal.service === 'gemini') {
         setGeminiKey('');
@@ -473,14 +481,14 @@ const SettingsPage: React.FC = () => {
               </div>
               {isOnboardingExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
             </button>
-            
+
             {isOnboardingExpanded && (
               <div className="px-4 sm:px-6 pb-6 space-y-4">
                 <p className="text-sm sm:text-base text-blue-800 dark:text-blue-200">
-                  To use AI-powered features in this app, you need to provide your own API keys. 
+                  To use AI-powered features in this app, you need to provide your own API keys.
                   This ensures you have full control over your usage and costs.
                 </p>
-                
+
                 {/* Gemini Section */}
                 <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-blue-100 dark:border-blue-800">
                   <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
@@ -534,7 +542,7 @@ const SettingsPage: React.FC = () => {
             <LockIcon />
           </div>
           <p className="text-sm text-green-800 dark:text-green-200">
-            <strong>Security:</strong> Your API keys are stored securely in your account and never shared. 
+            <strong>Security:</strong> Your API keys are stored securely in your account and never shared.
             They are encrypted and only used for your own requests.
           </p>
         </div>
@@ -597,13 +605,12 @@ const SettingsPage: React.FC = () => {
                     }}
                     onBlur={() => setApifyTokenTouched(true)}
                     placeholder={isApifyConfigured ? `Current: ${apiKeys?.apify?.accessToken || '****'}` : 'Enter your Apify token (starts with apify_api_) - Optional'}
-                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${
-                      apifyValidation?.valid === false
-                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
-                        : apifyValidation?.valid === true
+                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${apifyValidation?.valid === false
+                      ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
+                      : apifyValidation?.valid === true
                         ? 'border-green-300 dark:border-green-700 focus:ring-green-500'
                         : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
-                    }`}
+                      }`}
                   />
                   <button
                     type="button"
@@ -614,19 +621,17 @@ const SettingsPage: React.FC = () => {
                     {showApifyToken ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
                   {apifyValidation && (
-                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${
-                      apifyValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}>
+                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${apifyValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}>
                       {apifyValidation.valid ? <CheckIcon /> : <XIcon />}
                     </div>
                   )}
                 </div>
                 {apifyValidation && (
-                  <p className={`mt-2 text-xs flex items-center gap-1 ${
-                    apifyValidation.valid
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
+                  <p className={`mt-2 text-xs flex items-center gap-1 ${apifyValidation.valid
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-red-600 dark:text-red-400'
+                    }`}>
                     {apifyValidation.valid ? <CheckIcon /> : <XIcon />}
                     {apifyValidation.message}
                   </p>
@@ -671,15 +676,16 @@ const SettingsPage: React.FC = () => {
                 <select
                   id="default-provider"
                   value={defaultProvider}
-                  onChange={(e) => setDefaultProvider(e.target.value as 'gemini' | 'openrouter' | 'ollama')}
+                  onChange={(e) => setDefaultProvider(e.target.value as 'gemini' | 'openrouter' | 'ollama' | '')}
                   className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
+                  <option value="">Select a provider...</option>
                   <option value="gemini">Gemini</option>
                   <option value="openrouter">OpenRouter</option>
                   <option value="ollama">Ollama</option>
                 </select>
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  Select your preferred AI provider. The system will use this provider by default, with automatic fallback to other configured providers if needed.
+                  Select your preferred AI provider. You must select a provider to use AI features.
                 </p>
               </div>
 
@@ -703,7 +709,7 @@ const SettingsPage: React.FC = () => {
                   </p>
                 ) : availableModels.length === 0 ? (
                   <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                    {defaultProvider === 'ollama' 
+                    {defaultProvider === 'ollama'
                       ? 'No models found. Please ensure Ollama is running and you have installed models (e.g., run "ollama pull llama3" in your terminal).'
                       : `No models available. Please configure your ${defaultProvider === 'gemini' ? 'Gemini' : 'OpenRouter'} API key in the settings above first.`}
                   </p>
@@ -753,13 +759,12 @@ const SettingsPage: React.FC = () => {
                     }}
                     onBlur={() => setGeminiKeyTouched(true)}
                     placeholder={isGeminiConfigured ? `Current: ${apiKeys?.gemini?.accessToken || apiKeys?.aiProviders?.providers?.gemini?.accessToken || '****'}` : 'Enter your Gemini API key (starts with AIza)'}
-                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${
-                      geminiValidation?.valid === false
-                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
-                        : geminiValidation?.valid === true
+                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${geminiValidation?.valid === false
+                      ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
+                      : geminiValidation?.valid === true
                         ? 'border-green-300 dark:border-green-700 focus:ring-green-500'
                         : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
-                    }`}
+                      }`}
                   />
                   <button
                     type="button"
@@ -770,19 +775,17 @@ const SettingsPage: React.FC = () => {
                     {showGeminiKey ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
                   {geminiValidation && (
-                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${
-                      geminiValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}>
+                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${geminiValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}>
                       {geminiValidation.valid ? <CheckIcon /> : <XIcon />}
                     </div>
                   )}
                 </div>
                 {geminiValidation && (
-                  <p className={`mt-2 text-xs flex items-center gap-1 ${
-                    geminiValidation.valid
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
+                  <p className={`mt-2 text-xs flex items-center gap-1 ${geminiValidation.valid
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-red-600 dark:text-red-400'
+                    }`}>
                     {geminiValidation.valid ? <CheckIcon /> : <XIcon />}
                     {geminiValidation.message}
                   </p>
@@ -815,13 +818,12 @@ const SettingsPage: React.FC = () => {
                     }}
                     onBlur={() => setOpenRouterKeyTouched(true)}
                     placeholder={isOpenRouterConfigured ? `Current: ${apiKeys?.aiProviders?.providers?.openrouter?.accessToken || '****'}` : 'Enter your OpenRouter API key (starts with sk-or-v1- or sk-)'}
-                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${
-                      openRouterValidation?.valid === false
-                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
-                        : openRouterValidation?.valid === true
+                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${openRouterValidation?.valid === false
+                      ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
+                      : openRouterValidation?.valid === true
                         ? 'border-green-300 dark:border-green-700 focus:ring-green-500'
                         : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
-                    }`}
+                      }`}
                   />
                   <button
                     type="button"
@@ -832,19 +834,17 @@ const SettingsPage: React.FC = () => {
                     {showOpenRouterKey ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
                   {openRouterValidation && (
-                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${
-                      openRouterValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}>
+                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${openRouterValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}>
                       {openRouterValidation.valid ? <CheckIcon /> : <XIcon />}
                     </div>
                   )}
                 </div>
                 {openRouterValidation && (
-                  <p className={`mt-2 text-xs flex items-center gap-1 ${
-                    openRouterValidation.valid
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
+                  <p className={`mt-2 text-xs flex items-center gap-1 ${openRouterValidation.valid
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-red-600 dark:text-red-400'
+                    }`}>
                     {openRouterValidation.valid ? <CheckIcon /> : <XIcon />}
                     {openRouterValidation.message}
                   </p>
@@ -886,13 +886,12 @@ const SettingsPage: React.FC = () => {
                     }}
                     onBlur={() => setOllamaUrlTouched(true)}
                     placeholder="http://localhost:11434"
-                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${
-                      ollamaValidation?.valid === false
-                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
-                        : ollamaValidation?.valid === true
+                    className={`w-full px-4 py-2.5 pr-12 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-colors ${ollamaValidation?.valid === false
+                      ? 'border-red-300 dark:border-red-700 focus:ring-red-500'
+                      : ollamaValidation?.valid === true
                         ? 'border-green-300 dark:border-green-700 focus:ring-green-500'
                         : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
-                    }`}
+                      }`}
                   />
                   <button
                     type="button"
@@ -903,19 +902,17 @@ const SettingsPage: React.FC = () => {
                     {showOllamaUrl ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
                   {ollamaValidation && (
-                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${
-                      ollamaValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}>
+                    <div className={`absolute right-12 top-1/2 transform -translate-y-1/2 ${ollamaValidation.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}>
                       {ollamaValidation.valid ? <CheckIcon /> : <XIcon />}
                     </div>
                   )}
                 </div>
                 {ollamaValidation && (
-                  <p className={`mt-2 text-xs flex items-center gap-1 ${
-                    ollamaValidation.valid
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
+                  <p className={`mt-2 text-xs flex items-center gap-1 ${ollamaValidation.valid
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-red-600 dark:text-red-400'
+                    }`}>
                     {ollamaValidation.valid ? <CheckIcon /> : <XIcon />}
                     {ollamaValidation.message}
                   </p>
@@ -948,8 +945,8 @@ const SettingsPage: React.FC = () => {
             <button
               onClick={handleSave}
               disabled={
-                isSaving || 
-                (geminiKey.trim() === '' && apifyToken.trim() === '' && openRouterKey.trim() === '' && ollamaUrl.trim() === '') || 
+                isSaving ||
+                (geminiKey.trim() === '' && apifyToken.trim() === '' && openRouterKey.trim() === '' && ollamaUrl.trim() === '') ||
                 (geminiKey.trim() !== '' && geminiValidation?.valid === false) ||
                 (apifyToken.trim() !== '' && apifyValidation?.valid === false) ||
                 (openRouterKey.trim() !== '' && openRouterValidation?.valid === false) ||

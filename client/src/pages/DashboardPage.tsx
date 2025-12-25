@@ -8,7 +8,7 @@ import {
   updateJob,
   JobApplication,
   CreateJobPayload,
-  createJobFromUrlApi
+  createJobFromTextApi
 } from '../services/jobApi';
 import { getApiKeys } from '../services/settingsApi';
 import JobStatusBadge from '../components/jobs/JobStatusBadge';
@@ -38,10 +38,10 @@ const DashboardPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
-  // --- Create from URL State ---
-  const [urlInput, setUrlInput] = useState<string>('');
-  const [isCreatingFromUrl, setIsCreatingFromUrl] = useState<boolean>(false);
-  const [createFromUrlError, setCreateFromUrlError] = useState<string | null>(null);
+  // --- Create from Text State ---
+  const [jobTextInput, setJobTextInput] = useState<string>('');
+  const [isCreatingFromText, setIsCreatingFromText] = useState<boolean>(false);
+  const [createFromTextError, setCreateFromTextError] = useState<string | null>(null);
 
   // --- Filtering & Sorting State ---
   const [filterText, setFilterText] = useState<string>('');
@@ -70,6 +70,7 @@ const DashboardPage: React.FC = () => {
   // --- Recommendations State ---
   const [recommendations, setRecommendations] = useState<Record<string, JobRecommendation>>({});
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState<boolean>(false);
+  const [pendingRecommendationJobIds, setPendingRecommendationJobIds] = useState<Set<string>>(new Set());
 
   // --- useEffect: Check API keys status ---
   useEffect(() => {
@@ -114,11 +115,17 @@ const DashboardPage: React.FC = () => {
         setRecommendations({});
         return;
       }
-      
+
       setIsLoadingRecommendations(true);
       try {
         const fetchedRecommendations = await getAllJobRecommendations();
         setRecommendations(fetchedRecommendations);
+        // Clear pending jobs that now have recommendations
+        setPendingRecommendationJobIds(prev => {
+          const updated = new Set(prev);
+          Object.keys(fetchedRecommendations).forEach(jobId => updated.delete(jobId));
+          return updated;
+        });
       } catch (err: any) {
         console.error("Failed to fetch recommendations:", err);
         setRecommendations({});
@@ -126,7 +133,7 @@ const DashboardPage: React.FC = () => {
         setIsLoadingRecommendations(false);
       }
     };
-    
+
     if (!isLoading) {
       fetchRecommendations();
     }
@@ -246,6 +253,8 @@ const DashboardPage: React.FC = () => {
         const payload = formData as CreateJobPayload;
         const createdJob = await createJob(payload);
         setJobs(prevJobs => [createdJob, ...prevJobs]);
+        // Mark this job as pending recommendation
+        setPendingRecommendationJobIds(prev => new Set(prev).add(createdJob._id));
         handleCloseModal();
         setToast({ message: 'Job application added successfully!', type: 'success' });
       } else if (modalMode === 'edit' && currentJobId) {
@@ -302,34 +311,36 @@ const DashboardPage: React.FC = () => {
 
   // Helper to check if error is about missing API key
   const isApiKeyError = (errorMessage: string): boolean => {
-    return errorMessage.toLowerCase().includes('api key') || 
-           errorMessage.toLowerCase().includes('gemini') ||
-           errorMessage.toLowerCase().includes('apify');
+    return errorMessage.toLowerCase().includes('api key') ||
+      errorMessage.toLowerCase().includes('gemini') ||
+      errorMessage.toLowerCase().includes('apify');
   };
 
-  // --- Create from URL Handler ---
-  const handleCreateFromUrlSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // --- Create from Text Handler ---
+  const handleCreateFromTextSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!urlInput || !urlInput.startsWith('http')) {
-      setCreateFromUrlError('Please enter a valid job URL.');
+    if (!jobTextInput || jobTextInput.trim().length < 50) {
+      setCreateFromTextError('Please paste more job description text (at least 50 characters).');
       return;
     }
-    setIsCreatingFromUrl(true);
-    setCreateFromUrlError(null);
+    setIsCreatingFromText(true);
+    setCreateFromTextError(null);
     setError(null);
 
     try {
-      const newJob = await createJobFromUrlApi(urlInput);
+      const newJob = await createJobFromTextApi(jobTextInput);
       setJobs(prevJobs => [newJob, ...prevJobs]);
-      setUrlInput('');
-      setToast({ message: 'Job application created from URL successfully!', type: 'success' });
+      // Mark this job as pending recommendation
+      setPendingRecommendationJobIds(prev => new Set(prev).add(newJob._id));
+      setJobTextInput('');
+      setToast({ message: 'Job application created successfully!', type: 'success' });
     } catch (err: any) {
-      console.error("Failed to create job from URL:", err);
-      const errorMessage = err.message || 'Failed to process URL.';
-      setCreateFromUrlError(errorMessage);
+      console.error("Failed to create job from text:", err);
+      const errorMessage = err.message || 'Failed to extract job details.';
+      setCreateFromTextError(errorMessage);
       setToast({ message: errorMessage, type: 'error' });
     } finally {
-      setIsCreatingFromUrl(false);
+      setIsCreatingFromText(false);
     }
   };
 
@@ -365,9 +376,9 @@ const DashboardPage: React.FC = () => {
     </svg>
   );
 
-  const LinkIcon = () => (
+  const ClipboardIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
     </svg>
   );
 
@@ -457,9 +468,9 @@ const DashboardPage: React.FC = () => {
                 </h3>
                 <p className="text-sm mb-3 text-amber-700 dark:text-amber-400">
                   Gemini API key is required to use AI features like job extraction, CV analysis, and document generation. Please add your Gemini API key in Settings. You can get a free API key from{' '}
-                  <a 
-                    href="https://makersuite.google.com/app/apikey" 
-                    target="_blank" 
+                  <a
+                    href="https://makersuite.google.com/app/apikey"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="underline hover:text-amber-900 dark:hover:text-amber-300"
                   >
@@ -481,47 +492,78 @@ const DashboardPage: React.FC = () => {
           </div>
         )}
 
-      {/* Add Job Section */}
+        {/* Add Job Section */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 space-y-6">
-          <div className="flex flex-col md:flex-row items-center gap-4">
-        <button
-          onClick={handleOpenAddModal}
-              className="w-full md:w-auto flex-shrink-0 bg-indigo-600 dark:bg-indigo-600 text-white font-semibold py-2.5 px-6 rounded-md flex items-center justify-center gap-2 hover:bg-indigo-700 dark:hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-          disabled={isSubmitting || isCreatingFromUrl}
-        >
-              <AddIcon />
-              <span>Add New Job Manually</span>
-        </button>
-            <form onSubmit={handleCreateFromUrlSubmit} className="relative flex-grow w-full">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
-                <LinkIcon />
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleOpenAddModal}
+                className="flex-shrink-0 bg-indigo-600 dark:bg-indigo-600 text-white font-semibold py-2.5 px-6 rounded-md flex items-center justify-center gap-2 hover:bg-indigo-700 dark:hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                disabled={isSubmitting || isCreatingFromText}
+              >
+                <AddIcon />
+                <span>Add New Job Manually</span>
+              </button>
+              <span className="text-slate-500 dark:text-slate-400 text-sm">or paste job description below</span>
+            </div>
+            <form onSubmit={handleCreateFromTextSubmit} className="w-full">
+              <div className="relative">
+                <div className="absolute left-4 top-4 text-slate-400 dark:text-slate-500 pointer-events-none">
+                  <ClipboardIcon />
+                </div>
+                <textarea
+                  value={jobTextInput}
+                  onChange={(e) => { setJobTextInput(e.target.value); setCreateFromTextError(null); }}
+                  placeholder="Paste job description here... (Ctrl+A to select all, Ctrl+C to copy from job site, then Ctrl+V here)"
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-indigo-600 dark:focus:ring-indigo-500 rounded-md pl-12 py-3 pr-4 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 disabled:opacity-50 resize-none"
+                  rows={4}
+                  disabled={isCreatingFromText}
+                />
+                {/* Loading overlay */}
+                {isCreatingFromText && (
+                  <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-md flex flex-col items-center justify-center gap-3">
+                    <div className="relative">
+                      <svg className="animate-spin h-10 w-10 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Extracting job details...</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">AI is analyzing the job description</p>
+                    </div>
+                  </div>
+                )}
               </div>
-            <input
-              type="url"
-              value={urlInput}
-              onChange={(e) => { setUrlInput(e.target.value); setCreateFromUrlError(null); }}
-              placeholder="Paste Job URL to auto-create..."
-                className="w-full bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-indigo-600 dark:focus:ring-indigo-500 rounded-md pl-12 py-2.5 pr-40 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 disabled:opacity-50"
-              disabled={isCreatingFromUrl}
-            />
-            <button
-              type="submit"
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium py-1.5 px-4 rounded-md text-sm hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              disabled={isCreatingFromUrl || !urlInput}
-            >
-                {isCreatingFromUrl ? 'Processing...' : 'Create from URL'}
-            </button>
-          </form>
-        </div>
-          {createFromUrlError && (
-            <div className={`p-4 rounded-lg border ${
-              isApiKeyError(createFromUrlError)
-                ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
-                : 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-800'
-            }`}>
+              <div className="flex justify-end mt-3">
+                <button
+                  type="submit"
+                  className="bg-indigo-600 dark:bg-indigo-600 text-white font-medium py-2 px-6 rounded-md text-sm hover:bg-indigo-700 dark:hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  disabled={isCreatingFromText || !jobTextInput || jobTextInput.trim().length < 50}
+                >
+                  {isCreatingFromText ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Extracting...</span>
+                    </>
+                  ) : (
+                    <span>Extract Job Details</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+          {createFromTextError && (
+            <div className={`p-4 rounded-lg border ${isApiKeyError(createFromTextError)
+              ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+              : 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-800'
+              }`}>
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 mt-0.5">
-                  {isApiKeyError(createFromUrlError) ? (
+                  {isApiKeyError(createFromTextError) ? (
                     <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
@@ -532,21 +574,19 @@ const DashboardPage: React.FC = () => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className={`text-sm font-semibold mb-1 ${
-                    isApiKeyError(createFromUrlError)
-                      ? 'text-amber-800 dark:text-amber-300'
-                      : 'text-red-800 dark:text-red-300'
-                  }`}>
-                    {isApiKeyError(createFromUrlError) ? 'API Key Required' : 'Error'}
+                  <h3 className={`text-sm font-semibold mb-1 ${isApiKeyError(createFromTextError)
+                    ? 'text-amber-800 dark:text-amber-300'
+                    : 'text-red-800 dark:text-red-300'
+                    }`}>
+                    {isApiKeyError(createFromTextError) ? 'API Key Required' : 'Error'}
                   </h3>
-                  <p className={`text-sm mb-3 ${
-                    isApiKeyError(createFromUrlError)
-                      ? 'text-amber-700 dark:text-amber-400'
-                      : 'text-red-700 dark:text-red-400'
-                  }`}>
-                    {createFromUrlError}
+                  <p className={`text-sm mb-3 ${isApiKeyError(createFromTextError)
+                    ? 'text-amber-700 dark:text-amber-400'
+                    : 'text-red-700 dark:text-red-400'
+                    }`}>
+                    {createFromTextError}
                   </p>
-                  {isApiKeyError(createFromUrlError) && (
+                  {isApiKeyError(createFromTextError) && (
                     <Link
                       to="/settings"
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-amber-600 hover:bg-amber-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
@@ -563,8 +603,8 @@ const DashboardPage: React.FC = () => {
             </div>
           )}
 
-      {/* Filter Controls */}
-        <div>
+          {/* Filter Controls */}
+          <div>
             <div className="flex flex-col md:flex-row items-center gap-4 mb-4">
               <div className="w-full md:w-1/3">
                 <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1" htmlFor="filter-title">Filter by Title/Company</label>
@@ -572,15 +612,15 @@ const DashboardPage: React.FC = () => {
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
                     <SearchIcon />
                   </div>
-          <input
-            type="text"
+                  <input
+                    type="text"
                     id="filter-title"
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-            placeholder="Enter text..."
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    placeholder="Enter text..."
                     className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-indigo-600 dark:focus:ring-indigo-500 rounded-md pl-10 h-10 text-slate-900 dark:text-slate-100"
-          />
-        </div>
+                  />
+                </div>
               </div>
               <div className="w-full md:w-auto">
                 <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1" htmlFor="filter-status">Filter by Status</label>
@@ -590,52 +630,52 @@ const DashboardPage: React.FC = () => {
                   onChange={(e) => setFilterStatus(e.target.value)}
                   className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:focus:border-indigo-500 focus:ring-indigo-600 dark:focus:ring-indigo-500 rounded-md h-10 px-3 text-slate-900 dark:text-slate-100"
                 >
-            <option value="">All Statuses</option>
-            {statusOptions.map(status => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+                  <option value="">All Statuses</option>
+                  {statusOptions.map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             {/* Table */}
             <div className="overflow-x-auto border-t border-slate-200 dark:border-slate-700">
-      {displayedJobs.length === 0 ? (
-        <div className="text-center py-12 px-4">
-          {jobs.length > 0 ? (
-            <>
+              {displayedJobs.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  {jobs.length > 0 ? (
+                    <>
                       <h3 className="mt-2 text-sm font-medium text-slate-900 dark:text-slate-100">No matches found</h3>
                       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                No job applications match your current filters. Try adjusting your search or filter criteria.
-              </p>
-              <div className="mt-6">
-                <button
-                  onClick={() => { setFilterText(''); setFilterStatus(''); }}
+                        No job applications match your current filters. Try adjusting your search or filter criteria.
+                      </p>
+                      <div className="mt-6">
+                        <button
+                          onClick={() => { setFilterText(''); setFilterStatus(''); }}
                           className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
+                        >
+                          Clear Filters
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
                       <h3 className="mt-2 text-sm font-medium text-slate-900 dark:text-slate-100">No job applications</h3>
                       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Get started by adding a new job application manually or by pasting a job URL above.
-              </p>
-              <div className="mt-6">
-                <button
-                  onClick={handleOpenAddModal}
+                        Get started by adding a new job application manually or by pasting a job URL above.
+                      </p>
+                      <div className="mt-6">
+                        <button
+                          onClick={handleOpenAddModal}
                           className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-                >
+                        >
                           <AddIcon />
                           <span className="ml-2">Add Your First Job</span>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      ) : (
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
                 <>
                   <table className="w-full text-left">
                     <thead>
@@ -652,55 +692,55 @@ const DashboardPage: React.FC = () => {
                             <span>Date Added</span>
                             {sortKey === 'createdAt' && <ArrowDownIcon />}
                           </div>
-                </th>
+                        </th>
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Language</th>
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400 text-right">Actions</th>
-              </tr>
-            </thead>
+                      </tr>
+                    </thead>
                     <tbody>
                       {paginatedJobs.map((job) => (
-                <tr
-                  key={job._id}
-                  onClick={() => handleRowClick(job._id)}
+                        <tr
+                          key={job._id}
+                          onClick={() => handleRowClick(job._id)}
                           className="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                >
+                        >
                           <td className="p-4 font-medium text-slate-800 dark:text-slate-100">{job.jobTitle}</td>
                           <td className="p-4 text-slate-600 dark:text-slate-400">{job.companyName}</td>
                           <td className="p-4">
                             <JobStatusBadge type="application" status={job.status} />
                           </td>
                           <td className="p-4">
-                            <JobRecommendationBadge 
+                            <JobRecommendationBadge
                               recommendation={recommendations[job._id] || null}
-                              isLoading={isLoadingRecommendations}
+                              isLoading={isLoadingRecommendations || pendingRecommendationJobIds.has(job._id)}
                             />
                           </td>
                           <td className="p-4 text-slate-600 dark:text-slate-400">
                             {new Date(job.createdAt).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
-                  </td>
+                          </td>
                           <td className="p-4 text-slate-600 dark:text-slate-400">{job.language ? job.language.toUpperCase() : '-'}</td>
                           <td className="p-4">
                             <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={(e) => handleOpenEditModal(job, e)}
+                              <button
+                                onClick={(e) => handleOpenEditModal(job, e)}
                                 className="flex items-center justify-center w-8 h-8 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                                 title="Edit"
-                      >
+                              >
                                 <EditIcon />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteClick(job, e)}
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteClick(job, e)}
                                 className="flex items-center justify-center w-8 h-8 rounded-md text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
                                 title="Delete"
-                      >
+                              >
                                 <DeleteIcon />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                   {/* Pagination */}
                   <div className="flex items-center justify-between pt-4">
                     <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -718,11 +758,10 @@ const DashboardPage: React.FC = () => {
                         <button
                           key={page}
                           onClick={() => setCurrentPage(page)}
-                          className={`flex items-center justify-center w-9 h-9 rounded-md text-sm font-semibold transition-colors ${
-                            currentPage === page
-                              ? 'bg-indigo-600 dark:bg-indigo-600 text-white'
-                              : 'border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
-                          }`}
+                          className={`flex items-center justify-center w-9 h-9 rounded-md text-sm font-semibold transition-colors ${currentPage === page
+                            ? 'bg-indigo-600 dark:bg-indigo-600 text-white'
+                            : 'border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                            }`}
                         >
                           {page}
                         </button>
@@ -742,226 +781,226 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-      {/* Add/Edit Modal */}
-      {modalMode && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 dark:bg-opacity-80 flex justify-center items-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 sm:mx-0 flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-                {modalMode === 'add' ? 'Add New Job Manually' : 'Edit Job Application'}
-              </h2>
-              <button
-                onClick={handleCloseModal}
-                disabled={isSubmitting}
-                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-50 transition-colors"
-                aria-label="Close"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <form onSubmit={handleFormSubmit} className="flex-1 flex flex-col">
-              {modalError && (
-                <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded border border-red-300 dark:border-red-800">
-                  {modalError}
-                </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto pr-1">
-                {/* Job Title */}
-                <div className="mb-5">
-                  <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Job Title <span className="text-red-500 dark:text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="jobTitle"
-                    name="jobTitle"
-                    value={formData.jobTitle || ''}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
-                  />
-                </div>
-
-                {/* Company Name */}
-                <div className="mb-5">
-                  <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Company Name <span className="text-red-500 dark:text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="companyName"
-                    name="companyName"
-                    value={formData.companyName || ''}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
-                  />
-                </div>
-
-                {/* Status and Language - Side by Side */}
-                <div className="grid grid-cols-2 gap-4 mb-5">
-                  {/* Status */}
-                  <div>
-                    <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Status
-                    </label>
-                    <select
-                      id="status"
-                      name="status"
-                      value={formData.status || 'Not Applied'}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors appearance-none cursor-pointer"
-                    >
-                      {statusOptions.map(status => (
-                        <option key={status} value={status} className="bg-white dark:bg-gray-700">{status}</option>
-                      ))}
-                    </select>
+        {/* Add/Edit Modal */}
+        {modalMode && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 dark:bg-opacity-80 flex justify-center items-center z-50">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 sm:mx-0 flex flex-col">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+                  {modalMode === 'add' ? 'Add New Job Manually' : 'Edit Job Application'}
+                </h2>
+                <button
+                  onClick={handleCloseModal}
+                  disabled={isSubmitting}
+                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-50 transition-colors"
+                  aria-label="Close"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <form onSubmit={handleFormSubmit} className="flex-1 flex flex-col">
+                {modalError && (
+                  <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm rounded border border-red-300 dark:border-red-800">
+                    {modalError}
                   </div>
+                )}
 
-                  {/* Language */}
-                  <div>
-                    <label htmlFor="language" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Language
+                <div className="flex-1 overflow-y-auto pr-1">
+                  {/* Job Title */}
+                  <div className="mb-5">
+                    <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Job Title <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
-                    <select
-                      id="language"
-                      name="language"
-                      value={formData.language || 'en'}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors appearance-none cursor-pointer"
-                    >
-                      <option value="en" className="bg-white dark:bg-gray-700">English</option>
-                      <option value="de" className="bg-white dark:bg-gray-700">German</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Job URL */}
-                <div className="mb-5">
-                  <label htmlFor="jobUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Job URL
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                      </svg>
-                    </div>
                     <input
-                      type="url"
-                      id="jobUrl"
-                      name="jobUrl"
-                      value={formData.jobUrl || ''}
+                      type="text"
+                      id="jobTitle"
+                      name="jobTitle"
+                      value={formData.jobTitle || ''}
                       onChange={handleInputChange}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
-                      placeholder="https://..."
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                    />
+                  </div>
+
+                  {/* Company Name */}
+                  <div className="mb-5">
+                    <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Company Name <span className="text-red-500 dark:text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="companyName"
+                      name="companyName"
+                      value={formData.companyName || ''}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                    />
+                  </div>
+
+                  {/* Status and Language - Side by Side */}
+                  <div className="grid grid-cols-2 gap-4 mb-5">
+                    {/* Status */}
+                    <div>
+                      <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Status
+                      </label>
+                      <select
+                        id="status"
+                        name="status"
+                        value={formData.status || 'Not Applied'}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors appearance-none cursor-pointer"
+                      >
+                        {statusOptions.map(status => (
+                          <option key={status} value={status} className="bg-white dark:bg-gray-700">{status}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Language */}
+                    <div>
+                      <label htmlFor="language" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Language
+                      </label>
+                      <select
+                        id="language"
+                        name="language"
+                        value={formData.language || 'en'}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors appearance-none cursor-pointer"
+                      >
+                        <option value="en" className="bg-white dark:bg-gray-700">English</option>
+                        <option value="de" className="bg-white dark:bg-gray-700">German</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Job URL */}
+                  <div className="mb-5">
+                    <label htmlFor="jobUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Job URL
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                      </div>
+                      <input
+                        type="url"
+                        id="jobUrl"
+                        name="jobUrl"
+                        value={formData.jobUrl || ''}
+                        onChange={handleInputChange}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div className="mb-5">
+                    <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Notes
+                    </label>
+                    <textarea
+                      id="notes"
+                      name="notes"
+                      rows={3}
+                      value={formData.notes || ''}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors resize-none"
                     />
                   </div>
                 </div>
 
-                {/* Notes */}
-                <div className="mb-5">
-                  <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Notes
-                  </label>
-                  <textarea
-                    id="notes"
-                    name="notes"
-                    rows={3}
-                    value={formData.notes || ''}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors resize-none"
-                  />
+                {/* Modal Action Buttons */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700 mt-4">
+                  <button
+                    type="button"
+                    onClick={handleCloseModal}
+                    disabled={isSubmitting}
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 bg-purple-600 dark:bg-purple-600 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors flex items-center gap-2"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {modalMode === 'add' ? 'Adding...' : 'Updating...'}
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {modalMode === 'add' ? 'Add Job' : 'Update Job'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirmModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 dark:bg-opacity-80 flex justify-center items-center z-50">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md mx-4">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="flex-shrink-0 bg-red-100 dark:bg-red-900/30 p-3 rounded-full">
+                  <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Delete Job Application</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Are you sure you want to delete this job application? This action cannot be undone.
+                  </p>
                 </div>
               </div>
-
-              {/* Modal Action Buttons */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700 mt-4">
+              <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md mb-4">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{deleteConfirmModal.jobTitle}</p>
+              </div>
+              <div className="flex justify-end gap-3">
                 <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                  onClick={handleDeleteCancel}
+                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-purple-600 dark:bg-purple-600 text-white rounded-md hover:bg-purple-700 dark:hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors flex items-center gap-2"
+                  onClick={handleDeleteConfirm}
+                  className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      {modalMode === 'add' ? 'Adding...' : 'Updating...'}
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      {modalMode === 'add' ? 'Add Job' : 'Update Job'}
-                    </>
-                  )}
+                  Delete
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 dark:bg-opacity-80 flex justify-center items-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md mx-4">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="flex-shrink-0 bg-red-100 dark:bg-red-900/30 p-3 rounded-full">
-                <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Delete Job Application</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Are you sure you want to delete this job application? This action cannot be undone.
-                </p>
-              </div>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md mb-4">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{deleteConfirmModal.jobTitle}</p>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={handleDeleteCancel}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
-              >
-                Delete
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Toast Notification */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+        {/* Toast Notification */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
       </div>
     </div>
   );

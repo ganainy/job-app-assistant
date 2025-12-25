@@ -25,6 +25,11 @@ export interface JobApplication {
     generatedCoverLetterFilename?: string; // Added
     createdAt: string; // Dates are often strings in JSON
     updatedAt: string; // Dates are often strings in JSON
+    extractedData?: {
+        location?: string;
+        salaryRaw?: string;
+        keyDetails?: string;
+    };
     // userId?: string; // Add later
 }
 export type CreateJobPayload = Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt' | 'draftCvJson' | 'draftCoverLetterText' | 'generationStatus'>; // Exclude draft fields on create
@@ -142,6 +147,20 @@ export const createJobFromUrlApi = async (url: string): Promise<JobApplication> 
             throw error.response.data;
         }
         throw { message: 'An unknown error occurred while creating job from URL.' };
+    }
+};
+
+// ---  Create Job From Pasted Text Function ---
+export const createJobFromTextApi = async (text: string): Promise<JobApplication> => {
+    try {
+        const response = await axios.post<JobApplication>(`${API_BASE_URL}/job-applications/create-from-text`, { text });
+        return response.data;
+    } catch (error: any) {
+        console.error(`Error creating job from pasted text:`, error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data;
+        }
+        throw { message: 'An unknown error occurred while extracting job details.' };
     }
 };
 

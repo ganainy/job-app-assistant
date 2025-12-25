@@ -154,3 +154,53 @@ export const getProviderModels = async (provider: 'gemini' | 'openrouter' | 'oll
   }
 };
 
+export interface CustomPrompts {
+  cvPrompt: string | null;
+  coverLetterPrompt: string | null;
+}
+
+/**
+ * Get user's custom prompts for CV and Cover Letter generation
+ */
+export const getCustomPrompts = async (): Promise<CustomPrompts> => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('No authentication token found.');
+  }
+
+  try {
+    const response = await axios.get<CustomPrompts>(`${API_BASE_URL}/settings/custom-prompts`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error('Error fetching custom prompts:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Failed to fetch custom prompts');
+  }
+};
+
+/**
+ * Update user's custom prompts
+ */
+export const updateCustomPrompts = async (prompts: Partial<CustomPrompts>): Promise<CustomPrompts> => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('No authentication token found.');
+  }
+
+  try {
+    const response = await axios.put<CustomPrompts & { message: string }>(`${API_BASE_URL}/settings/custom-prompts`, prompts, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error('Error updating custom prompts:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Failed to update custom prompts');
+  }
+};
+

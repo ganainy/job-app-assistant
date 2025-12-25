@@ -7,15 +7,12 @@ import fs from 'fs'; // Import fs for file reading
  * @returns Object containing model instances
  */
 export const createGeminiClient = (apiKey: string) => {
-  const genAI = new GoogleGenerativeAI(apiKey);
-  
-  // Using a model that supports file input (gemini-2.5-flash)
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-  
-  // Get a model instance that can handle images (for PDF/DOCX analysis)
-  const visionModel = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
-  
-  return { model, visionModel };
+    const genAI = new GoogleGenerativeAI(apiKey);
+
+    // Using a model that supports multimodal input including files (gemini-2.5-flash)
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    return { model };
 };
 
 /**
@@ -76,7 +73,7 @@ export async function generateAnalysisFromFile<T>(
 ): Promise<T> {
     console.log(`Sending file (${mimeType}) and prompt to Gemini for structured analysis...`);
     try {
-        const { visionModel } = createGeminiClient(apiKey);
+        const { model } = createGeminiClient(apiKey);
         const filePart = fileToGenerativePart(filePath, mimeType);
         // Wrap the text prompt in a Part object
         const textPart: Part = { text: prompt };
@@ -85,7 +82,7 @@ export async function generateAnalysisFromFile<T>(
             filePart  // Then the file data part
         ];
 
-        const result = await visionModel.generateContent({ contents: [{ role: "user", parts }] });
+        const result = await model.generateContent({ contents: [{ role: "user", parts }] });
         const response = result.response;
 
         // Check for blocking or lack of content

@@ -13,7 +13,6 @@ import { scanAts, getAtsScores, getLatestAts, AtsScores, getAtsForJob } from '..
 import { getAllTemplates } from '../templates/config';
 import { getJobsWithCvs, JobApplication, updateJob } from '../services/jobApi';
 import Sidebar from '../components/cv-management/Sidebar';
-import AtsReportView from '../components/ats/AtsReportView';
 
 const CVManagementPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -32,7 +31,6 @@ const CVManagementPage: React.FC = () => {
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('modern-clean');
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
-  const [activeTab, setActiveTab] = useState<'analysis' | 'history' | 'matches'>('analysis');
 
   // Analysis state
   const [analyses, setAnalyses] = useState<Record<string, SectionAnalysisResult[]>>({});
@@ -807,6 +805,11 @@ const CVManagementPage: React.FC = () => {
           setIsReplacing(true);
           setSelectedFile(null);
         }}
+        onReplaceCv={() => {
+          setIsReplacing(true);
+          setSelectedFile(null);
+        }}
+        onDeleteCv={handleDeleteCv}
         className="w-80 flex-shrink-0 z-20"
       />
 
@@ -822,38 +825,9 @@ const CVManagementPage: React.FC = () => {
                     {activeCvData?.basics?.name ? `${activeCvData.basics.name}_CV.pdf` : 'CV_Document.pdf'}
                   </h1>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Analysis & ATS Report for your selected document.
+                    {activeCvId === 'master' ? 'Master CV Document' : 'Job-Specific CV Document'}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-8">
-                <button
-                  onClick={() => setActiveTab('analysis')}
-                  className={`pb-3 border-b-2 font-semibold text-sm transition-colors ${activeTab === 'analysis'
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                    }`}
-                >
-                  Analysis & ATS Report
-                </button>
-                <button
-                  onClick={() => setActiveTab('history')}
-                  className={`pb-3 border-b-2 font-medium text-sm transition-colors ${activeTab === 'history'
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                    }`}
-                >
-                  Version History
-                </button>
-                <button
-                  onClick={() => setActiveTab('matches')}
-                  className={`pb-3 border-b-2 font-medium text-sm transition-colors ${activeTab === 'matches'
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                    }`}
-                >
-                  Job Matches
-                </button>
               </div>
             </div>
           )}
@@ -1063,85 +1037,32 @@ const CVManagementPage: React.FC = () => {
             </div >
           )}
 
-          {/* Main Content Area */}
-          {currentCvData && !isReplacing && !isLoadingCv && (
-            <div className="space-y-8">
-              {/* Analysis Tab */}
-              {activeTab === 'analysis' && (
-                <AtsReportView
-                  atsScores={atsScores}
-                  onEditCv={() => {
-                    // Scroll to editor
-                    const editor = document.getElementById('master-cv-editor');
-                    if (editor) editor.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  onDownloadReport={() => {
-                    // Placeholder for download report
-                    setToast({ message: 'Downloading report...', type: 'info' });
-                  }}
-                />
-              )}
-
-              {/* Other Tabs Placeholders */}
-              {activeTab === 'history' && (
-                <div className="text-center py-12 text-gray-500">
-                  <p>Version history coming soon.</p>
-                </div>
-              )}
-              {activeTab === 'matches' && (
-                <div className="text-center py-12 text-gray-500">
-                  <p>Job matches coming soon.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Editor Section - Always visible but maybe push down or collapsible? 
-              For now, keeping it visible as it's core functionality 
-          */}
-          {currentCvData && !isReplacing && !isLoadingCv && (
-            <div id="master-cv-editor" className="mt-12 pt-12 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">CV Editor</h2>
-              </div>
-
-              {/* Existing Editor Logic */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                {/* ... Keep existing editor controls and components ... */}
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setViewMode('edit')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'edit' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:bg-gray-200'}`}
+          <div className="space-y-8">
+            {/* CV Editor */}
+            <div id="master-cv-editor">
+              {/* For Job CVs - Show Read-Only Preview with link to Review page */}
+              {activeCvId !== 'master' && activeJob && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        CV Preview
+                      </h3>
+                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
+                        Read-only
+                      </span>
+                    </div>
+                    <Link
+                      to={`/jobs/${activeCvId}/review`}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium text-sm shadow-sm hover:shadow-md transition-all"
                     >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => setViewMode('split')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'split' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:bg-gray-200'}`}
-                    >
-                      Split
-                    </button>
-                    <button
-                      onClick={() => setViewMode('preview')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'preview' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:bg-gray-200'}`}
-                    >
-                      Preview
-                    </button>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit on Review Page
+                    </Link>
                   </div>
-                </div>
-
-                <div className="p-6">
-                  {viewMode === 'edit' && (
-                    <CvFormEditor
-                      data={activeCvData}
-                      onChange={handleCvChange}
-                      analyses={analyses}
-                      onImproveSection={handleImproveSection}
-                      improvingSections={improvingSections}
-                    />
-                  )}
-                  {viewMode === 'preview' && (
+                  <div className="p-6">
                     <div style={{ minHeight: '800px' }}>
                       <CvLivePreview
                         data={activeCvData}
@@ -1149,43 +1070,40 @@ const CVManagementPage: React.FC = () => {
                         onTemplateChange={handleTemplateChange}
                       />
                     </div>
-                  )}
-                  {viewMode === 'split' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <div>
-                        <CvFormEditor
-                          data={activeCvData}
-                          onChange={handleCvChange}
-                          analyses={analyses}
-                          onImproveSection={handleImproveSection}
-                          improvingSections={improvingSections}
-                        />
-                      </div>
-                      <div style={{ minHeight: '800px' }}>
-                        <CvLivePreview
-                          data={activeCvData}
-                          templateId={selectedTemplate}
-                          onTemplateChange={handleTemplateChange}
-                        />
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* For Master CV - Preview Only */}
+              {activeCvId === 'master' && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="p-6">
+                    <div style={{ minHeight: '800px' }}>
+                      <CvLivePreview
+                        data={activeCvData}
+                        templateId={selectedTemplate}
+                        onTemplateChange={handleTemplateChange}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
 
+
+
+          </div>
         </div>
-      </div>
 
-      {/* Toast Notification */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+        {/* Toast Notification */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+      </div>
     </div>
   );
 };

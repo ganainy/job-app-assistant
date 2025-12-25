@@ -76,3 +76,11 @@ export const updateDraftBodySchema = z.object({
   }
 );
 
+/**
+ * Create job from pasted text body schema
+ */
+export const createJobFromTextBodySchema = z.object({
+  text: z.string({
+    required_error: 'Job description text is required',
+  }).min(50, 'Please paste more job description text (at least 50 characters)').max(200000, 'Text is too long'),
+});

@@ -18,13 +18,31 @@ export async function generateCoverLetter(
     jobDescription: string,
     jobTitle: string,
     companyName: string,
-    language: 'en' | 'de' = 'en'
+    language: 'en' | 'de' = 'en',
+    customPrompt?: string
 ): Promise<string> {
     const languageName = language === 'de' ? 'German' : 'English';
     const todayDateFormatted = new Date().toLocaleDateString(language === 'de' ? 'de-DE' : 'en-CA');
 
-    // Construct a focused prompt for cover letter generation
-    const prompt = `
+    let prompt: string;
+
+    if (customPrompt) {
+        // Use custom prompt but inject necessary context variables
+        prompt = customPrompt
+            .replace('{{language}}', languageName)
+            .replace('{{cvData}}', JSON.stringify(cvJson, null, 2))
+            .replace('{{jobTitle}}', jobTitle)
+            .replace('{{companyName}}', companyName)
+            .replace('{{jobDescription}}', jobDescription)
+            .replace('{{todayDate}}', todayDateFormatted);
+
+        // Fallback: If variables aren't used, append context at the end to ensure AI has data
+        if (!customPrompt.includes('{{cvData}}')) {
+            prompt += `\n\n**Context Data:**\nCV Data: ${JSON.stringify(cvJson, null, 2)}\nJob Description: ${jobDescription}\nJob Title: ${jobTitle}\nCompany: ${companyName}\nLanguage: ${languageName}`;
+        }
+    } else {
+        // Construct a focused prompt for cover letter generation
+        prompt = `
 You are an expert career advisor and professional cover letter writer specialized in the ${languageName} job market.
 Your task is to write a compelling, tailored cover letter for a specific job application in ${languageName}.
 
@@ -86,13 +104,14 @@ Write a professional cover letter in ${languageName} following these guidelines:
 
 **Important:** The entire cover letter must be returned as plain text, ready to use. Do not include placeholders or ask for additional information.
 `;
+    }
 
     try {
         console.log(`Generating ${languageName} cover letter for ${jobTitle} at ${companyName}...`);
-        
+
         const result = await generateContent(userId, prompt);
         const coverLetterText = result.text.trim();
-        
+
         // Basic validation
         if (!coverLetterText || coverLetterText.length < 100) {
             throw new Error('Generated cover letter is too short or empty');
@@ -103,11 +122,11 @@ Write a professional cover letter in ${languageName} following these guidelines:
 
     } catch (error: any) {
         console.error('Error generating cover letter:', error);
-        
+
         if (error.message) {
             throw error;
         }
-        
+
         throw new Error(`Failed to generate cover letter: ${error.message || 'Unknown error'}`);
     }
 }

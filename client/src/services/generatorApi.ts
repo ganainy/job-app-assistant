@@ -74,6 +74,26 @@ export const generateDocuments = async (
     }
 };
 
+// Function to generate CV only (without cover letter)
+export const generateCvOnly = async (
+    jobId: string,
+    language: 'en' | 'de' = 'en'
+): Promise<GenerateDraftReadyResponse> => {
+    try {
+        const response = await axios.post<GenerateDraftReadyResponse>(
+            `${API_BASE_URL}/generator/${jobId}/generate-cv`,
+            { language }
+        );
+        return response.data;
+    } catch (error: any) {
+        console.error('Error generating CV:', error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw new Error(error.response.data.message || `HTTP error! status: ${error.response.status}`);
+        }
+        throw new Error(error.message || 'Failed to generate CV');
+    }
+};
+
 // Function to render final PDFs when draft is ready
 export const renderFinalPdfs = async (jobId: string): Promise<GenerateSuccessResponse> => {
     try {

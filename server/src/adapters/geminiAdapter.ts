@@ -18,7 +18,7 @@ function parseJsonResponse<T>(responseText: string): T {
       throw new Error(`AI response was not valid JSON. Parse error: ${e.message}`);
     }
   }
-  
+
   // Try to extract JSON from plain text (fallback)
   const startIndex = responseText.indexOf('{');
   const endIndex = responseText.lastIndexOf('}');
@@ -30,7 +30,7 @@ function parseJsonResponse<T>(responseText: string): T {
       throw new Error('AI failed to return data in the expected JSON format.');
     }
   }
-  
+
   throw new Error('AI failed to return data in the expected JSON format.');
 }
 
@@ -52,7 +52,6 @@ function fileToGenerativePart(filePath: string, mimeType: string): Part {
 export class GeminiAdapter extends ModelAdapter {
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
-  private visionModel: GenerativeModel;
   private modelName: string;
 
   constructor(apiKey: string, modelName: string = 'gemini-2.5-flash') {
@@ -60,7 +59,6 @@ export class GeminiAdapter extends ModelAdapter {
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.modelName = modelName;
     this.model = this.genAI.getGenerativeModel({ model: modelName });
-    this.visionModel = this.genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
   }
 
   async generateContent(
@@ -87,7 +85,7 @@ export class GeminiAdapter extends ModelAdapter {
       }
 
       const text = response.text();
-      
+
       // Extract usage info if available
       const usage = response.usageMetadata ? {
         promptTokens: response.usageMetadata.promptTokenCount,
@@ -113,7 +111,7 @@ export class GeminiAdapter extends ModelAdapter {
       const textPart: Part = { text: prompt };
       const parts: Part[] = [textPart, filePart];
 
-      const result = await this.visionModel.generateContent({
+      const result = await this.model.generateContent({
         contents: [{ role: 'user', parts }],
       });
       const response = result.response;
@@ -142,7 +140,7 @@ export class GeminiAdapter extends ModelAdapter {
     options?: GenerateContentOptions
   ): Promise<T> {
     const jsonPrompt = `${prompt}\n\nIMPORTANT: Your response MUST be a valid JSON object wrapped in triple backticks (\`\`\`json). Do not include any additional text outside the JSON block.`;
-    
+
     const result = await this.generateContent(jsonPrompt, options);
     return parseJsonResponse<T>(result.text);
   }

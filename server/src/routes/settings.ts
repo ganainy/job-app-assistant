@@ -15,12 +15,12 @@ router.use(authMiddleware as RequestHandler); // Apply auth to all routes
  */
 function maskApiKey(key: string | undefined | null): string | null {
   if (!key) return null;
-  
+
   // Try to decrypt first (in case it's encrypted)
   // If decryption fails or returns the same value, it might be unencrypted
   const decrypted = decrypt(key);
   const valueToMask = decrypted || key;
-  
+
   if (valueToMask.length <= 4) return '****';
   return '****' + valueToMask.slice(-4);
 }
@@ -72,7 +72,7 @@ router.get('/api-keys', asyncHandler(async (req: Request, res: Response) => {
   let profile = await Profile.findOne({ userId });
   if (!profile) {
     // Create a new profile if it doesn't exist
-    profile = await Profile.create({ 
+    profile = await Profile.create({
       userId,
       autoJobSettings: {
         keywords: '',
@@ -88,7 +88,7 @@ router.get('/api-keys', asyncHandler(async (req: Request, res: Response) => {
 
   // Get AI provider settings
   const aiProviderSettings = profile.aiProviderSettings || {};
-  const defaultProvider = aiProviderSettings.defaultProvider || 'gemini';
+  const defaultProvider = aiProviderSettings.defaultProvider || null;
   const defaultModel = aiProviderSettings.defaultModel;
 
   res.json({
@@ -157,27 +157,27 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
     }
 
     // Validate Gemini key if provided
-    if (aiProviders.providers?.gemini?.accessToken !== undefined && 
-        aiProviders.providers.gemini.accessToken !== null && 
-        aiProviders.providers.gemini.accessToken !== '') {
+    if (aiProviders.providers?.gemini?.accessToken !== undefined &&
+      aiProviders.providers.gemini.accessToken !== null &&
+      aiProviders.providers.gemini.accessToken !== '') {
       if (!validateGeminiKey(aiProviders.providers.gemini.accessToken)) {
         throw new ValidationError('Invalid Gemini API key format. Key should start with "AIza"');
       }
     }
 
     // Validate OpenRouter key if provided
-    if (aiProviders.providers?.openrouter?.accessToken !== undefined && 
-        aiProviders.providers.openrouter.accessToken !== null && 
-        aiProviders.providers.openrouter.accessToken !== '') {
+    if (aiProviders.providers?.openrouter?.accessToken !== undefined &&
+      aiProviders.providers.openrouter.accessToken !== null &&
+      aiProviders.providers.openrouter.accessToken !== '') {
       if (!validateOpenRouterKey(aiProviders.providers.openrouter.accessToken)) {
         throw new ValidationError('Invalid OpenRouter API key format. Key should start with "sk-or-v1-" or "sk-"');
       }
     }
 
     // Validate Ollama URL if provided
-    if (aiProviders.providers?.ollama?.baseUrl !== undefined && 
-        aiProviders.providers.ollama.baseUrl !== null && 
-        aiProviders.providers.ollama.baseUrl !== '') {
+    if (aiProviders.providers?.ollama?.baseUrl !== undefined &&
+      aiProviders.providers.ollama.baseUrl !== null &&
+      aiProviders.providers.ollama.baseUrl !== '') {
       if (!validateOllamaUrl(aiProviders.providers.ollama.baseUrl)) {
         throw new ValidationError('Invalid Ollama base URL format. Must be a valid HTTP or HTTPS URL');
       }
@@ -187,7 +187,7 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
   // Find or create profile
   let profile = await Profile.findOne({ userId });
   if (!profile) {
-    profile = await Profile.create({ 
+    profile = await Profile.create({
       userId,
       autoJobSettings: {
         keywords: '',
@@ -203,7 +203,7 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
 
   // Update integrations
   const updates: any = {};
-  
+
   if (gemini !== undefined) {
     if (gemini.accessToken === null || gemini.accessToken === '') {
       // Remove key
@@ -259,7 +259,7 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
           throw new ValidationError('Failed to encrypt Gemini API key');
         }
         aiProviderUpdates['aiProviderSettings.providers.gemini.accessToken'] = encryptedKey;
-        aiProviderUpdates['aiProviderSettings.providers.gemini.enabled'] = 
+        aiProviderUpdates['aiProviderSettings.providers.gemini.enabled'] =
           aiProviders.providers.gemini.enabled !== undefined ? aiProviders.providers.gemini.enabled : true;
       }
     }
@@ -275,7 +275,7 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
           throw new ValidationError('Failed to encrypt OpenRouter API key');
         }
         aiProviderUpdates['aiProviderSettings.providers.openrouter.accessToken'] = encryptedKey;
-        aiProviderUpdates['aiProviderSettings.providers.openrouter.enabled'] = 
+        aiProviderUpdates['aiProviderSettings.providers.openrouter.enabled'] =
           aiProviders.providers.openrouter.enabled !== undefined ? aiProviders.providers.openrouter.enabled : true;
       }
     }
@@ -289,7 +289,7 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
         if (aiProviders.providers.ollama.baseUrl !== undefined) {
           aiProviderUpdates['aiProviderSettings.providers.ollama.baseUrl'] = aiProviders.providers.ollama.baseUrl;
         }
-        aiProviderUpdates['aiProviderSettings.providers.ollama.enabled'] = 
+        aiProviderUpdates['aiProviderSettings.providers.ollama.enabled'] =
           aiProviders.providers.ollama.enabled !== undefined ? aiProviders.providers.ollama.enabled : true;
       }
     }
@@ -307,7 +307,7 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
   // Return masked keys
   const updatedProfile = await Profile.findOne({ userId });
   const aiProviderSettings = updatedProfile?.aiProviderSettings || {};
-  
+
   res.json({
     message: 'API keys updated successfully',
     gemini: {
@@ -319,7 +319,7 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
       enabled: updatedProfile?.integrations?.apify?.enabled || false,
     },
     aiProviders: {
-      defaultProvider: aiProviderSettings.defaultProvider || 'gemini',
+      defaultProvider: aiProviderSettings.defaultProvider || null,
       defaultModel: aiProviderSettings.defaultModel,
       providers: {
         gemini: {
@@ -430,6 +430,68 @@ router.get('/models/:provider', asyncHandler(async (req: Request, res: Response)
     }
     throw new ValidationError(`Failed to get models for provider ${providerName}: ${error.message}`);
   }
+}));
+
+/**
+ * GET /api/settings/custom-prompts
+ * Get user's custom prompts for CV and Cover Letter generation
+ */
+router.get('/custom-prompts', asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user || !req.user._id) {
+    throw new ValidationError('User not authenticated');
+  }
+  const userId = req.user._id.toString();
+
+  const profile = await Profile.findOne({ userId });
+
+  res.json({
+    cvPrompt: profile?.customPrompts?.cvPrompt || null,
+    coverLetterPrompt: profile?.customPrompts?.coverLetterPrompt || null,
+  });
+}));
+
+/**
+ * PUT /api/settings/custom-prompts
+ * Update user's custom prompts
+ */
+router.put('/custom-prompts', asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user || !req.user._id) {
+    throw new ValidationError('User not authenticated');
+  }
+  const userId = req.user._id.toString();
+
+  const { cvPrompt, coverLetterPrompt } = req.body;
+
+  // Validate prompts (optional, max 50000 chars each)
+  if (cvPrompt !== undefined && cvPrompt !== null && typeof cvPrompt === 'string' && cvPrompt.length > 50000) {
+    throw new ValidationError('CV prompt is too long (max 50000 characters)');
+  }
+  if (coverLetterPrompt !== undefined && coverLetterPrompt !== null && typeof coverLetterPrompt === 'string' && coverLetterPrompt.length > 50000) {
+    throw new ValidationError('Cover Letter prompt is too long (max 50000 characters)');
+  }
+
+  const updates: any = {};
+
+  if (cvPrompt !== undefined) {
+    updates['customPrompts.cvPrompt'] = cvPrompt === '' ? null : cvPrompt;
+  }
+  if (coverLetterPrompt !== undefined) {
+    updates['customPrompts.coverLetterPrompt'] = coverLetterPrompt === '' ? null : coverLetterPrompt;
+  }
+
+  await Profile.findOneAndUpdate(
+    { userId },
+    { $set: updates },
+    { new: true, upsert: true }
+  );
+
+  const updatedProfile = await Profile.findOne({ userId });
+
+  res.json({
+    message: 'Custom prompts updated successfully',
+    cvPrompt: updatedProfile?.customPrompts?.cvPrompt || null,
+    coverLetterPrompt: updatedProfile?.customPrompts?.coverLetterPrompt || null,
+  });
 }));
 
 export default router;

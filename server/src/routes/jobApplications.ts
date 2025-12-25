@@ -3,7 +3,7 @@ import express, { Router, Request, Response, RequestHandler } from 'express';
 import JobApplication from '../models/JobApplication';
 import authMiddleware from '../middleware/authMiddleware'; // Import the middleware
 import { ScraperService } from '../services/scraperService';
-import { extractJobDataFromUrl, ExtractedJobData } from '../utils/aiExtractor';
+import { extractJobDataFromUrl, extractJobDataFromText, ExtractedJobData } from '../utils/aiExtractor';
 import mongoose from 'mongoose'; // Import mongoose for ObjectId type
 import { JsonResumeSchema } from '../types/jsonresume'; // Import if needed for validation
 import { validateRequest, ValidatedRequest } from '../middleware/validateRequest';
@@ -13,6 +13,7 @@ import {
   updateJobBodySchema,
   scrapeJobBodySchema,
   createJobFromUrlBodySchema,
+  createJobFromTextBodySchema,
   updateDraftBodySchema,
 } from '../validations/jobApplicationSchemas';
 import { objectIdParamSchema, jobIdParamSchema, filenameParamSchema } from '../validations/commonSchemas';
@@ -36,9 +37,9 @@ const getJobsHandler: RequestHandler = async (req, res) => {
     }
     const userId = req.user._id; // Get user ID from the authenticated user
     // Only show jobs that should be displayed in dashboard
-    const jobs = await JobApplication.find({ 
+    const jobs = await JobApplication.find({
       userId: userId,
-      showInDashboard: true 
+      showInDashboard: true
     }).sort({ createdAt: -1 });
     res.status(200).json(jobs);
   } catch (error) {
@@ -316,17 +317,23 @@ const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, re
 
     // 2. Create a new JobApplication document
     // Note: We trust the extractor threw an error if essential fields were null
+
     const newJob = new JobApplication({
       userId: userId,
       jobTitle: extractedData.jobTitle,
       companyName: extractedData.companyName,
       jobDescriptionText: extractedData.jobDescriptionText,
       language: extractedData.language,
-      notes: extractedData.notes || '', // Use extracted notes or empty string
+      notes: extractedData.notes || '',
       jobUrl: url, // Save the original URL
       status: 'Not Applied', // Default status
       isAutoJob: false, // Manual job
-      showInDashboard: true // Manual jobs always show in dashboard
+      showInDashboard: true, // Manual jobs always show in dashboard
+      extractedData: {
+        location: extractedData.location || undefined,
+        salaryRaw: extractedData.salary || undefined,
+        keyDetails: extractedData.keyDetails || undefined
+      }
     });
 
     // 3. Save the document
@@ -361,6 +368,76 @@ const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, re
   }
 };
 router.post('/create-from-url', validateRequest({ body: createJobFromUrlBodySchema }), createJobFromUrlHandler); // Add the new route
+
+
+// ---  Create Job From Text Endpoint ---
+// POST /api/jobs/create-from-text
+const createJobFromTextHandler: RequestHandler = async (req: ValidatedRequest, res) => {
+  if (!req.user) {
+    res.status(401).json({ message: 'User not authenticated.' });
+    return;
+  }
+  const { text } = req.validated!.body!; // Expect text in the validated request body
+
+  const userId = req.user._id as mongoose.Types.ObjectId;
+  const userIdString = userId.toString();
+
+  try {
+    console.log(`Attempting to create job from pasted text for user ${userIdString} (length: ${text.length})`);
+    // 1. Call the AI extractor for text
+    const extractedData: ExtractedJobData = await extractJobDataFromText(text, userIdString);
+
+    // 2. Create a new JobApplication document
+
+    const newJob = new JobApplication({
+      userId: userId,
+      jobTitle: extractedData.jobTitle,
+      companyName: extractedData.companyName,
+      jobDescriptionText: extractedData.jobDescriptionText,
+      language: extractedData.language,
+      notes: extractedData.notes || '',
+      status: 'Not Applied',
+      isAutoJob: false,
+      showInDashboard: true,
+      extractedData: {
+        location: extractedData.location || undefined,
+        salaryRaw: extractedData.salary || undefined,
+        keyDetails: extractedData.keyDetails || undefined
+      }
+    });
+
+    // 3. Save the document
+    const savedJob = await newJob.save();
+    console.log(`Successfully created job ${savedJob._id} from pasted text`);
+
+    if (savedJob.jobDescriptionText && savedJob.jobDescriptionText.trim().length > 0) {
+      const jobId = savedJob._id as mongoose.Types.ObjectId;
+      getJobRecommendation(userId, jobId, true).catch(error => {
+        console.error(`Failed to generate recommendation for new job ${jobId}:`, error);
+      });
+    }
+
+    // 4. Return the created job
+    res.status(201).json(savedJob);
+
+  } catch (error: any) {
+    console.error(`Failed to create job from pasted text:`, error);
+
+    // Preserve the original error message and status code if it's an AppError
+    if (error?.statusCode && error?.isOperational) {
+      res.status(error.statusCode).json({
+        message: error.message || 'Failed to create job from text.'
+      });
+      return;
+    }
+
+    // For other errors, provide more specific feedback
+    res.status(500).json({
+      message: error?.message || 'Failed to create job from pasted text. Unknown server error.'
+    });
+  }
+};
+router.post('/create-from-text', validateRequest({ body: createJobFromTextBodySchema }), createJobFromTextHandler);
 
 
 // ---  Get Draft Data Endpoint ---

@@ -77,15 +77,15 @@ const JobRecommendationBadge: React.FC<JobRecommendationBadgeProps> = ({
     }
 
     // Check if there's an error (either in error field or reason contains error indicators)
-    const hasError = recommendation.error || 
-                     (recommendation.reason && (
-                         recommendation.reason.includes('failed:') ||
-                         recommendation.reason.includes('Analysis completed but relevance check failed') ||
-                         recommendation.reason.includes('Error') ||
-                         recommendation.reason.includes('ECONNRESET') ||
-                         recommendation.reason.includes('quota') ||
-                         recommendation.reason.includes('timeout')
-                     ));
+    const hasError = recommendation.error ||
+        (recommendation.reason && (
+            recommendation.reason.includes('failed:') ||
+            recommendation.reason.includes('Analysis completed but relevance check failed') ||
+            recommendation.reason.includes('Error') ||
+            recommendation.reason.includes('ECONNRESET') ||
+            recommendation.reason.includes('quota') ||
+            recommendation.reason.includes('timeout')
+        ));
 
     if (hasError) {
         const errorMessage = recommendation.error || recommendation.reason || 'Analysis failed';
@@ -150,26 +150,17 @@ const JobRecommendationBadge: React.FC<JobRecommendationBadgeProps> = ({
         );
     }
 
-    // Handle cases where score is null
-    if (recommendation.score === null) {
+    // Handle cases where score is null or undefined (still calculating)
+    if (recommendation.score === null || recommendation.score === undefined) {
         return (
-            <div
-                className={`relative inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 cursor-help ${className}`}
-                onMouseEnter={() => setShowTooltip(true)}
-                onMouseLeave={() => setShowTooltip(false)}
-            >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{recommendation.reason || 'Not analyzed'}</span>
-                {showTooltip && recommendation.reason && (
-                    <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-lg whitespace-pre-line max-w-xs pointer-events-none">
-                        {recommendation.reason}
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                            <div className="border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
-                        </div>
-                    </div>
-                )}
+            <div className={`inline-flex items-center gap-2 ${className}`}>
+                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                    <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Calculating...</span>
+                </div>
             </div>
         );
     }
@@ -250,7 +241,7 @@ const JobRecommendationBadge: React.FC<JobRecommendationBadgeProps> = ({
             </div>
 
             {showTooltip && (
-                <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-72 pointer-events-none">
+                <div className="absolute z-[100] right-full top-1/2 transform -translate-y-1/2 mr-2 w-72 pointer-events-none">
                     <div className="bg-slate-900 dark:bg-slate-800 text-white rounded-lg shadow-xl overflow-hidden">
                         {/* Header */}
                         <div className={`px-4 py-2 ${badgeConfig.progressColor} bg-opacity-90`}>
@@ -286,9 +277,9 @@ const JobRecommendationBadge: React.FC<JobRecommendationBadgeProps> = ({
                         </div>
                     </div>
 
-                    {/* Arrow */}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                        <div className="border-8 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+                    {/* Arrow pointing right */}
+                    <div className="absolute top-1/2 left-full transform -translate-y-1/2 -ml-1">
+                        <div className="border-8 border-transparent border-l-slate-900 dark:border-l-slate-800"></div>
                     </div>
                 </div>
             )}

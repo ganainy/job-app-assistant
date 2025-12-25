@@ -16,7 +16,7 @@ export interface IJobApplication extends Document {
     notes?: string; // Optional user notes
     jobDescriptionText?: string; // Store the scraped text
     language?: string; // Language of the job
-    
+
     // --- Auto Job Fields (unified model) ---
     isAutoJob?: boolean; // true if auto-discovered
     showInDashboard?: boolean; // true to show in dashboard
@@ -28,7 +28,7 @@ export interface IJobApplication extends Document {
     processedAt?: Date; // When auto job was processed
     jobPostDate?: Date; // When the job was posted (from crawler)
     deletedAt?: Date; // Soft delete timestamp (for auto jobs to prevent re-fetching)
-    
+
     // Extracted intelligence from AI analysis (for auto jobs)
     extractedData?: {
         skills?: string[];
@@ -41,14 +41,14 @@ export interface IJobApplication extends Document {
         location?: string;
         remoteOption?: string;
     };
-    
+
     // Company insights from AI research (for auto jobs)
     companyInsights?: {
         missionStatement?: string;
         coreValues?: string[];
         businessModel?: string;
     };
-    
+
     // --- New Fields for Drafts & Status ---
     draftCvJson?: JsonResumeSchema | mongoose.Schema.Types.Mixed; // Store draft CV data
     draftCoverLetterText?: string; // Store draft Cover Letter text
@@ -87,7 +87,7 @@ const JobApplicationSchema: Schema = new Schema(
         notes: { type: String, trim: true },
         jobDescriptionText: { type: String }, // Text from scraping
         language: { type: String, trim: true },
-        
+
         // --- Auto Job Fields (unified model) ---
         isAutoJob: { type: Boolean, default: false, index: true },
         showInDashboard: { type: Boolean, default: true, index: true }, // Default true for manual jobs, false for auto jobs
@@ -103,7 +103,7 @@ const JobApplicationSchema: Schema = new Schema(
         processedAt: { type: Date },
         jobPostDate: { type: Date },
         deletedAt: { type: Date, index: true }, // Soft delete timestamp
-        
+
         // Extracted intelligence from AI analysis (for auto jobs)
         extractedData: {
             skills: [String],
@@ -112,18 +112,20 @@ const JobApplicationSchema: Schema = new Schema(
                 max: Number,
                 currency: { type: String, default: 'USD' }
             },
+            salaryRaw: String, // Store raw salary string from AI
+            keyDetails: String, // AI-extracted bullet points (formerly notes)
             yearsExperience: Number,
             location: String,
             remoteOption: String
         },
-        
+
         // Company insights from AI research (for auto jobs)
         companyInsights: {
             missionStatement: String,
             coreValues: [String],
             businessModel: String
         },
-        
+
         // --- Schema Definitions for New Fields ---
         draftCvJson: { type: Schema.Types.Mixed, required: false },
         draftCoverLetterText: { type: String, required: false },
