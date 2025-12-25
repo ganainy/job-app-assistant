@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { JsonResumeSchema } from '../../../../server/src/types/jsonresume';
 import { getTemplate, TemplateConfig } from '../../templates/config';
 import { TemplateWrapper } from '../../templates/TemplateWrapper';
@@ -10,15 +10,27 @@ interface CvLivePreviewProps {
   className?: string;
 }
 
-const CvLivePreview: React.FC<CvLivePreviewProps> = ({
+/** Ref API exposed by CvLivePreview */
+export interface CvLivePreviewRef {
+  /** Returns the preview container element for PDF generation */
+  getPreviewElement: () => HTMLDivElement | null;
+}
+
+const CvLivePreview = forwardRef<CvLivePreviewRef, CvLivePreviewProps>(({
   data,
   templateId,
   onTemplateChange,
   className = '',
-}) => {
+}, ref) => {
   const previewRef = useRef<HTMLDivElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateConfig | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<TemplateConfig[]>([]);
+
+  // Expose the preview element via ref
+  useImperativeHandle(ref, () => ({
+    getPreviewElement: () => previewContainerRef.current,
+  }), []);
 
   useEffect(() => {
     const template = getTemplate(templateId);
@@ -81,7 +93,12 @@ const CvLivePreview: React.FC<CvLivePreviewProps> = ({
       )}
 
       <div className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 p-4 rounded-lg">
-        <div className="bg-white dark:bg-white shadow-lg mx-auto" style={{ maxWidth: '816px', width: '100%' }}>
+        <div
+          ref={previewContainerRef}
+          className="bg-white dark:bg-white shadow-lg mx-auto"
+          style={{ maxWidth: '816px', width: '100%' }}
+          id="cv-preview-container"
+        >
           <div ref={previewRef} className="cv-preview-container">
             <TemplateWrapper
               ref={previewRef}
@@ -94,7 +111,8 @@ const CvLivePreview: React.FC<CvLivePreviewProps> = ({
       </div>
     </div>
   );
-};
+});
+
+CvLivePreview.displayName = 'CvLivePreview';
 
 export default CvLivePreview;
-

@@ -8,7 +8,8 @@ import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi'
 import { scanAts, getAtsScores, getAtsForJob, AtsScores } from '../services/atsApi';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
-import CvLivePreview from '../components/cv-editor/CvLivePreview';
+import CvLivePreview, { CvLivePreviewRef } from '../components/cv-editor/CvLivePreview';
+import { downloadCvAsPdf } from '../services/pdfService';
 import { DEFAULT_CV_PROMPT, DEFAULT_COVER_LETTER_PROMPT } from '../constants/prompts';
 import { getAllTemplates, TemplateConfig } from '../templates/config';
 import { generateCoverLetter } from '../services/coverLetterApi';
@@ -135,9 +136,38 @@ const ReviewFinalizePage: React.FC = () => {
     const [previewPdfBase64, setPreviewPdfBase64] = useState<string | null>(null);
     const [isGeneratingPreview, setIsGeneratingPreview] = useState<boolean>(false);
     const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
-    const [cvViewMode, setCvViewMode] = useState<'edit' | 'preview' | 'split'>('split');
+    const [cvViewMode, setCvViewMode] = useState<'edit' | 'preview' | 'split'>(() => {
+        // Read from localStorage for persistence per job
+        if (jobId) {
+            try {
+                const saved = localStorage.getItem(`job_cvViewMode_${jobId}`);
+                if (saved && ['edit', 'preview', 'split'].includes(saved)) {
+                    return saved as 'edit' | 'preview' | 'split';
+                }
+            } catch (e) {
+                console.error("Error reading cvViewMode from localStorage", e);
+            }
+        }
+        return 'split';
+    });
+
+    const handleCvViewModeChange = (newMode: 'edit' | 'preview' | 'split') => {
+        setCvViewMode(newMode);
+        if (jobId) {
+            try {
+                localStorage.setItem(`job_cvViewMode_${jobId}`, newMode);
+            } catch (e) {
+                console.error("Error saving cvViewMode to localStorage", e);
+            }
+        }
+    };
     const [selectedTemplate, setSelectedTemplate] = useState<string>('modern-clean');
     const [availableTemplates, setAvailableTemplates] = useState<TemplateConfig[]>([]);
+    const [isDownloadingCvPdf, setIsDownloadingCvPdf] = useState<boolean>(false);
+
+    // Ref for accessing the CV preview element for PDF generation
+    const cvPreviewRef = useRef<CvLivePreviewRef>(null);
+    const splitViewCvPreviewRef = useRef<CvLivePreviewRef>(null);
 
     // Tailor Job CV Form State
     const [tailoredJobTitle, setTailoredJobTitle] = useState<string>('');
@@ -787,7 +817,45 @@ const ReviewFinalizePage: React.FC = () => {
         }
     };
 
+    /**
+     * Downloads the CV as PDF by capturing the exact preview element.
+     * This ensures WYSIWYG - the downloaded PDF matches exactly what's shown in the preview.
+     */
+    const handleDownloadCvPdf = async () => {
+        if (!jobApplication || !cvData) {
+            showToast('No CV data available to download', 'error');
+            return;
+        }
+
+        // Get the preview element from either the preview or split view ref
+        const previewElement = cvPreviewRef.current?.getPreviewElement() ||
+            splitViewCvPreviewRef.current?.getPreviewElement();
+
+        if (!previewElement) {
+            showToast('Please switch to Preview or Split view to download the PDF', 'info');
+            return;
+        }
+
+        setIsDownloadingCvPdf(true);
+        try {
+            const language = (jobApplication.language === 'de') ? 'de' : 'en';
+            await downloadCvAsPdf(
+                previewElement,
+                jobApplication.companyName || 'Company',
+                jobApplication.jobTitle,
+                language
+            );
+            showToast('CV PDF downloaded successfully', 'success');
+        } catch (error: any) {
+            console.error('Error downloading CV PDF:', error);
+            showToast(error.message || 'Failed to download CV PDF', 'error');
+        } finally {
+            setIsDownloadingCvPdf(false);
+        }
+    };
+
     const handleGenerateCoverLetter = async () => {
+
         if (!jobId || !jobApplication) return;
 
         setIsGeneratingCoverLetter(true);
@@ -1145,33 +1213,7 @@ const ReviewFinalizePage: React.FC = () => {
                 />
             )}
 
-            {/* Sticky Header with Breadcrumbs */}
-            <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-                <div className="container mx-auto px-4 py-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                            <Link to="/dashboard" className="hover:text-gray-900 dark:hover:text-gray-100">
-                                Dashboard
-                            </Link>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                            <span className="text-gray-900 dark:text-gray-100 font-medium truncate max-w-md">
-                                {jobApplication.jobTitle} at {jobApplication.companyName}
-                            </span>
-                        </div>
-                        <button
-                            onClick={() => navigate('/dashboard')}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                            Back
-                        </button>
-                    </div>
-                </div>
-            </div>
+
 
             <div className="container mx-auto px-4 py-6">
                 {/* Page Title and Status Badges */}
@@ -1228,7 +1270,7 @@ const ReviewFinalizePage: React.FC = () => {
                             <span className={`text-xs font-medium mt-2 transition-colors duration-200 ${activeTab === 'cv'
                                 ? 'text-primary font-bold'
                                 : 'text-gray-500 dark:text-gray-400'
-                                }`}>CV Generated</span>
+                                }`}>Tailored CV</span>
                         </button>
 
                         {/* Tab 3: Cover Letter */}
@@ -1447,15 +1489,6 @@ const ReviewFinalizePage: React.FC = () => {
                                 <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                                     <div className="flex justify-between items-center mb-4">
                                         <h2 className="text-lg font-bold text-text-main-light dark:text-text-main-dark">Description</h2>
-                                        {!isRefreshing && (
-                                            <button
-                                                onClick={handleRefreshJobDetails}
-                                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1 shadow-sm"
-                                            >
-                                                <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                                                Extract Job Details
-                                            </button>
-                                        )}
                                     </div>
 
                                     {refreshError && (
@@ -1520,34 +1553,6 @@ const ReviewFinalizePage: React.FC = () => {
 
                                                 {/* Action buttons - positioned on the right */}
                                                 <div className="flex items-center gap-3">
-                                                    {/* Regenerate Cover Letter Text */}
-                                                    <button
-                                                        onClick={handleGenerateCoverLetter}
-                                                        disabled={isGeneratingCoverLetter || !jobApplication?.jobDescriptionText || !hasMasterCv}
-                                                        className="group flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800/50 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow"
-                                                        title={
-                                                            !hasMasterCv
-                                                                ? 'Please upload your master CV first'
-                                                                : !jobApplication?.jobDescriptionText
-                                                                    ? 'Please scrape the job description first'
-                                                                    : 'Regenerate cover letter text with AI'
-                                                        }
-                                                    >
-                                                        {isGeneratingCoverLetter ? (
-                                                            <>
-                                                                <Spinner size="sm" />
-                                                                <span>Regenerating...</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <svg className="w-4 h-4 text-gray-600 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                                </svg>
-                                                                <span>Regenerate Cover Letter Text</span>
-                                                            </>
-                                                        )}
-                                                    </button>
-
                                                     {/* Download Buttons Group */}
                                                     <div className="flex items-center gap-2">
                                                         {/* Download PDF Button */}
@@ -1579,7 +1584,36 @@ const ReviewFinalizePage: React.FC = () => {
                                                             <span>Word</span>
                                                         </button>
                                                     </div>
+
+                                                    {/* Delete Cover Letter Button */}
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (window.confirm('Are you sure you want to delete this cover letter? You will need to regenerate it.')) {
+                                                                if (jobId) {
+                                                                    try {
+                                                                        // Optimistic update
+                                                                        setJobApplication(prev => prev ? { ...prev, draftCoverLetterText: undefined } : null);
+                                                                        // Update backend
+                                                                        await updateJob(jobId, { draftCoverLetterText: null });
+                                                                    } catch (err) {
+                                                                        console.error('Failed to delete cover letter', err);
+                                                                    }
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="group flex items-center gap-2.5 px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md"
+                                                        title="Delete cover letter to regenerate with new instructions"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                                    </button>
                                                 </div>
+                                            </div>
+
+                                            <div className="mt-4 flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg text-sm border border-blue-100 dark:border-blue-900/30">
+                                                <span className="material-symbols-outlined text-base">info</span>
+                                                <p>
+                                                    To regenerate the cover letter with different instructions, please delete the current cover letter using the trash icon above.
+                                                </p>
                                             </div>
                                         </div>
 
@@ -1591,14 +1625,6 @@ const ReviewFinalizePage: React.FC = () => {
                                                 />
                                             </div>
                                         )}
-
-                                        <div className="mb-4">
-                                            <PromptCustomizer
-                                                key="cl-customizer-edit"
-                                                type="coverLetter"
-                                                defaultPrompt={DEFAULT_COVER_LETTER_PROMPT}
-                                            />
-                                        </div>
                                     </div>
 
                                     <div className="h-[calc(100vh-500px)] min-h-[600px] flex flex-col">
@@ -1774,19 +1800,19 @@ const ReviewFinalizePage: React.FC = () => {
                                                     {/* View Mode Toggle */}
                                                     <div className="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
                                                         <button
-                                                            onClick={() => setCvViewMode('edit')}
+                                                            onClick={() => handleCvViewModeChange('edit')}
                                                             className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${cvViewMode === 'edit' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
                                                         >
                                                             Edit
                                                         </button>
                                                         <button
-                                                            onClick={() => setCvViewMode('split')}
+                                                            onClick={() => handleCvViewModeChange('split')}
                                                             className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${cvViewMode === 'split' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
                                                         >
                                                             Split
                                                         </button>
                                                         <button
-                                                            onClick={() => setCvViewMode('preview')}
+                                                            onClick={() => handleCvViewModeChange('preview')}
                                                             className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${cvViewMode === 'preview' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
                                                         >
                                                             Preview
@@ -1811,18 +1837,22 @@ const ReviewFinalizePage: React.FC = () => {
                                                         </select>
                                                     )}
 
-                                                    {/* Download button - only shown when PDF exists */}
-                                                    {finalPdfFiles.cv && (
-                                                        <button
-                                                            onClick={() => handleDownload(finalPdfFiles.cv)}
-                                                            className="group flex items-center gap-2.5 px-4 py-2 bg-blue-600 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md active:shadow-sm transform hover:scale-[1.02] active:scale-[0.98]"
-                                                        >
+                                                    {/* Download button - always available when CV exists */}
+                                                    <button
+                                                        onClick={handleDownloadCvPdf}
+                                                        disabled={isDownloadingCvPdf || cvViewMode === 'edit'}
+                                                        className="group flex items-center gap-2.5 px-4 py-2 bg-blue-600 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md active:shadow-sm transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                        title={cvViewMode === 'edit' ? 'Switch to Preview or Split view to download PDF' : 'Download CV as PDF'}
+                                                    >
+                                                        {isDownloadingCvPdf ? (
+                                                            <Spinner size="sm" />
+                                                        ) : (
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                             </svg>
-                                                            <span>Download PDF</span>
-                                                        </button>
-                                                    )}
+                                                        )}
+                                                        <span>Download PDF</span>
+                                                    </button>
 
                                                     {/* Delete CV Button */}
                                                     <button
@@ -1880,6 +1910,7 @@ const ReviewFinalizePage: React.FC = () => {
                                             {cvViewMode === 'preview' && (
                                                 <div style={{ minHeight: '800px' }}>
                                                     <CvLivePreview
+                                                        ref={cvPreviewRef}
                                                         data={cvData}
                                                         templateId={selectedTemplate}
                                                         onTemplateChange={setSelectedTemplate}
@@ -1899,6 +1930,7 @@ const ReviewFinalizePage: React.FC = () => {
                                                     </div>
                                                     <div style={{ minHeight: '800px' }}>
                                                         <CvLivePreview
+                                                            ref={splitViewCvPreviewRef}
                                                             data={cvData}
                                                             templateId={selectedTemplate}
                                                             onTemplateChange={setSelectedTemplate}
@@ -2057,37 +2089,7 @@ const ReviewFinalizePage: React.FC = () => {
 
             </div>
 
-            {/* Sticky Action Bar */}
-            {
-                jobApplication.draftCvJson && jobApplication.draftCoverLetterText && (
-                    <div className="fixed bottom-0 left-64 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg z-30">
-                        <div className="container mx-auto px-4 py-4">
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                                <div className="flex-1 flex items-center gap-3">
-                                    {isSaving && (
-                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                            <Spinner size="sm" />
-                                            <span>Saving...</span>
-                                        </div>
-                                    )}
-                                    {saveError && (
-                                        <ErrorAlert
-                                            message={`Save Error: ${saveError}`}
-                                            onDismiss={() => setSaveError(null)}
-                                        />
-                                    )}
-                                    {renderError && (
-                                        <ErrorAlert
-                                            message={`Render Error: ${renderError}`}
-                                            onDismiss={() => setRenderError(null)}
-                                        />
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
+
 
             {/* CV Preview Modal */}
             <CvPreviewModal
