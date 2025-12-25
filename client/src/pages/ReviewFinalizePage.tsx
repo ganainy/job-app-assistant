@@ -406,8 +406,8 @@ const ReviewFinalizePage: React.FC = () => {
             return;
         }
 
-        if (!hasMasterCv) {
-            showToast('Please upload your master CV first', 'error');
+        if (!hasMasterCv && !jobApplication.draftCvJson) {
+            showToast('Please upload your master CV or generate a tailored CV first', 'error');
             return;
         }
 
@@ -427,9 +427,11 @@ const ReviewFinalizePage: React.FC = () => {
         setAtsScores(null); // Clear previous scores
 
         try {
-            const response = await scanAts(jobId, atsAnalysisId || undefined);
+            // Always create a new analysis for a fresh scan (don't reuse existing analysisId)
+            // This ensures we get updated results instead of cached values
+            const response = await scanAts(jobId, undefined);
             setAtsAnalysisId(response.analysisId);
-            showToast('ATS scan started. Analyzing your CV...', 'info');
+            showToast('ATS scan started. Analyzing your tailored CV...', 'info');
 
             const startTime = Date.now();
 
@@ -1319,9 +1321,9 @@ const ReviewFinalizePage: React.FC = () => {
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={handleScanAts}
-                                            disabled={isScanningAts || !jobApplication?.jobDescriptionText || !hasMasterCv}
+                                            disabled={isScanningAts || !jobApplication?.jobDescriptionText || (!hasMasterCv && !jobApplication?.draftCvJson)}
                                             className="group flex items-center gap-2.5 px-4 py-2.5 bg-blue-600 dark:bg-blue-600 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600 dark:disabled:hover:bg-blue-600 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md"
-                                            title={!hasMasterCv ? 'Please upload your master CV first' : !jobApplication?.jobDescriptionText ? 'Please scrape the job description first' : 'Run ATS analysis'}
+                                            title={!hasMasterCv && !jobApplication?.draftCvJson ? 'Please upload your master CV or generate a tailored CV first' : !jobApplication?.jobDescriptionText ? 'Please scrape the job description first' : 'Run ATS analysis on your tailored CV'}
                                         >
                                             {isScanningAts ? (
                                                 <>
@@ -1349,7 +1351,85 @@ const ReviewFinalizePage: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* No ATS scores yet */}
+                            {/* Scanning in progress - Show detailed progress */}
+                            {!isLoadingAts && isScanningAts && (
+                                <div className="flex flex-col items-center justify-center py-12 px-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                    {/* Animated scanning icon */}
+                                    <div className="relative mb-8">
+                                        <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                                            <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                            </svg>
+                                        </div>
+                                        {/* Spinning ring */}
+                                        <div className="absolute inset-0 w-24 h-24">
+                                            <svg className="w-full h-full animate-spin" style={{ animationDuration: '3s' }} viewBox="0 0 100 100">
+                                                <circle
+                                                    cx="50"
+                                                    cy="50"
+                                                    r="45"
+                                                    stroke="currentColor"
+                                                    strokeWidth="4"
+                                                    fill="none"
+                                                    className="text-blue-200 dark:text-blue-900"
+                                                />
+                                                <circle
+                                                    cx="50"
+                                                    cy="50"
+                                                    r="45"
+                                                    stroke="currentColor"
+                                                    strokeWidth="4"
+                                                    fill="none"
+                                                    strokeDasharray="70 213"
+                                                    strokeLinecap="round"
+                                                    className="text-blue-600 dark:text-blue-400"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
+
+                                    <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2 text-center">
+                                        Analyzing Your CV
+                                    </h2>
+                                    <p className="text-blue-600 dark:text-blue-400 font-medium mb-6">
+                                        {atsProgressMessage || 'Starting analysis...'}
+                                    </p>
+
+                                    {/* Analysis steps */}
+                                    <div className="w-full max-w-md space-y-3">
+                                        <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                                            <span className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </span>
+                                            <span className="text-green-700 dark:text-green-300 text-sm font-medium">Reading your tailored CV</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 animate-pulse">
+                                            <Spinner size="sm" className="flex-shrink-0" />
+                                            <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">Matching skills against job requirements</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                                            <span className="flex-shrink-0 w-6 h-6 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                                                <span className="text-gray-500 dark:text-gray-400 text-xs font-bold">3</span>
+                                            </span>
+                                            <span className="text-gray-500 dark:text-gray-400 text-sm">Identifying missing keywords</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                                            <span className="flex-shrink-0 w-6 h-6 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                                                <span className="text-gray-500 dark:text-gray-400 text-xs font-bold">4</span>
+                                            </span>
+                                            <span className="text-gray-500 dark:text-gray-400 text-sm">Generating recommendations</span>
+                                        </div>
+                                    </div>
+
+                                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-6 text-center">
+                                        This usually takes 15-30 seconds. Please wait...
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* No ATS scores yet - Show prompt to scan */}
                             {!isLoadingAts && !atsScores && !isScanningAts && (
                                 <div className="flex flex-col items-center justify-center py-16 px-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                     <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-6">
@@ -1361,11 +1441,11 @@ const ReviewFinalizePage: React.FC = () => {
                                         ATS Compatibility Analysis
                                     </h2>
                                     <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-8">
-                                        Run an ATS scan to see how well your CV matches this job's requirements. Get actionable feedback to improve your match score.
+                                        Run an ATS scan to analyze how well your tailored CV matches this job's requirements. Get actionable feedback to improve your match score.
                                     </p>
-                                    {!hasMasterCv && (
+                                    {!hasMasterCv && !jobApplication?.draftCvJson && (
                                         <p className="text-amber-600 dark:text-amber-400 text-sm mb-4">
-                                            ⚠️ Please upload your master CV first on the <Link to="/manage-cv" className="underline">CV Management page</Link>.
+                                            ⚠️ Please upload your master CV on the <Link to="/manage-cv" className="underline">CV Management page</Link> or generate a tailored CV first.
                                         </p>
                                     )}
                                     {hasMasterCv && !jobApplication?.jobDescriptionText && (
@@ -1383,9 +1463,6 @@ const ReviewFinalizePage: React.FC = () => {
                                     onEditCv={() => {
                                         handleTabChange('cv');
                                         setCvViewMode('edit');
-                                    }}
-                                    onDownloadReport={() => {
-                                        showToast('Downloading report...', 'info');
                                     }}
                                 />
                             )}

@@ -20,39 +20,56 @@ export const scanAts = async (req: ValidatedRequest, res: Response) => {
 
     const { jobApplicationId, analysisId: providedAnalysisId } = req.validated!.body!;
 
-    // Get user's current CV
-    const user = await User.findById(userId).select('cvJson');
-    if (!user) {
-        throw new NotFoundError('User not found');
-    }
+    // Initialize CV JSON variable - will be set based on data availability
+    let cvJson: JsonResumeSchema;
 
-    if (!user.cvJson) {
-        throw new ValidationError('No CV found. Please upload a CV first.');
-    }
-
-    const cvJson = user.cvJson as JsonResumeSchema;
-
-    // If jobApplicationId is provided, fetch job description from job application
+    // If jobApplicationId is provided, fetch job description and potentially the tailored CV
     let jobDescription: string | undefined;
     let jobApplicationObjectId: string | undefined;
-    
+
     if (jobApplicationId) {
         const jobApplication: IJobApplication | null = await JobApplication.findOne({
             _id: jobApplicationId,
             userId: new Types.ObjectId(userId)
         });
-        
+
         if (!jobApplication) {
             throw new NotFoundError('Job application not found');
         }
-        
+
         jobDescription = jobApplication.jobDescriptionText;
         // Use Mongoose document's id getter (virtual property that returns _id as string)
         jobApplicationObjectId = jobApplication.id;
-        
+
         if (!jobDescription) {
             throw new ValidationError('Job application does not have a job description. Please scrape the job description first.');
         }
+
+        // Prefer tailored CV (draftCvJson) over master CV for job-specific ATS analysis
+        if (jobApplication.draftCvJson && Object.keys(jobApplication.draftCvJson).length > 0) {
+            cvJson = jobApplication.draftCvJson as JsonResumeSchema;
+            console.log('[ATS] Using tailored CV (draftCvJson) for ATS analysis');
+        } else {
+            // Fallback to master CV if no tailored CV exists
+            const user = await User.findById(userId).select('cvJson');
+            if (!user || !user.cvJson) {
+                throw new ValidationError('No CV found. Please upload a CV or generate a tailored CV first.');
+            }
+            cvJson = user.cvJson as JsonResumeSchema;
+            console.log('[ATS] Using master CV (no tailored CV available) for ATS analysis');
+        }
+    } else {
+        // No job application - use master CV
+        const user = await User.findById(userId).select('cvJson');
+        if (!user) {
+            throw new NotFoundError('User not found');
+        }
+
+        if (!user.cvJson) {
+            throw new ValidationError('No CV found. Please upload a CV first.');
+        }
+        cvJson = user.cvJson as JsonResumeSchema;
+        console.log('[ATS] Using master CV (no job application specified) for ATS analysis');
     }
 
     // If analysisId is provided, use existing analysis; otherwise create new one
@@ -80,10 +97,10 @@ export const scanAts = async (req: ValidatedRequest, res: Response) => {
 
     // Start ATS analysis in background
     // Convert _id to ObjectId - handle both ObjectId and string types
-    const analysisObjectId = (analysis._id as any) instanceof Types.ObjectId 
+    const analysisObjectId = (analysis._id as any) instanceof Types.ObjectId
         ? (analysis._id as Types.ObjectId)
         : new Types.ObjectId(String(analysis._id));
-    
+
     performAtsAnalysis(
         userId,
         cvJson,
@@ -123,43 +140,60 @@ export const scanAtsForAnalysis = async (req: ValidatedRequest, res: Response) =
         throw new AuthorizationError('Unauthorized access to analysis');
     }
 
-    // Get user's current CV
-    const user = await User.findById(userId).select('cvJson');
-    if (!user || !user.cvJson) {
-        throw new ValidationError('No CV found. Please upload a CV first.');
-    }
+    // Initialize CV JSON variable - will be set based on data availability
+    let cvJson: JsonResumeSchema;
 
-    const cvJson = user.cvJson as JsonResumeSchema;
-
-    // If jobApplicationId is provided, fetch job description from job application
+    // If jobApplicationId is provided, fetch job description and potentially the tailored CV
     let jobDescription: string | undefined;
     let jobApplicationObjectId: string | undefined;
-    
+
     if (jobApplicationId) {
         const jobApplication: IJobApplication | null = await JobApplication.findOne({
             _id: jobApplicationId,
             userId: new Types.ObjectId(userId)
         });
-        
+
         if (!jobApplication) {
             throw new NotFoundError('Job application not found');
         }
-        
+
         jobDescription = jobApplication.jobDescriptionText;
         // Use Mongoose document's id getter (virtual property that returns _id as string)
         jobApplicationObjectId = jobApplication.id;
-        
+
         if (!jobDescription) {
             throw new ValidationError('Job application does not have a job description. Please scrape the job description first.');
         }
+
+        // Prefer tailored CV (draftCvJson) over master CV for job-specific ATS analysis
+        if (jobApplication.draftCvJson && Object.keys(jobApplication.draftCvJson).length > 0) {
+            cvJson = jobApplication.draftCvJson as JsonResumeSchema;
+            console.log('[ATS] Using tailored CV (draftCvJson) for ATS analysis');
+        } else {
+            // Fallback to master CV if no tailored CV exists
+            const user = await User.findById(userId).select('cvJson');
+            if (!user || !user.cvJson) {
+                throw new ValidationError('No CV found. Please upload a CV or generate a tailored CV first.');
+            }
+            cvJson = user.cvJson as JsonResumeSchema;
+            console.log('[ATS] Using master CV (no tailored CV available) for ATS analysis');
+        }
+    } else {
+        // No job application - use master CV
+        const user = await User.findById(userId).select('cvJson');
+        if (!user || !user.cvJson) {
+            throw new ValidationError('No CV found. Please upload a CV first.');
+        }
+        cvJson = user.cvJson as JsonResumeSchema;
+        console.log('[ATS] Using master CV (no job application specified) for ATS analysis');
     }
 
     // Start ATS analysis in background
     // Convert _id to ObjectId - handle both ObjectId and string types
-    const analysisObjectId = (analysis._id as any) instanceof Types.ObjectId 
+    const analysisObjectId = (analysis._id as any) instanceof Types.ObjectId
         ? (analysis._id as Types.ObjectId)
         : new Types.ObjectId(String(analysis._id));
-    
+
     performAtsAnalysis(
         userId,
         cvJson,
@@ -291,7 +325,7 @@ export const getLatestAts = async (req: ValidatedRequest, res: Response) => {
     }
 
     const analysis = analyses[0];
-    
+
     // Convert to plain object to ensure proper serialization
     const atsScoresResponse = analysis.atsScores ? {
         score: analysis.atsScores.score ?? null,

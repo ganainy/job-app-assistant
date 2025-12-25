@@ -4,10 +4,9 @@ import { AtsScores } from '../../services/atsApi';
 interface AtsReportViewProps {
     atsScores: AtsScores | null;
     onEditCv: () => void;
-    onDownloadReport: () => void;
 }
 
-const AtsReportView: React.FC<AtsReportViewProps> = ({ atsScores, onEditCv, onDownloadReport }) => {
+const AtsReportView: React.FC<AtsReportViewProps> = ({ atsScores, onEditCv }) => {
     const score = atsScores?.score || 0;
 
     // Use real data from atsScores
@@ -79,12 +78,6 @@ const AtsReportView: React.FC<AtsReportViewProps> = ({ atsScores, onEditCv, onDo
                         className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg font-medium transition-colors"
                     >
                         Edit CV
-                    </button>
-                    <button
-                        onClick={onDownloadReport}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm"
-                    >
-                        Download Report
                     </button>
                 </div>
             </div>
