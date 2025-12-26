@@ -4,7 +4,7 @@ import authMiddleware from '../middleware/authMiddleware';
 import Profile from '../models/Profile';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ValidationError, NotFoundError } from '../utils/errors/AppError';
-import { encrypt, decrypt } from '../utils/encryption';
+import { encrypt, decrypt, isEncrypted } from '../utils/encryption';
 
 const router: Router = express.Router();
 router.use(authMiddleware as RequestHandler); // Apply auth to all routes
@@ -17,10 +17,23 @@ function maskApiKey(key: string | undefined | null): string | null {
   if (!key) return null;
 
   // Try to decrypt first (in case it's encrypted)
-  // If decryption fails or returns the same value, it might be unencrypted
   const decrypted = decrypt(key);
-  const valueToMask = decrypted || key;
 
+  // If decryption failed (returns null)
+  if (decrypted === null) {
+    // If it looks encrypted but failed to decrypt, it's invalid/corrupt
+    // Return null so the UI treats it as "not configured"
+    if (isEncrypted(key)) {
+      return null;
+    }
+    // If it doesn't look encrypted, treat as legacy cleartext
+    const valueToMask = key;
+    if (valueToMask.length <= 4) return '****';
+    return '****' + valueToMask.slice(-4);
+  }
+
+  // Decryption successful
+  const valueToMask = decrypted;
   if (valueToMask.length <= 4) return '****';
   return '****' + valueToMask.slice(-4);
 }
@@ -204,21 +217,8 @@ router.put('/api-keys', asyncHandler(async (req: Request, res: Response) => {
   // Update integrations
   const updates: any = {};
 
-  if (gemini !== undefined) {
-    if (gemini.accessToken === null || gemini.accessToken === '') {
-      // Remove key
-      updates['integrations.gemini.accessToken'] = null;
-      updates['integrations.gemini.enabled'] = false;
-    } else {
-      // Encrypt the API key before storing
-      const encryptedKey = encrypt(gemini.accessToken);
-      if (!encryptedKey) {
-        throw new ValidationError('Failed to encrypt Gemini API key');
-      }
-      updates['integrations.gemini.accessToken'] = encryptedKey;
-      updates['integrations.gemini.enabled'] = gemini.enabled !== undefined ? gemini.enabled : true;
-    }
-  }
+  // Legacy 'gemini' block removed as per "no legacy code" request.
+  // The frontend sends data in 'aiProviders' as well, which is handled below.
 
   if (apify !== undefined) {
     if (apify.accessToken === null || apify.accessToken === '') {

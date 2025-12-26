@@ -5,12 +5,14 @@ import {
   getProfileByUsername,
   getCurrentUserProfile,
   updateProfile,
+  getPublishedProfiles,
 } from '../controllers/profileController';
 import authMiddleware from '../middleware/authMiddleware';
 
 const router: Router = express.Router();
 
 // Public routes
+router.get('/published/all', getPublishedProfiles);
 router.get('/aggregated/:username', getAggregatedProfile);
 router.get('/:username', getProfileByUsername);
 

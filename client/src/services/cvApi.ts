@@ -29,6 +29,11 @@ export interface CVDocument {
     templateId?: string | null;
     filename?: string | null;
     analysisCache?: Record<string, unknown> | null;
+    tailoringChanges?: Array<{
+        section: string;
+        description: string;
+        reason: string;
+    }> | null;
     createdAt: string;
     updatedAt: string;
 }

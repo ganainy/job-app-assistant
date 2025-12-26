@@ -3,6 +3,7 @@ import express, { Router, Request, Response, RequestHandler } from 'express';
 import authMiddleware from '../middleware/authMiddleware';
 import JobApplication from '../models/JobApplication';
 import User, { IUser } from '../models/User';
+import CV from '../models/CV';
 import Profile from '../models/Profile';
 import { generateCoverLetter } from '../services/coverLetterService';
 import { JsonResumeSchema } from '../types/jsonresume';
@@ -51,10 +52,19 @@ const generateCoverLetterHandler: RequestHandler = async (req, res) => {
             return;
         }
 
-        let baseCvJson = currentUser.cvJson as JsonResumeSchema | null;
+        let baseCvJson: JsonResumeSchema | null = null;
+
         if (req.body.baseCvData) {
             console.log(`Using overridden Base CV data for cover letter (Job: ${jobId})`);
             baseCvJson = req.body.baseCvData;
+        } else {
+            // Fetch Base CV from Unified CV Model first, fallback to User model
+            const masterCv = await CV.findOne({ userId, isMasterCv: true });
+            if (masterCv && masterCv.cvJson) {
+                baseCvJson = masterCv.cvJson;
+            } else if (currentUser.cvJson) {
+                baseCvJson = currentUser.cvJson as JsonResumeSchema;
+            }
         }
 
         if (!baseCvJson?.basics) {

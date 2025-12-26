@@ -49,6 +49,7 @@ interface GenerateDraftReadyResponse {
     status: "draft_ready";
     message: string;
     jobId: string;
+    changesCount?: number;
 }
 
 type GenerateResponse = GenerateSuccessResponse | GeneratePendingResponse | GenerateDraftReadyResponse;

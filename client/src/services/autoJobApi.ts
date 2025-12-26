@@ -14,7 +14,7 @@ export interface AutoJob {
     jobDescriptionText?: string;
     language?: string;
     notes?: string;
-    
+
     // Auto job specific fields
     isAutoJob: boolean;
     showInDashboard: boolean;
@@ -25,7 +25,7 @@ export interface AutoJob {
     discoveredAt?: Date;
     processedAt?: Date;
     jobPostDate?: Date | string; // When the job was posted (from crawler)
-    
+
     // Extracted data (for auto jobs)
     extractedData?: {
         skills: string[];
@@ -38,14 +38,14 @@ export interface AutoJob {
         location?: string;
         remoteOption?: string;
     };
-    
+
     // Company insights (for auto jobs)
     companyInsights?: {
         missionStatement?: string;
         coreValues?: string[];
         businessModel?: string;
     };
-    
+
     // Recommendation (unified)
     recommendation?: {
         score: number | null;
@@ -54,12 +54,12 @@ export interface AutoJob {
         cachedAt: Date | string;
         error?: string;
     };
-    
+
     // Draft content (mapped from customizedResumeHtml/coverLetterText)
     draftCvJson?: any;
     draftCoverLetterText?: string;
     generationStatus?: 'none' | 'pending_input' | 'pending_generation' | 'draft_ready' | 'finalized' | 'error';
-    
+
     createdAt: Date | string;
     updatedAt: Date | string;
 }
@@ -85,6 +85,7 @@ export interface WorkflowStats {
 }
 
 export interface AutoJobSettings {
+    enabled?: boolean;
     keywords?: string;
     location?: string;
     jobType?: string[];
@@ -192,6 +193,14 @@ export const promoteAutoJob = async (id: string): Promise<{ message: string; job
  */
 export const deleteAutoJob = async (id: string): Promise<{ message: string }> => {
     const response = await axios.delete(`${API_BASE_URL}/auto-jobs/${id}`);
+    return response.data;
+};
+
+/**
+ * Delete ALL auto jobs
+ */
+export const deleteAllAutoJobs = async (): Promise<{ message: string; count: number }> => {
+    const response = await axios.delete(`${API_BASE_URL}/auto-jobs`);
     return response.data;
 };
 

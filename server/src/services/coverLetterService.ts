@@ -43,66 +43,43 @@ export async function generateCoverLetter(
     } else {
         // Construct a focused prompt for cover letter generation
         prompt = `
-You are an expert career advisor and professional cover letter writer specialized in the ${languageName} job market.
-Your task is to write a compelling, tailored cover letter for a specific job application in ${languageName}.
+You are a professional candidate applying for a job. Your task is to write a short, authentic, and human-sounding cover letter in ${languageName}.
 
 **Target Language:** ${languageName} (${language})
 
 **Inputs:**
-1. **CV Data (JSON Resume Schema):**
+1. **My Experience (CV Data):**
 \`\`\`json
 ${JSON.stringify(cvJson, null, 2)}
 \`\`\`
 
-2. **Target Job Information:**
+2. **The Job (Description & Details):**
    - Job Title: ${jobTitle}
    - Company: ${companyName}
-   - Job Description:
+   - Description:
    ---
    ${jobDescription}
    ---
 
-**Instructions:**
+**Instructions for Writing:**
 
-Write a professional cover letter in ${languageName} following these guidelines:
+1.  **Header:** Start with my contact info (Name, Address, Phone, Email) from the CV \`basics\` section, formatted as a standard letter header. Follow with today's date: ${todayDateFormatted}.
 
-1. **Header Section:**
-   - Start the cover letter with the sender's contact information block at the very top
-   - Extract the following details directly from the CV's \`basics\` section:
-     * \`basics.name\`
-     * \`basics.location.address\` (if available, include street address on its own line)
-     * \`basics.location.city\`, \`basics.location.postalCode\` (combine on one line, e.g., "Berlin, 10117" or "12345 Example City")
-     * \`basics.phone\` (if available, label appropriately, e.g., "Phone: +49 123 456789")
-     * \`basics.email\` (if available, label appropriately, e.g., "Email: your.email@example.com")
-   - Format these details cleanly as a standard sender address block, with each piece of information on a new line where appropriate
-   - After the sender's address block, include today's date on its own line: ${todayDateFormatted}
+2.  **Tone & Style:**
+    -   **Be Human:** Write naturally. Avoid "AI buzzwords" (like "I am thrilled to submit," "aligns perfectly," "unwavering commitment"). Use simple, strong verbs.
+    -   **Be Concise:** Keep it short (max 250 words excluding header). Get to the point.
+    -   **Be Specific:** Do not summarize my whole career. Pick 1-2 specific achievements from the CV that *directly* solve a problem mentioned in the Job Description.
+    -   **No Fluff:** Skip empty adjectives. Show, don't tell.
 
-2. **Salutation:**
-   - Use "Dear Hiring Manager," for English or "Sehr geehrte Damen und Herren," for German
-   - Only use a specific name if it can be reliably extracted from the job description
+3.  **Structure:**
+    -   **Salutation:** "Dear Hiring Manager," (or German equivalent).
+    -   **Opening:** Briefly state what I'm applying for and why I'm interested (1 sentence).
+    -   **Middle:** Connect *one* specific past success to a key requirement of this job. Explain how I can help them immediately.
+    -   **Closing:** A quick wrap-up and call to action (e.g., "I'd love to discuss how I can help [Company Name]..."). Sign off professionally.
 
-3. **Body Content (3-4 paragraphs):**
-   - **Opening Paragraph:** Introduce yourself and clearly state the role you are applying for: "${jobTitle}" at "${companyName}". Express genuine enthusiasm for the position.
-   - **Middle Paragraphs (1-2 paragraphs):** Highlight 2-3 key qualifications or experiences from your CV that directly match the most important requirements in the job description. Explain why these qualifications make you a strong fit. Use specific examples and achievements from your CV.
-   - **Closing Paragraph:** Express your enthusiasm for the specific role and company. Include a call to action (e.g., expressing eagerness for an interview) and a professional closing (e.g., "Sincerely," / "Mit freundlichen Grüßen,").
-
-4. **Tone and Style:**
-   - Professional, confident, and enthusiastic
-   - Tailored specifically to the job description
-   - Use keywords from the job description naturally
-   - Avoid generic phrases and clichés
-   - Keep it concise (approximately 3-4 paragraphs in the body)
-   - All content must be in ${languageName}
-
-5. **Output Format:**
-   - Return ONLY the complete cover letter text as a single string
-   - Include the header with contact information and date
-   - Include the salutation, body paragraphs, and closing
-   - Use newline characters (\\n) to separate lines appropriately
-   - Do NOT wrap the response in JSON or markdown code blocks
-   - Do NOT include any explanations or additional text outside the cover letter content
-
-**Important:** The entire cover letter must be returned as plain text, ready to use. Do not include placeholders or ask for additional information.
+**Output:**
+-   Return ONLY the final cover letter text.
+-   No markdown blocks, no explanations.
 `;
     }
 

@@ -211,6 +211,7 @@ router.get('/job/:jobId', asyncHandler(async (req: Request, res: Response) => {
             cvJson: cv.cvJson,
             templateId: effectiveTemplate,
             filename: cv.filename,
+            tailoringChanges: cv.tailoringChanges || null,
             createdAt: cv.createdAt,
             updatedAt: cv.updatedAt,
         }

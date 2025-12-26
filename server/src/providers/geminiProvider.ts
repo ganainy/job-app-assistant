@@ -20,7 +20,7 @@ export class GeminiProvider extends ProviderStrategy {
 
   async getModels(userId: string): Promise<string[]> {
     const apiKey = await this.getApiKey(userId);
-    
+
     // If no API key, return empty array - user must configure API key first
     if (!apiKey) {
       console.warn('Gemini API key not configured. User must add API key in Settings to load models.');
@@ -56,8 +56,8 @@ export class GeminiProvider extends ProviderStrategy {
         .map((model: any) => {
           const modelName = model.name || model.id || '';
           // Remove "models/" prefix if present
-          return modelName.startsWith('models/') 
-            ? modelName.substring(7) 
+          return modelName.startsWith('models/')
+            ? modelName.substring(7)
             : modelName;
         })
         .filter((name: string) => name.length > 0)
@@ -88,25 +88,20 @@ export class GeminiProvider extends ProviderStrategy {
   async getApiKey(userId: string): Promise<string | null> {
     try {
       const profile = await Profile.findOne({ userId });
-      
+
       // First check new location
       const newKey = profile?.aiProviderSettings?.providers?.gemini?.accessToken;
       if (newKey) {
         return isEncrypted(newKey) ? decrypt(newKey) : newKey;
       }
-      
-      // Fallback to old location for migration
-      const oldKey = profile?.integrations?.gemini?.accessToken;
-      if (oldKey) {
-        return isEncrypted(oldKey) ? decrypt(oldKey) : oldKey;
-      }
-      
+
       return null;
     } catch (error) {
       console.error('Error getting Gemini API key:', error);
       return null;
     }
   }
+
 
   checkDependencies(): { installed: boolean; message?: string } {
     try {

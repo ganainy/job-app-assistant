@@ -67,6 +67,16 @@ export interface Project {
   updatedAt?: string;
 }
 
+export interface PublishedProfile {
+  _id: string;
+  name?: string;
+  title?: string;
+  bio?: string;
+  profileImageUrl?: string;
+  username: string;
+  createdAt: string;
+}
+
 /**
  * Get aggregated profile data for a username
  */
@@ -80,6 +90,14 @@ export const getAggregatedProfile = async (username: string): Promise<Aggregated
  */
 export const getProfileByUsername = async (username: string) => {
   const response = await axios.get(`${API_BASE_URL}/profile/${username}`);
+  return response.data.data;
+};
+
+/**
+ * Get all published portfolios
+ */
+export const getPublishedPortfolios = async (): Promise<PublishedProfile[]> => {
+  const response = await axios.get(`${API_BASE_URL}/profile/published/all`);
   return response.data.data;
 };
 
@@ -226,4 +244,3 @@ export const togglePortfolioPublish = async (isPublished: boolean) => {
   );
   return response.data.data;
 };
-

@@ -129,8 +129,20 @@ const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, r
         if (!job.jobDescriptionText) { res.status(400).json({ message: 'Job description text is missing.' }); return; }
         const currentUser = await User.findById(userId);
         if (!currentUser) { res.status(404).json({ message: "User not found." }); return; }
-        const baseCvJson = currentUser.cvJson as JsonResumeSchema | null; // Cast or ensure type
-        if (!baseCvJson?.basics) { res.status(400).json({ message: 'Valid base CV with basics section not found.' }); return; }
+
+        // Fetch Base CV from Unified CV Model first, fallback to User model
+        let baseCvJson: JsonResumeSchema | null = null;
+        const masterCv = await CV.findOne({ userId, isMasterCv: true });
+
+        if (masterCv && masterCv.cvJson) {
+            baseCvJson = masterCv.cvJson;
+            console.log("Using Master CV from Unified CV Model.");
+        } else if (currentUser.cvJson) {
+            baseCvJson = currentUser.cvJson as JsonResumeSchema;
+            console.log("Using legacy Master CV from User model.");
+        }
+
+        if (!baseCvJson?.basics) { res.status(400).json({ message: 'Valid base CV with basics section not found in user profile.' }); return; }
         // No theme determination needed
 
         // 2. Construct **IMPROVED** Gemini Prompt
@@ -162,6 +174,7 @@ const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, r
                 *   Optimize the order of items within sections (e.g., work experience) to highlight the most relevant roles first.
                 *   CRITICAL OUTPUT STRUCTURE: The output for the CV MUST be a complete JSON object strictly adhering to the JSON Resume Schema (https://jsonresume.org/schema/). Include standard sections like \`basics\`, \`work\`, \`education\`, \`skills\`, etc., as applicable based on the input CV.
                 *   Specific Key Mapping: Use standard JSON Resume keys like \`basics\`, \`work\`, \`volunteer\`, \`education\`, \`awards\`, \`certificates\`, \`publications\`, \`skills\`, \`languages\`, \`interests\`, \`references\`, \`projects\`. DO NOT use non-standard keys like 'personalInfo' or 'experience'.
+                *   **IMPORTANT:** Ensure the \`basics.summary\` field is populated with a strong, tailored professional summary based on the candidate's profile and the job description. Do not leave this field empty.
                 *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in ${languageName}.
 
             B.  **Write the Cover Letter (in ${languageName}):**
@@ -858,10 +871,21 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
         const currentUser = await User.findById(userId);
         if (!currentUser) { res.status(404).json({ message: "User not found." }); return; }
 
-        let baseCvJson = currentUser.cvJson as JsonResumeSchema | null;
+        let baseCvJson: JsonResumeSchema | null = null;
+
         if (baseCvDataOverride) {
             console.log(`Using overridden Base CV data for job ${jobId}`);
             baseCvJson = baseCvDataOverride;
+        } else {
+            // Fetch Base CV from Unified CV Model first, fallback to User model
+            const masterCv = await CV.findOne({ userId, isMasterCv: true });
+            if (masterCv && masterCv.cvJson) {
+                baseCvJson = masterCv.cvJson;
+                console.log("Using Master CV from Unified CV Model.");
+            } else if (currentUser.cvJson) {
+                baseCvJson = currentUser.cvJson as JsonResumeSchema;
+                console.log("Using legacy Master CV from User model.");
+            }
         }
 
         if (!baseCvJson?.basics) { res.status(400).json({ message: 'Valid base CV with basics section not found in user profile or provided override.' }); return; }
@@ -885,10 +909,10 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
                 prompt += `\n\n**Context Data:**\nBase CV Data: ${JSON.stringify(baseCvJson, null, 2)}\nJob Description: ${job.jobDescriptionText}\nTarget Language: ${languageName}`;
             }
         } else {
-            // Default Prompt
+            // Default Prompt with Changes Tracking
             prompt = `
             You are an expert career advisor specialized in the ${languageName} job market.
-            Your task is to tailor a provided base CV (in JSON Resume format) for a specific job application.
+            Your task is to tailor a provided base CV (in JSON Resume format) for a specific job application and document the changes you made.
             
             **Target Language:** ${languageName} (${requestedLanguage})
 
@@ -910,19 +934,44 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
             *   Optimize the order of items within sections (e.g., work experience) to highlight the most relevant roles first.
             *   CRITICAL OUTPUT STRUCTURE: The output MUST be a complete JSON object strictly adhering to the JSON Resume Schema (https://jsonresume.org/schema/).
             *   Use standard JSON Resume keys like \`basics\`, \`work\`, \`volunteer\`, \`education\`, \`awards\`, \`certificates\`, \`publications\`, \`skills\`, \`languages\`, \`interests\`, \`references\`, \`projects\`.
+            *   **IMPORTANT:** Ensure the \`basics.summary\` field is populated with a strong, tailored professional summary based on the candidate's profile and the job description. Do not leave this field empty.
             *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in ${languageName}.
+            *   **IMPORTANT:** Also provide a list of changes you made, explaining what was modified and why it improves the CV for this specific job.
 
             **Output Format:**
-            Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object should be the complete, tailored CV data as a valid JSON Resume Schema object (in ${languageName}).
+            Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain:
+            1.  \`tailoredCv\`: The complete, tailored CV data as a valid JSON Resume Schema object (in ${languageName}).
+            2.  \`changes\`: An array of change objects, each with:
+                - \`section\`: The CV section that was modified (e.g., "summary", "work", "skills", "education", "projects")
+                - \`description\`: A brief description of what was changed
+                - \`reason\`: Why this change was made, ideally referencing relevant job requirements
 
             Example output structure:
             \`\`\`json
             {
-              "basics": { ... },
-              "work": [ ... ],
-              "education": [ ... ],
-              "skills": [ ... ],
-              // ... other JSON Resume sections ...
+              "tailoredCv": {
+                "basics": { ... },
+                "work": [ ... ],
+                "education": [ ... ],
+                "skills": [ ... ]
+              },
+              "changes": [
+                {
+                  "section": "summary",
+                  "description": "Rewrote professional summary to highlight cloud expertise",
+                  "reason": "Job requires extensive AWS and cloud architecture experience"
+                },
+                {
+                  "section": "work",
+                  "description": "Added specific metrics to software engineer role",
+                  "reason": "Job emphasizes measurable impact and data-driven results"
+                },
+                {
+                  "section": "skills",
+                  "description": "Reordered skills to prioritize Python and machine learning",
+                  "reason": "These are listed as primary requirements in the job description"
+                }
+              ]
             }
             \`\`\`
         `;
@@ -947,21 +996,38 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
             jsonStringToParse = jsonStringToParse.substring(prefix.length).trim();
         }
 
-        let tailoredCvJson;
+        let parsedResponse;
         try {
-            tailoredCvJson = JSON.parse(jsonStringToParse);
+            parsedResponse = JSON.parse(jsonStringToParse);
         } catch (parseError: any) {
             console.error("Failed to parse CV JSON:", parseError.message);
             throw new Error("AI failed to return valid JSON for CV.");
         }
 
-        // 5. Validate CV structure
+        // 5. Handle both new format (with changes) and legacy format (direct CV)
+        let tailoredCvJson;
+        let tailoringChanges: Array<{ section: string; description: string; reason: string }> | null = null;
+
+        if (parsedResponse.tailoredCv && typeof parsedResponse.tailoredCv === 'object') {
+            // New format: { tailoredCv: {...}, changes: [...] }
+            tailoredCvJson = parsedResponse.tailoredCv;
+            tailoringChanges = Array.isArray(parsedResponse.changes) ? parsedResponse.changes : null;
+            console.log(`Parsed new format response with ${tailoringChanges?.length || 0} changes.`);
+        } else if (parsedResponse.basics) {
+            // Legacy format: Direct CV JSON (for backwards compatibility with custom prompts)
+            tailoredCvJson = parsedResponse;
+            console.log("Parsed legacy format response (direct CV JSON, no changes).");
+        } else {
+            console.error("Parsed response is invalid:", parsedResponse);
+            throw new Error("AI response missing expected structure.");
+        }
+
+        // Validate CV structure
         if (!tailoredCvJson || typeof tailoredCvJson !== 'object' || !tailoredCvJson.basics) {
             console.error("Parsed CV JSON is invalid or missing basics:", tailoredCvJson);
             throw new Error("Parsed CV JSON is invalid or missing the 'basics' section.");
         }
 
-        // 6. Save ONLY the CV draft (not cover letter)
         // 6. Save ONLY the CV draft (not cover letter)
         console.log(`Saving CV draft for job ${jobId}...`);
 
@@ -969,7 +1035,6 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
             { _id: jobId, userId: userId },
             {
                 $set: {
-                    // draftCvJson: tailoredCvJson, // REMOVED: Now stored in CV model
                     language: requestedLanguage,
                     generationStatus: 'draft_ready'
                 }
@@ -977,10 +1042,11 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
             { new: true }
         );
 
-        // Save CV to Unified CV Model
+        // Save CV to Unified CV Model (including tailoringChanges)
         let jobCv = await CV.findOne({ jobApplicationId: jobId, userId: userId });
         if (jobCv) {
             jobCv.cvJson = tailoredCvJson;
+            jobCv.tailoringChanges = tailoringChanges;
             await jobCv.save();
         } else {
             // Create new Job CV if missing
@@ -989,16 +1055,17 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
                 jobApplicationId: jobId,
                 isMasterCv: false,
                 cvJson: tailoredCvJson,
+                tailoringChanges: tailoringChanges,
             });
         }
 
         console.log(`CV draft saved successfully for job ${jobId}. Saved to unified CV model.`);
-        console.log(`CV draft saved successfully for job ${jobId}.`);
 
         res.status(200).json({
             status: "draft_ready",
             message: `CV generated successfully in ${languageName}. Ready for review.`,
-            jobId: jobId
+            jobId: jobId,
+            changesCount: tailoringChanges?.length || 0
         });
 
     } catch (error: any) {

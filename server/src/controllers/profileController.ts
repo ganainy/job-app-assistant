@@ -11,6 +11,22 @@ import { getApiToken, fetchUserRepositories, extractSkillsFromRepos } from '../s
 import { getUsernameFromUrl, fetchLinkedInProfile, extractLinkedInData } from '../services/linkedinService';
 
 /**
+ * Helper to flatten an object for Mongoose dot notation updates
+ * e.g. { integrations: { github: { ... } } } -> { 'integrations.github.accessToken': ... }
+ */
+const flattenObject = (obj: any, prefix = ''): any => {
+  return Object.keys(obj).reduce((acc: any, k) => {
+    const pre = prefix.length ? prefix + '.' : '';
+    if (typeof obj[k] === 'object' && obj[k] !== null && !Array.isArray(obj[k]) && !(obj[k] instanceof Date)) {
+      Object.assign(acc, flattenObject(obj[k], pre + k));
+    } else {
+      acc[pre + k] = obj[k];
+    }
+    return acc;
+  }, {});
+};
+
+/**
  * Validate GitHub token format
  */
 const validateGitHubToken = (token: string | undefined): boolean => {
@@ -38,6 +54,39 @@ const sanitizeProfile = (profile: any, includeTokens: boolean = false): any => {
   }
   return profileObj;
 };
+
+/**
+ * Get all published profiles
+ * GET /api/profile/published/all
+ */
+export const getPublishedProfiles = asyncHandler(
+  async (req: Request, res: Response) => {
+    // Find all published profiles
+    // Populate userId to get username and email
+    const profiles = await Profile.find({ isPublished: true })
+      .populate('userId', 'username email')
+      .select('name title bio profileImageUrl userId createdAt updatedAt');
+
+    const publishedProfiles = profiles.map(profile => {
+      // Safe access to userId fields since we populated it
+      const user = profile.userId as any;
+      return {
+        _id: profile._id,
+        name: profile.name,
+        title: profile.title,
+        bio: profile.bio,
+        profileImageUrl: profile.profileImageUrl,
+        username: user?.username,
+        createdAt: profile.createdAt,
+      };
+    }).filter(p => p.username); // Filter out profiles where user might have been deleted
+
+    res.status(200).json({
+      status: 'success',
+      data: publishedProfiles,
+    });
+  }
+);
 
 /**
  * Get aggregated profile with integrated data from GitHub and LinkedIn
@@ -71,14 +120,14 @@ export const getAggregatedProfile = asyncHandler(
       programmingLanguages: [],
       otherSkills: [],
     };
-    
+
     try {
       // Get all projects for this user
-      const projects = await Project.find({ 
+      const projects = await Project.find({
         userId: user._id,
-        isVisibleInPortfolio: true 
+        isVisibleInPortfolio: true
       });
-      
+
       // Extract unique technologies from projects
       const allTechnologies = new Set<string>();
       projects.forEach(project => {
@@ -90,22 +139,22 @@ export const getAggregatedProfile = asyncHandler(
           });
         }
       });
-      
+
       // Common programming languages to identify
       const programmingLanguages = [
         'JavaScript', 'TypeScript', 'Python', 'Java', 'C++', 'C#', 'Go', 'Rust',
         'PHP', 'Ruby', 'Swift', 'Kotlin', 'Dart', 'Scala', 'R', 'MATLAB',
         'HTML', 'CSS', 'SQL', 'Shell', 'PowerShell'
       ];
-      
+
       const techArray = Array.from(allTechnologies);
-      githubSkills.programmingLanguages = techArray.filter(tech => 
-        programmingLanguages.some(lang => 
-          tech.toLowerCase().includes(lang.toLowerCase()) || 
+      githubSkills.programmingLanguages = techArray.filter(tech =>
+        programmingLanguages.some(lang =>
+          tech.toLowerCase().includes(lang.toLowerCase()) ||
           lang.toLowerCase().includes(tech.toLowerCase())
         )
       );
-      githubSkills.otherSkills = techArray.filter(tech => 
+      githubSkills.otherSkills = techArray.filter(tech =>
         !githubSkills.programmingLanguages.includes(tech)
       );
     } catch (error: any) {
@@ -125,13 +174,13 @@ export const getAggregatedProfile = asyncHandler(
       languages?: any[];
     } | null = null;
     const forceLinkedInRefresh = req.query.refreshLinkedIn === 'true';
-    
+
     if (forceLinkedInRefresh && profile.socialLinks?.linkedin) {
       // Only fetch fresh LinkedIn data if explicitly requested
       try {
         const linkedinUrl = profile.socialLinks.linkedin;
         const linkedinUsername = getUsernameFromUrl(linkedinUrl);
-        
+
         if (linkedinUsername) {
           const userId = String(user._id);
           const linkedinProfile = await fetchLinkedInProfile(userId, linkedinUsername);
@@ -191,7 +240,7 @@ export const getAggregatedProfile = asyncHandler(
 
     // Sanitize profile to remove sensitive data
     const profileObj = sanitizeProfile(profile);
-    
+
     const aggregatedProfile = {
       ...profileObj,
       skills: combinedSkills,
@@ -264,7 +313,7 @@ export const getCurrentUserProfile = asyncHandler(
 
     if (!profile) {
       // Create profile if it doesn't exist
-      profile = await Profile.create({ 
+      profile = await Profile.create({
         userId,
         autoJobSettings: {
           keywords: '',
@@ -327,10 +376,14 @@ export const updateProfile = asyncHandler(
       }
     }
 
+    // Convert to dot notation to ensure partial updates of nested fields
+    // This prevents overwriting entire objects (e.g. integrations) when updating a single field
+    const updateLocal = flattenObject(filteredBody);
+
     // Update profile
     const updatedProfile = await Profile.findOneAndUpdate(
       { userId },
-      filteredBody,
+      { $set: updateLocal },
       {
         new: true,
         runValidators: true,

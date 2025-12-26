@@ -78,7 +78,9 @@ const DashboardPage: React.FC = () => {
       setIsCheckingApiKeys(true);
       try {
         const apiKeys = await getApiKeys();
-        setIsGeminiKeyMissing(!apiKeys.gemini.accessToken);
+        // Check new location for Gemini key (aiProviders.providers.gemini)
+        const hasGeminiKey = apiKeys.aiProviders?.providers?.gemini?.accessToken;
+        setIsGeminiKeyMissing(!hasGeminiKey);
       } catch (err: any) {
         console.error("Failed to check API keys:", err);
         // If we can't check, assume key is missing to show warning

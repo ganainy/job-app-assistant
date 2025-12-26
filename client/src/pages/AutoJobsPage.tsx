@@ -12,6 +12,7 @@ import {
     cancelWorkflow,
     promoteAutoJob,
     deleteAutoJob,
+    deleteAllAutoJobs,
     AutoJob,
     WorkflowStats,
     AutoJobSettings,
@@ -28,7 +29,7 @@ const AutoJobsPage: React.FC = () => {
     // State
     const [jobs, setJobs] = useState<AutoJob[]>([]);
     const [stats, setStats] = useState<WorkflowStats | null>(null);
-    const [settings, setSettings] = useState<AutoJobSettings>({ 
+    const [settings, setSettings] = useState<AutoJobSettings>({
         keywords: '',
         location: '',
         jobType: [],
@@ -89,7 +90,7 @@ const AutoJobsPage: React.FC = () => {
             const relevanceFilter = filterRelevance === 'processing' ? '' : filterRelevance;
             // When "processing" is selected, don't use status filter (we'll filter on frontend)
             const statusFilter = filterRelevance === 'processing' ? '' : filterStatus;
-            
+
             const [jobsData, statsData, settingsData] = await Promise.all([
                 getAutoJobs({
                     page: currentPage,
@@ -105,14 +106,14 @@ const AutoJobsPage: React.FC = () => {
             let filteredJobs = jobsData.jobs;
             let totalCount = jobsData.pagination.total;
             if (filterRelevance === 'processing') {
-                filteredJobs = jobsData.jobs.filter(job => 
+                filteredJobs = jobsData.jobs.filter(job =>
                     job.processingStatus === 'pending' || job.processingStatus === 'analyzed'
                 );
                 // Recalculate pagination for filtered results
                 const startIndex = (currentPage - 1) * pageSize;
                 const endIndex = startIndex + pageSize;
                 filteredJobs = filteredJobs.slice(startIndex, endIndex);
-                totalCount = jobsData.jobs.filter(job => 
+                totalCount = jobsData.jobs.filter(job =>
                     job.processingStatus === 'pending' || job.processingStatus === 'analyzed'
                 ).length;
             }
@@ -158,7 +159,7 @@ const AutoJobsPage: React.FC = () => {
 
         // Limit countries to search (only first 50 most common countries)
         const commonCountryCodes = ['US', 'GB', 'CA', 'AU', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE', 'CH', 'AT', 'SE', 'NO', 'DK', 'FI', 'IE', 'PL', 'CZ', 'PT', 'GR', 'IN', 'CN', 'JP', 'KR', 'SG', 'MY', 'TH', 'VN', 'PH', 'ID', 'NZ', 'ZA', 'BR', 'MX', 'AR', 'CL', 'CO', 'PE', 'AE', 'SA', 'IL', 'TR', 'RU', 'UA', 'RO', 'HU', 'BG', 'HR', 'SI'];
-        
+
         // Search countries (limited set)
         for (const countryCode of commonCountryCodes) {
             if (foundCount >= maxSuggestions) break;
@@ -296,22 +297,22 @@ const AutoJobsPage: React.FC = () => {
                         // Handle "processing" filter - fetch all jobs and filter on frontend
                         const relevanceFilter = filterRelevance === 'processing' ? '' : filterRelevance;
                         const statusFilter = filterRelevance === 'processing' ? '' : filterStatus;
-                        
+
                         const jobsData = await getAutoJobs({
                             page: 1,
                             limit: 1000, // Get more jobs to see all from current run
                             relevance: relevanceFilter,
                             status: statusFilter
                         });
-                        
+
                         // If filtering by "processing", filter jobs with pending or analyzed status
                         let filteredJobs = jobsData.jobs;
                         if (filterRelevance === 'processing') {
-                            filteredJobs = jobsData.jobs.filter(job => 
+                            filteredJobs = jobsData.jobs.filter(job =>
                                 job.processingStatus === 'pending' || job.processingStatus === 'analyzed'
                             );
                         }
-                        
+
                         // Check if we have new jobs
                         const currentJobCount = filteredJobs.length;
                         if (currentJobCount > lastJobCount) {
@@ -497,17 +498,39 @@ const AutoJobsPage: React.FC = () => {
         });
     };
 
+    // Handle delete all jobs
+    const handleDeleteAll = () => {
+        setConfirmModal({
+            isOpen: true,
+            message: 'Are you sure you want to delete ALL auto jobs? This action cannot be undone.',
+            title: 'Delete All Jobs',
+            confirmText: 'Delete All',
+            cancelText: 'Cancel',
+            confirmButtonStyle: 'danger',
+            onConfirm: async () => {
+                setConfirmModal(null);
+                try {
+                    const result = await deleteAllAutoJobs();
+                    showToast(`Deleted ${result.count} jobs successfully`, 'success');
+                    fetchData();
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to delete all jobs', 'error');
+                }
+            }
+        });
+    };
+
     // Handle retry skill match calculation
     const handleRetrySkillMatch = async (jobId: string) => {
         try {
             const recommendation = await getJobRecommendation(jobId, true);
-            
+
             // Update the job in the local state
-            setJobs(prevJobs => 
-                prevJobs.map(job => 
-                    job._id === jobId 
-                        ? { 
-                            ...job, 
+            setJobs(prevJobs =>
+                prevJobs.map(job =>
+                    job._id === jobId
+                        ? {
+                            ...job,
                             recommendation: {
                                 score: recommendation.score,
                                 shouldApply: recommendation.shouldApply,
@@ -519,10 +542,10 @@ const AutoJobsPage: React.FC = () => {
                         : job
                 )
             );
-            
+
             // Refresh the job data to get the latest state
             await fetchData();
-            
+
             if (recommendation.error) {
                 showToast(`Failed to calculate skill match: ${recommendation.error}`, 'error');
             } else {
@@ -571,29 +594,44 @@ const AutoJobsPage: React.FC = () => {
                 {/* Header - Sticky */}
                 <div className="sticky top-0 z-40 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pt-8 pb-4 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95 border-b border-slate-200 dark:border-slate-700">
                     <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Auto Jobs</h1>
-                        <p className="mt-1 text-slate-600 dark:text-slate-400">
-                            Automated job discovery and application preparation
-                        </p>
-                    </div>
-                    <button
-                        onClick={handleTrigger}
-                        disabled={isWorkflowRunning || isTriggering}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 min-w-[120px] justify-center"
-                    >
-                        {(isWorkflowRunning || isTriggering) ? (
-                            <>
-                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span>{isTriggering ? 'Starting...' : 'Running...'}</span>
-                            </>
-                        ) : (
-                            <>🚀 Run Now</>
-                        )}
-                    </button>
+                        <div>
+                            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Auto Jobs</h1>
+                            <p className="mt-1 text-slate-600 dark:text-slate-400">
+                                Automated job discovery and application preparation
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {jobs.length > 0 && (
+                                <button
+                                    onClick={handleDeleteAll}
+                                    disabled={isWorkflowRunning || isTriggering}
+                                    className="px-4 py-2 bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                    title="Delete all auto jobs"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    <span className="hidden sm:inline">Delete All</span>
+                                </button>
+                            )}
+                            <button
+                                onClick={handleTrigger}
+                                disabled={isWorkflowRunning || isTriggering}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 min-w-[120px] justify-center"
+                            >
+                                {(isWorkflowRunning || isTriggering) ? (
+                                    <>
+                                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>{isTriggering ? 'Starting...' : 'Running...'}</span>
+                                    </>
+                                ) : (
+                                    <>🚀 Run Now</>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -889,32 +927,31 @@ const AutoJobsPage: React.FC = () => {
                                     const isRunning = step.status === 'running';
                                     const isFailed = step.status === 'failed';
                                     const isPending = step.status === 'pending';
-                                    
+
                                     // Find the index of the running step
                                     const runningIndex = workflowProgress.steps.findIndex(s => s.status === 'running');
                                     const isBeforeRunning = index < runningIndex;
-                                    
+
                                     return (
                                         <div key={index} className="flex-1 flex flex-col items-center relative">
                                             {/* Connector Line */}
                                             {index < workflowProgress.steps.length - 1 && (
                                                 <div className="absolute top-5 left-[60%] right-0 h-0.5 -z-10">
-                                                    <div className={`h-full transition-all duration-500 ${
-                                                        isCompleted || isBeforeRunning 
-                                                            ? 'bg-green-500 dark:bg-green-400' 
-                                                            : 'bg-gray-200 dark:bg-gray-700'
-                                                    }`} style={{ width: '100%' }} />
+                                                    <div className={`h-full transition-all duration-500 ${isCompleted || isBeforeRunning
+                                                        ? 'bg-green-500 dark:bg-green-400'
+                                                        : 'bg-gray-200 dark:bg-gray-700'
+                                                        }`} style={{ width: '100%' }} />
                                                 </div>
                                             )}
-                                            
+
                                             {/* Step Circle */}
                                             <div className={`
                                                 w-10 h-10 rounded-full flex items-center justify-center mb-3 relative z-10
                                                 transition-all duration-300
-                                                ${isCompleted 
-                                                    ? 'bg-green-500 text-white shadow-lg shadow-green-500/50' 
-                                                    : isRunning 
-                                                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50 animate-pulse' 
+                                                ${isCompleted
+                                                    ? 'bg-green-500 text-white shadow-lg shadow-green-500/50'
+                                                    : isRunning
+                                                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50 animate-pulse'
                                                         : isFailed
                                                             ? 'bg-red-500 text-white shadow-lg shadow-red-500/50'
                                                             : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500'}
@@ -935,17 +972,16 @@ const AutoJobsPage: React.FC = () => {
                                                     <span className="text-sm font-semibold">{index + 1}</span>
                                                 )}
                                             </div>
-                                            
+
                                             {/* Step Label */}
                                             <div className="text-center">
-                                                <div className={`text-sm font-medium mb-1 ${
-                                                    isCompleted 
-                                                        ? 'text-green-600 dark:text-green-400' 
-                                                        : isRunning 
-                                                            ? 'text-blue-600 dark:text-blue-400' 
-                                                            : isFailed
-                                                                ? 'text-red-600 dark:text-red-400'
-                                                                : 'text-gray-500 dark:text-gray-400'}
+                                                <div className={`text-sm font-medium mb-1 ${isCompleted
+                                                    ? 'text-green-600 dark:text-green-400'
+                                                    : isRunning
+                                                        ? 'text-blue-600 dark:text-blue-400'
+                                                        : isFailed
+                                                            ? 'text-red-600 dark:text-red-400'
+                                                            : 'text-gray-500 dark:text-gray-400'}
                                                 `}>
                                                     {step.name}
                                                 </div>
@@ -960,7 +996,7 @@ const AutoJobsPage: React.FC = () => {
                                                     </div>
                                                 )}
                                             </div>
-                                            
+
                                             {/* Progress Bar for Running Step */}
                                             {isRunning && (
                                                 <div className="absolute top-10 left-1/2 transform -translate-x-1/2 w-20 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-2">
@@ -1064,8 +1100,8 @@ const AutoJobsPage: React.FC = () => {
                                             <td className="px-6 py-4">
                                                 {job.jobPostDate ? (() => {
                                                     try {
-                                                        const postDate = typeof job.jobPostDate === 'string' 
-                                                            ? new Date(job.jobPostDate) 
+                                                        const postDate = typeof job.jobPostDate === 'string'
+                                                            ? new Date(job.jobPostDate)
                                                             : job.jobPostDate;
                                                         if (isNaN(postDate.getTime())) {
                                                             return (
@@ -1097,16 +1133,16 @@ const AutoJobsPage: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <JobRecommendationBadge 
+                                                <JobRecommendationBadge
                                                     recommendation={job.recommendation ? {
                                                         score: job.recommendation.score,
                                                         shouldApply: job.recommendation.shouldApply,
                                                         reason: job.recommendation.reason,
                                                         cached: true,
-                                                        cachedAt: job.recommendation.cachedAt instanceof Date 
-                                                            ? job.recommendation.cachedAt.toISOString() 
-                                                            : typeof job.recommendation.cachedAt === 'string' 
-                                                                ? job.recommendation.cachedAt 
+                                                        cachedAt: job.recommendation.cachedAt instanceof Date
+                                                            ? job.recommendation.cachedAt.toISOString()
+                                                            : typeof job.recommendation.cachedAt === 'string'
+                                                                ? job.recommendation.cachedAt
                                                                 : new Date().toISOString(),
                                                         error: (job.recommendation as any).error
                                                     } : job.processingStatus === 'error' && job.errorMessage ? {
@@ -1118,7 +1154,7 @@ const AutoJobsPage: React.FC = () => {
                                                     } : null}
                                                     isLoading={
                                                         // Only show loading if workflow is running AND job is still being processed
-                                                        isWorkflowRunning && 
+                                                        isWorkflowRunning &&
                                                         (job.processingStatus === 'pending' || job.processingStatus === 'analyzed') &&
                                                         !job.recommendation
                                                     }

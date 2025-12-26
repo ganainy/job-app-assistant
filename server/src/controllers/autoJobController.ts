@@ -109,8 +109,8 @@ export const cancelWorkflow = async (req: Request, res: Response) => {
 
         // Only allow cancelling if workflow is still running
         if (run.status !== 'running') {
-            return res.status(400).json({ 
-                message: `Cannot cancel workflow. Current status: ${run.status}` 
+            return res.status(400).json({
+                message: `Cannot cancel workflow. Current status: ${run.status}`
             });
         }
 
@@ -146,7 +146,7 @@ export const getAutoJobs = async (req: Request, res: Response) => {
         const relevance = req.query.relevance as string;
 
         // Build query - only get auto jobs that haven't been promoted to dashboard and aren't soft-deleted
-        const query: any = { 
+        const query: any = {
             userId: new mongoose.Types.ObjectId(userId),
             isAutoJob: true,
             showInDashboard: false, // Exclude jobs that have been moved to dashboard
@@ -302,6 +302,39 @@ export const deleteAutoJob = async (req: Request, res: Response) => {
 };
 
 /**
+ * Delete ALL auto jobs (soft delete)
+ * DELETE /api/auto-jobs
+ */
+export const deleteAllAutoJobs = async (req: Request, res: Response) => {
+    try {
+        const userId = (req.user as any)._id.toString();
+
+        const result = await JobApplication.updateMany(
+            {
+                userId: new mongoose.Types.ObjectId(userId),
+                isAutoJob: true,
+                showInDashboard: false, // Don't delete promoted jobs
+                deletedAt: null
+            },
+            {
+                $set: { deletedAt: new Date() }
+            }
+        );
+
+        res.json({
+            message: 'All auto jobs deleted successfully',
+            count: result.modifiedCount
+        });
+    } catch (error: any) {
+        console.error('Error deleting all auto jobs:', error);
+        res.status(500).json({
+            message: 'Failed to delete all auto jobs',
+            error: error.message
+        });
+    }
+};
+
+/**
  * Get workflow statistics
  * GET /api/auto-jobs/stats
  */
@@ -309,7 +342,7 @@ export const getStats = async (req: Request, res: Response) => {
     try {
         const userId = (req.user as any)._id.toString();
 
-        const baseQuery = { 
+        const baseQuery = {
             userId: new mongoose.Types.ObjectId(userId),
             isAutoJob: true
         };
@@ -357,16 +390,16 @@ export const getStats = async (req: Request, res: Response) => {
 export const updateSettings = async (req: Request, res: Response) => {
     try {
         const userId = (req.user as any)._id.toString();
-        const { 
-            enabled, 
-            keywords, 
-            location, 
-            jobType, 
-            experienceLevel, 
-            datePosted, 
-            maxJobs, 
+        const {
+            enabled,
+            keywords,
+            location,
+            jobType,
+            experienceLevel,
+            datePosted,
+            maxJobs,
             avoidDuplicates,
-            schedule 
+            schedule
         } = req.body;
 
         let profile = await Profile.findOne({ userId: new mongoose.Types.ObjectId(userId) });

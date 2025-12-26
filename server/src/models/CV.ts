@@ -18,6 +18,11 @@ export interface ICV extends Document {
     templateId?: string | null;  // null = use user's default template
     filename?: string | null;    // Original uploaded filename
     analysisCache?: Record<string, unknown> | null;
+    tailoringChanges?: Array<{
+        section: string;       // e.g., "work", "skills", "summary"
+        description: string;   // What was changed
+        reason: string;        // Why it was changed (connection to job requirements)
+    }> | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -57,6 +62,14 @@ const CVSchema = new Schema<ICV>(
         },
         analysisCache: {
             type: Schema.Types.Mixed,
+            default: null,
+        },
+        tailoringChanges: {
+            type: [{
+                section: { type: String, required: true },
+                description: { type: String, required: true },
+                reason: { type: String, required: true },
+            }],
             default: null,
         },
     },

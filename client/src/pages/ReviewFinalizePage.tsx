@@ -13,7 +13,7 @@ import { downloadCvAsPdf } from '../services/pdfService';
 import { DEFAULT_CV_PROMPT, DEFAULT_COVER_LETTER_PROMPT } from '../constants/prompts';
 import { getAllTemplates, TemplateConfig } from '../templates/config';
 import { generateCoverLetter } from '../services/coverLetterApi';
-import { getMasterCv, previewCv, getAllCvs, CVDocument, getJobCv, createJobCv, updateCv } from '../services/cvApi';
+import { getMasterCv, previewCv, getAllCvs, CVDocument, getJobCv, createJobCv, updateCv, deleteCv } from '../services/cvApi';
 import AtsReportView from '../components/ats/AtsReportView';
 import CvPreviewModal from '../components/cv-editor/CvPreviewModal';
 import axios from 'axios';
@@ -61,6 +61,7 @@ const ReviewFinalizePage: React.FC = () => {
     const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
     const [isGeneratingCv, setIsGeneratingCv] = useState<boolean>(false);
     const [generateCvError, setGenerateCvError] = useState<string | null>(null);
+    const [tailoringChanges, setTailoringChanges] = useState<Array<{ section: string; description: string; reason: string; }> | null>(null);
     const [hasMasterCv, setHasMasterCv] = useState<boolean>(false);
     const [notes, setNotes] = useState<string>('');
     const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
@@ -202,6 +203,7 @@ const ReviewFinalizePage: React.FC = () => {
                 if (cvResponse.cv) {
                     setCvData(cvResponse.cv.cvJson);
                     setCurrentCvId(cvResponse.cv._id);
+                    setTailoringChanges(cvResponse.cv.tailoringChanges || null);
                     lastSavedCvDataRef.current = JSON.stringify(cvResponse.cv.cvJson);
                 } else {
                     // Fallback to legacy draftCvJson if no CV document yet
@@ -211,6 +213,7 @@ const ReviewFinalizePage: React.FC = () => {
                     } else {
                         lastSavedCvDataRef.current = JSON.stringify({ basics: {} });
                     }
+                    setTailoringChanges(null);
                 }
             } catch (err) {
                 // If 404 or other error, fallback to legacy
@@ -267,6 +270,11 @@ const ReviewFinalizePage: React.FC = () => {
             return () => clearTimeout(timer);
         }
     }, [jobApplication, isLoading]);
+
+    // Check if we have a valid CV loaded (either from unified model or legacy fallback)
+    const hasLocalCv = React.useMemo(() => {
+        return !!(cvData && cvData.basics && Object.keys(cvData.basics).length > 0);
+    }, [cvData]);
 
     // Sync state with jobApplication for the Tailor Form
     useEffect(() => {
@@ -724,6 +732,24 @@ const ReviewFinalizePage: React.FC = () => {
         }
     };
 
+    const handleMarkAsApplied = async () => {
+        if (!jobId || !jobApplication) return;
+
+        try {
+            const updatePayload: any = {
+                status: 'Applied',
+                dateApplied: new Date()
+            };
+
+            await updateJob(jobId, updatePayload);
+            setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
+            showToast('Job marked as Applied', 'success');
+        } catch (error: any) {
+            console.error("Error updating job status:", error);
+            showToast('Failed to mark job as applied', 'error');
+        }
+    };
+
     const handleGenerateFinalPdfs = async () => {
         if (!jobId) return;
 
@@ -811,7 +837,7 @@ const ReviewFinalizePage: React.FC = () => {
     };
 
     const handlePreviewCv = async () => {
-        if (!cvData || !jobApplication?.draftCvJson) {
+        if (!cvData || !hasLocalCv) {
             showToast('No CV data available to preview.', 'error');
             return;
         }
@@ -989,6 +1015,10 @@ const ReviewFinalizePage: React.FC = () => {
                 draftCoverLetterText: generatedText
             });
 
+            // Optimistic update - update local state immediately
+            setCoverLetterText(generatedText);
+            setJobApplication(prev => prev ? { ...prev, draftCoverLetterText: generatedText } : null);
+
             await fetchJobData();
             showToast('Cover letter generated successfully', 'success');
         } catch (error: any) {
@@ -1106,7 +1136,10 @@ const ReviewFinalizePage: React.FC = () => {
 
             if (response.status === 'draft_ready') {
                 await fetchJobData();
-                showToast('CV generated successfully', 'success');
+                const changesMsg = response.changesCount
+                    ? ` with ${response.changesCount} tailoring changes`
+                    : '';
+                showToast(`CV generated successfully${changesMsg}`, 'success');
             } else if (response.status === 'pending_input') {
                 setGenerateCvError('Generation requires additional input. Please check the console for details.');
             } else {
@@ -1164,7 +1197,7 @@ const ReviewFinalizePage: React.FC = () => {
             },
             {
                 label: 'CV Generated',
-                completed: !!jobApplication.draftCvJson,
+                completed: hasLocalCv,
             },
             {
                 label: 'Cover Letter Generated',
@@ -1296,6 +1329,17 @@ const ReviewFinalizePage: React.FC = () => {
                         </h1>
                         <JobStatusBadge type="application" status={jobApplication.status} />
 
+                        {jobApplication.status !== 'Applied' && (
+                            <button
+                                onClick={handleMarkAsApplied}
+                                className="ml-auto sm:ml-2 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500 rounded-lg shadow-sm transition-all flex items-center gap-1.5 transform hover:scale-105 active:scale-95"
+                                title="Mark this job as Applied"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                                <span>Mark as Applied</span>
+                            </button>
+                        )}
+
                     </div>
                     <div className="flex items-center gap-2 text-base text-slate-600 dark:text-slate-400 mb-4">
                         <span>{jobApplication.companyName}</span>
@@ -1391,9 +1435,9 @@ const ReviewFinalizePage: React.FC = () => {
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={handleScanAts}
-                                            disabled={isScanningAts || !jobApplication?.jobDescriptionText || (!hasMasterCv && !jobApplication?.draftCvJson)}
+                                            disabled={isScanningAts || !jobApplication?.jobDescriptionText || (!hasMasterCv && !hasLocalCv)}
                                             className="group flex items-center gap-2.5 px-4 py-2.5 bg-blue-600 dark:bg-blue-600 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600 dark:disabled:hover:bg-blue-600 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow-md"
-                                            title={!hasMasterCv && !jobApplication?.draftCvJson ? 'Please upload your master CV or generate a tailored CV first' : !jobApplication?.jobDescriptionText ? 'Please scrape the job description first' : 'Run ATS analysis on your tailored CV'}
+                                            title={!hasMasterCv && !hasLocalCv ? 'Please upload your master CV or generate a tailored CV first' : !jobApplication?.jobDescriptionText ? 'Please scrape the job description first' : 'Run ATS analysis on your tailored CV'}
                                         >
                                             {isScanningAts ? (
                                                 <>
@@ -1513,7 +1557,7 @@ const ReviewFinalizePage: React.FC = () => {
                                     <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-8">
                                         Run an ATS scan to analyze how well your tailored CV matches this job's requirements. Get actionable feedback to improve your match score.
                                     </p>
-                                    {!hasMasterCv && !jobApplication?.draftCvJson && (
+                                    {!hasMasterCv && !hasLocalCv && (
                                         <p className="text-amber-600 dark:text-amber-400 text-sm mb-4">
                                             ⚠️ Please upload your master CV on the <Link to="/manage-cv" className="underline">CV Management page</Link> or generate a tailored CV first.
                                         </p>
@@ -1936,8 +1980,63 @@ const ReviewFinalizePage: React.FC = () => {
                     {/* Tab 4: CV */}
                     {activeTab === 'cv' && (
                         <div>
-                            {jobApplication.draftCvJson ? (
+                            {hasLocalCv ? (
                                 <>
+                                    {/* Tailoring Changes Panel - Show what AI changed */}
+                                    {tailoringChanges && tailoringChanges.length > 0 && (
+                                        <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800 overflow-hidden">
+                                            <details className="group" open>
+                                                <summary className="flex items-center justify-between cursor-pointer p-4 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-600 dark:bg-blue-500 text-white">
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                                            </svg>
+                                                        </span>
+                                                        <div>
+                                                            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                                                                Tailoring Changes
+                                                            </h3>
+                                                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                                {tailoringChanges.length} modification{tailoringChanges.length !== 1 ? 's' : ''} made for this job
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-gray-500 dark:text-gray-400 group-open:rotate-180 transition-transform duration-200">
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </span>
+                                                </summary>
+                                                <div className="p-4 pt-0 space-y-3">
+                                                    {tailoringChanges.map((change, index) => (
+                                                        <div
+                                                            key={index}
+                                                            className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 shadow-sm"
+                                                        >
+                                                            <div className="flex items-start gap-3">
+                                                                <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300 capitalize">
+                                                                    {change.section}
+                                                                </span>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                                        {change.description}
+                                                                    </p>
+                                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-start gap-1.5">
+                                                                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                        </svg>
+                                                                        <span className="italic">{change.reason}</span>
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        </div>
+                                    )}
+
                                     <div className="mb-4">
                                         {/* Grey rounded card containing title, view mode toggle, and buttons */}
                                         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-700 mb-4">
@@ -2006,14 +2105,28 @@ const ReviewFinalizePage: React.FC = () => {
                                                     <button
                                                         onClick={async () => {
                                                             if (window.confirm('Are you sure you want to delete this CV? You will need to regenerate it.')) {
-                                                                if (jobId) {
+                                                                if (currentCvId) {
                                                                     try {
-                                                                        // Optimistic update
+                                                                        await deleteCv(currentCvId);
+                                                                        setCvData({ basics: {} });
+                                                                        setCurrentCvId(null);
+                                                                        // Optimistic update for legacy check (if any remain)
                                                                         setJobApplication(prev => prev ? { ...prev, draftCvJson: undefined } : null);
-                                                                        // Update backend
-                                                                        await updateJob(jobId, { draftCvJson: null });
-                                                                    } catch (err) {
+                                                                        showToast('CV deleted successfully', 'success');
+                                                                    } catch (err: any) {
                                                                         console.error('Failed to delete CV', err);
+                                                                        showToast(`Failed to delete CV: ${err.message}`, 'error');
+                                                                    }
+                                                                } else if (jobId && jobApplication?.draftCvJson) {
+                                                                    // Legacy cleanup
+                                                                    try {
+                                                                        await updateJob(jobId, { draftCvJson: null });
+                                                                        setCvData({ basics: {} });
+                                                                        setJobApplication(prev => prev ? { ...prev, draftCvJson: undefined } : null);
+                                                                        showToast('CV deleted successfully', 'success');
+                                                                    } catch (err: any) {
+                                                                        console.error('Failed to delete legacy CV', err);
+                                                                        showToast(`Failed to delete CV: ${err.message}`, 'error');
                                                                     }
                                                                 }
                                                             }

@@ -111,11 +111,13 @@ export const decrypt = (encryptedData: string | null | undefined): string | null
 
     return decrypted;
   } catch (error) {
-    console.error('Decryption error:', error);
-    // If decryption fails, it might be unencrypted legacy data
-    // Try to return as-is for backward compatibility during migration
-    console.warn('Decryption failed - returning original value (might be unencrypted legacy data)');
-    return encryptedData;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[Encryption] Decryption failed: ${errorMessage}`);
+    console.warn('[Encryption] Hint: Ensure your ENCRYPTION_KEY in .env matches the key used to encrypt this data. If you changed the key, existing encrypted data will be unreadable.');
+
+    // If decryption fails for what looks like encrypted data, return null
+    // This allows the consumer to treat it as "not configured" rather than showing garbage
+    return null;
   }
 };
 

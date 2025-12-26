@@ -25,6 +25,7 @@ router.get('/', autoJobController.getAutoJobs as RequestHandler);
 router.get('/:id', autoJobController.getAutoJobById as RequestHandler);
 router.post('/:id/promote', autoJobController.promoteAutoJob as RequestHandler);
 router.delete('/:id', autoJobController.deleteAutoJob as RequestHandler);
+router.delete('/', autoJobController.deleteAllAutoJobs as RequestHandler);
 
 export default router;
 
