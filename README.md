@@ -189,10 +189,11 @@ After starting the application:
 | **Custom Job CV** | Review and customize AI-generated CVs tailored to specific job applications. | ![Custom Job CV](demo/custom-job-cv.png) |
 | **Custom Job Cover Letter** | Review and customize AI-generated cover letters tailored to specific job applications. | ![Custom Job Cover Letter](demo/custom-job-coverletter.png) |
 | **ATS Analysis** | Get detailed ATS compatibility scores and feedback to optimize your application. | ![ATS Analysis](demo/ats-analysis.png) |
-| **CV Management** | Upload, parse, and edit your CV with a rich editor that supports section-by-section editing and AI-powered analysis. | ![CV Management](demo/ats-analysis2.png) |
-| **Portfolio Setup - Step 1** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 1](demo/portfolio-setup.png) |
-| **Portfolio Setup - Step 2** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 2](demo/portfolio-setup2.png) |
-| **Portfolio Setup - Step 3** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 3](demo/portfolio-setup3.png) |
-| **Portfolio Setup - Step 4** | Configure your professional portfolio with GitHub integration, LinkedIn sync, and project management. | ![Portfolio Setup - Step 4](demo/portfolio-setup4.png) |
+| **CV Management** | Upload, parse, and edit your CV with a rich editor that supports section-by-section editing and AI-powered analysis. | ![CV Management](demo/cv-management.png) |
+| **Portfolio Setup - Step 1: Connect Accounts** | Connect your GitHub and LinkedIn accounts to automatically import your professional data. | ![Portfolio Setup - Step 1](demo/portfolio-setup.png) |
+| **Portfolio Setup - Step 2: GitHub Repos** | Select which GitHub repositories to showcase in your portfolio. | ![Portfolio Setup - Step 2](demo/portfolio-setup2.png) |
+| **Portfolio Setup - Step 3: LinkedIn Data** | Review and edit your professional information imported from LinkedIn. | ![Portfolio Setup - Step 3](demo/portfolio-setup3.png) |
+| **Portfolio Setup - Step 4: Publish** | Publish your portfolio with a custom username and toggle visibility settings. | ![Portfolio Setup - Step 4](demo/portfolio-setup4.png) |
+| **Portfolio Setup - Step 5: Community** | Browse other published portfolios from the VibeHired community. | ![Portfolio Setup - Step 5](demo/portfolio-setup5.png) |
 | **Public Portfolio** | Share your professional portfolio with a clean, modern public page. | ![Public Portfolio](demo/custom-portfolio.png) |
 | **Settings** | Manage your API keys for AI features (Gemini, OpenRouter, Ollama) and integrations (Apify). Configure AI provider settings and model selection. | ![Settings](demo/settings.png) |
