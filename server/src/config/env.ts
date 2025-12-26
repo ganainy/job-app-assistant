@@ -22,8 +22,9 @@ for (const envPath of possibleEnvPaths) {
 }
 
 if (!envLoaded) {
-    console.error('Could not find .env file in any expected location:', possibleEnvPaths);
-    process.exit(1);
+    // In production (e.g., Heroku), environment variables come from Config Vars, not .env files
+    // Only log a warning, don't crash - the env vars may already be set by the platform
+    console.warn('No .env file found. Using environment variables from the platform.', possibleEnvPaths);
 }
 
 // Export validated environment variables
