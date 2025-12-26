@@ -40,6 +40,10 @@ export const updateJobBodySchema = z.object({
   notes: z.string().optional(),
   jobDescriptionText: z.string().optional(),
   dateApplied: z.string().datetime().optional().or(z.date().optional()),
+  // Allow updating generation-related fields
+  generationStatus: z.enum(['none', 'pending_input', 'pending_generation', 'draft_ready', 'finalized', 'error']).optional(),
+  draftCvJson: z.any().optional(),
+  draftCoverLetterText: z.string().optional(),
 });
 
 /**
