@@ -165,5 +165,37 @@ JobApplicationSchema.index({ userId: 1, isAutoJob: 1, processingStatus: 1, 'reco
 // Index for querying dashboard jobs
 JobApplicationSchema.index({ userId: 1, showInDashboard: 1, status: 1 });
 
+/**
+ * Cascade delete: When a job is deleted, also delete its associated CV
+ * This prevents orphan CVs in the database
+ */
+JobApplicationSchema.post('findOneAndDelete', async function (doc) {
+    if (doc) {
+        try {
+            // Import CV model dynamically to avoid circular dependency
+            const CV = (await import('./CV')).default;
+            const result = await CV.deleteOne({ jobApplicationId: doc._id });
+            if (result.deletedCount > 0) {
+                console.log(`Cascade deleted CV for job application ${doc._id}`);
+            }
+        } catch (error) {
+            console.error(`Failed to cascade delete CV for job ${doc._id}:`, error);
+        }
+    }
+});
+
+// Also handle deleteOne and deleteMany
+JobApplicationSchema.post('deleteOne', { document: true, query: false }, async function () {
+    try {
+        const CV = (await import('./CV')).default;
+        const result = await CV.deleteOne({ jobApplicationId: this._id });
+        if (result.deletedCount > 0) {
+            console.log(`Cascade deleted CV for job application ${this._id}`);
+        }
+    } catch (error) {
+        console.error(`Failed to cascade delete CV for job ${this._id}:`, error);
+    }
+});
+
 // Create and export the Mongoose model
 export default mongoose.model<IJobApplication>('JobApplication', JobApplicationSchema);

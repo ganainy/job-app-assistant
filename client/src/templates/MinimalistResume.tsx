@@ -26,7 +26,7 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
       case 'Basic': rating = 2; break;
       default: rating = 1; break;
     }
-    
+
     return Array.from({ length: 5 }, (_, i) => {
       const isFilled = i < rating;
       return (
@@ -47,13 +47,13 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
   };
 
   return (
-    <div 
-      ref={ref} 
+    <div
+      ref={ref}
       className="mx-auto p-6"
-      style={{ 
-        backgroundColor: '#ffffff', 
-        fontFamily: "'Arial', sans-serif", 
-        fontSize: '11px', 
+      style={{
+        backgroundColor: '#ffffff',
+        fontFamily: "'Arial', sans-serif",
+        fontSize: '11px',
         lineHeight: '1.5',
         minHeight: '11in',
         maxWidth: '8.27in',
@@ -69,7 +69,7 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
             {data.experiences[0].title}
           </p>
         )}
-        
+
         <div className="flex flex-wrap gap-4 text-gray-700" style={{ fontSize: '11px' }}>
           {data.phone && (
             <div className="flex items-center gap-2">
@@ -109,36 +109,14 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
         </section>
       )}
 
-      {data.customSections && data.customSections.length > 0 && (
-        <section className="mb-6">
-          <h2 className="font-bold text-black mb-3" style={{ fontSize: '14px', letterSpacing: '1px' }}>
-            STRENGTHS
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.customSections.map((section, index) => (
-              <div key={section.id} className="flex gap-2">
-                <Star className="h-4 w-4 text-black mt-1 flex-shrink-0" />
-                <div>
-                  <h3 className="font-bold text-black mb-1" style={{ fontSize: '12px' }}>
-                    {section.heading}
-                  </h3>
-                  <p className="text-gray-700" style={{ fontSize: '10px' }}>
-                    {section.content}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+
 
       {data.experiences.length > 0 && data.experiences.some(exp => exp.company || exp.title || exp.description || exp.startDate || exp.endDate) && (
         <section className="mb-8">
           <h2 className="font-bold text-black mb-4" style={{ fontSize: '16px', letterSpacing: '1px' }}>
             EXPERIENCE
           </h2>
-          
+
           <div className="space-y-6">
             {data.experiences.map((experience, index) => (
               <div key={experience.id} className="flex gap-4">
@@ -180,7 +158,7 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
                   <p className="text-gray-700 font-medium mb-2" style={{ fontSize: '12px' }}>
                     {experience.company}
                   </p>
-                  
+
                   {experience.description && (
                     <div>
                       <ul className="list-disc ml-4 space-y-1">
@@ -204,7 +182,7 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
           <h2 className="font-bold text-black mb-4" style={{ fontSize: '16px', letterSpacing: '1px' }}>
             EDUCATION
           </h2>
-          
+
           <div className="space-y-4">
             {data.education.map((education) => (
               <div key={education.id} className="flex gap-4">
@@ -250,7 +228,7 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
           <h2 className="font-bold text-black mb-4" style={{ fontSize: '16px', letterSpacing: '1px' }}>
             LANGUAGES
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print-languages-grid">
             {data.languages.map((language) => (
               <div key={language.id} className="flex justify-between items-center">
@@ -276,13 +254,13 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
           <h2 className="font-bold text-black mb-4" style={{ fontSize: '16px', letterSpacing: '1px' }}>
             SKILLS
           </h2>
-          
+
           <div className="flex flex-wrap gap-3">
             {data.skills.map((skill, index) => (
               <span
                 key={index}
                 className="px-4 py-2 bg-white text-black font-medium rounded-sm"
-                style={{ 
+                style={{
                   fontSize: '11px',
                   border: '1px solid #000000'
                 }}
@@ -299,7 +277,7 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
           <h2 className="font-bold text-black mb-4" style={{ fontSize: '16px', letterSpacing: '1px' }}>
             CERTIFICATIONS
           </h2>
-          
+
           <div className="space-y-3">
             {data.certifications.map((certification) => (
               <div key={certification.id}>
@@ -331,7 +309,19 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
                 {section.heading.toUpperCase()}
               </h2>
               <div className="text-gray-800 leading-relaxed whitespace-pre-line" style={{ fontSize: '12px' }}>
-                {section.content}
+                {section.content.split('\n').map((line, i) => {
+                  const parts = line.split(/(\*\*.*?\*\*)/g);
+                  return (
+                    <div key={i} style={{ minHeight: '1.2em' }}>
+                      {parts.map((part, j) => {
+                        if (part.startsWith('**') && part.endsWith('**')) {
+                          return <strong key={j}>{part.slice(2, -2)}</strong>;
+                        }
+                        return <span key={j}>{part}</span>;
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </section>
           ))}

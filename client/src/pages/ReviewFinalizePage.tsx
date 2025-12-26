@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { updateCustomPrompts } from '../services/settingsApi';
-import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, updateJobDraft, getJobsWithCvs } from '../services/jobApi';
+import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi } from '../services/jobApi';
 import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments, generateCvOnly } from '../services/generatorApi';
 import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi';
 import { scanAts, getAtsScores, getAtsForJob, AtsScores, deleteAtsAnalysis } from '../services/atsApi';
@@ -13,7 +13,7 @@ import { downloadCvAsPdf } from '../services/pdfService';
 import { DEFAULT_CV_PROMPT, DEFAULT_COVER_LETTER_PROMPT } from '../constants/prompts';
 import { getAllTemplates, TemplateConfig } from '../templates/config';
 import { generateCoverLetter } from '../services/coverLetterApi';
-import { getCurrentCv, previewCv } from '../services/cvApi';
+import { getMasterCv, previewCv, getAllCvs, CVDocument, getJobCv, createJobCv, updateCv } from '../services/cvApi';
 import AtsReportView from '../components/ats/AtsReportView';
 import CvPreviewModal from '../components/cv-editor/CvPreviewModal';
 import axios from 'axios';
@@ -39,6 +39,7 @@ const ReviewFinalizePage: React.FC = () => {
     const navigate = useNavigate();
     const [jobApplication, setJobApplication] = useState<JobApplication | null>(null);
     const [cvData, setCvData] = useState<JsonResumeSchema>({ basics: {} });
+    const [currentCvId, setCurrentCvId] = useState<string | null>(null);
     const [coverLetterText, setCoverLetterText] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -194,9 +195,33 @@ const ReviewFinalizePage: React.FC = () => {
         try {
             const data = await getJobById(jobId);
             setJobApplication(data);
-            if (data.draftCvJson) {
-                setCvData(data.draftCvJson);
+
+            // Fetch Job CV from Unified Model
+            try {
+                const cvResponse = await getJobCv(jobId);
+                if (cvResponse.cv) {
+                    setCvData(cvResponse.cv.cvJson);
+                    setCurrentCvId(cvResponse.cv._id);
+                    lastSavedCvDataRef.current = JSON.stringify(cvResponse.cv.cvJson);
+                } else {
+                    // Fallback to legacy draftCvJson if no CV document yet
+                    if (data.draftCvJson) {
+                        setCvData(data.draftCvJson);
+                        lastSavedCvDataRef.current = JSON.stringify(data.draftCvJson);
+                    } else {
+                        lastSavedCvDataRef.current = JSON.stringify({ basics: {} });
+                    }
+                }
+            } catch (err) {
+                // If 404 or other error, fallback to legacy
+                if (data.draftCvJson) {
+                    setCvData(data.draftCvJson);
+                    lastSavedCvDataRef.current = JSON.stringify(data.draftCvJson);
+                } else {
+                    lastSavedCvDataRef.current = JSON.stringify({ basics: {} });
+                }
             }
+
             setCoverLetterText(data.draftCoverLetterText || '');
             const notesData = data.notes || '';
             setNotes(notesData);
@@ -210,13 +235,12 @@ const ReviewFinalizePage: React.FC = () => {
                 });
             }
 
-            // Initialize saved data refs to prevent unnecessary auto-saves
-            lastSavedCvDataRef.current = JSON.stringify(data.draftCvJson || { basics: {} });
+            // Initialize saved data refs
             lastSavedCoverLetterRef.current = data.draftCoverLetterText || '';
 
             try {
-                const cvResponse = await getCurrentCv();
-                setHasMasterCv(!!cvResponse.cvData);
+                const cvResponse = await getMasterCv();
+                setHasMasterCv(!!cvResponse.cv);
             } catch (error) {
                 console.error("Error checking master CV:", error);
                 setHasMasterCv(false);
@@ -253,33 +277,31 @@ const ReviewFinalizePage: React.FC = () => {
         }
     }, [jobApplication]);
 
-    // Fetch Available CVs (Master + Other Jobs)
+    // Fetch Available CVs (Master + Other Jobs) from unified CV model
     useEffect(() => {
         const loadCvs = async () => {
             try {
-                const [cvResponse, jobs] = await Promise.all([
-                    getCurrentCv(),
-                    getJobsWithCvs()
-                ]);
+                const response = await getAllCvs();
+                const allCvs = response.cvs;
 
                 const options: { id: string; name: string; data: any }[] = [];
 
-                // Add Master CV
-                if (cvResponse.cvData) {
-                    const masterName = cvResponse.cvFilename
-                        ? `Master CV (${cvResponse.cvFilename})`
+                // Add Master CV first
+                const masterCv = allCvs.find((cv: CVDocument) => cv.isMasterCv);
+                if (masterCv) {
+                    const masterName = masterCv.filename
+                        ? `Master CV (${masterCv.filename})`
                         : 'Master CV (Default)';
-                    options.push({ id: 'master', name: masterName, data: cvResponse.cvData });
+                    options.push({ id: masterCv._id, name: masterName, data: masterCv.cvJson });
                 }
 
                 // Add Job CVs
-                jobs.forEach(job => {
-                    // Exclude current job from options (optional, but logical since we are generating FOR this job)
-                    if (job._id !== jobId) {
+                allCvs.forEach((cv: CVDocument) => {
+                    if (!cv.isMasterCv && cv._id !== jobId && cv.jobApplication) {
                         options.push({
-                            id: job._id,
-                            name: `${job.jobTitle} at ${job.companyName}`,
-                            data: job.draftCvJson
+                            id: cv._id,
+                            name: `${cv.jobApplication.jobTitle} at ${cv.jobApplication.companyName}`,
+                            data: cv.cvJson
                         });
                     }
                 });
@@ -407,7 +429,7 @@ const ReviewFinalizePage: React.FC = () => {
 
         // Require a tailored CV to be generated before ATS scan
         // ATS should analyze the tailored CV, not the master CV
-        if (!jobApplication.draftCvJson || Object.keys(jobApplication.draftCvJson).length === 0) {
+        if (!cvData || Object.keys(cvData).length === 0) {
             showToast('Please generate a tailored CV first before running ATS scan', 'error');
             return;
         }
@@ -528,8 +550,8 @@ const ReviewFinalizePage: React.FC = () => {
             setIsSaving(true);
             setSaveError(null);
             try {
+                // 1. Update Job Application (Cover Letter)
                 const updatePayload: any = {
-                    draftCvJson: cvData,
                     draftCoverLetterText: coverLetterText,
                 };
 
@@ -541,6 +563,14 @@ const ReviewFinalizePage: React.FC = () => {
                 }
 
                 await updateJob(jobId, updatePayload);
+
+                // 2. Update CV in Unified Model
+                if (currentCvId) {
+                    await updateCv(currentCvId, { cvJson: cvData });
+                } else {
+                    const newCvResponse = await createJobCv(jobId, { cvJson: cvData });
+                    setCurrentCvId(newCvResponse.cv._id);
+                }
 
                 // Update refs with saved values
                 lastSavedCvDataRef.current = JSON.stringify(cvData);
@@ -561,7 +591,7 @@ const ReviewFinalizePage: React.FC = () => {
                 clearTimeout(autoSaveTimeoutRef.current);
             }
         };
-    }, [cvData, coverLetterText, jobId, jobApplication]);
+    }, [cvData, coverLetterText, jobId, jobApplication, currentCvId]);
 
     const handleRefreshJobDetails = async () => {
         if (!jobId || !jobApplication?.jobUrl) return;
@@ -656,8 +686,8 @@ const ReviewFinalizePage: React.FC = () => {
         setIsSaving(true);
         setSaveError(null);
         try {
+            // 1. Update Job Application (Cover Letter, Status)
             const updatePayload: any = {
-                draftCvJson: cvData,
                 draftCoverLetterText: coverLetterText,
             };
 
@@ -669,6 +699,14 @@ const ReviewFinalizePage: React.FC = () => {
             }
 
             await updateJob(jobId, updatePayload);
+
+            // 2. Update/Create CV in Unified Model
+            if (currentCvId) {
+                await updateCv(currentCvId, { cvJson: cvData });
+            } else {
+                const newCvResponse = await createJobCv(jobId, { cvJson: cvData });
+                setCurrentCvId(newCvResponse.cv._id);
+            }
 
             // Update refs with saved values
             lastSavedCvDataRef.current = JSON.stringify(cvData);
@@ -696,7 +734,6 @@ const ReviewFinalizePage: React.FC = () => {
         try {
             // Ensure latest changes are saved before generating PDFs
             const updatePayload: any = {
-                draftCvJson: cvData,
                 draftCoverLetterText: coverLetterText,
             };
 
@@ -708,6 +745,15 @@ const ReviewFinalizePage: React.FC = () => {
             }
 
             await updateJob(jobId, updatePayload);
+
+            // Save CV to Unified Model
+            if (currentCvId) {
+                await updateCv(currentCvId, { cvJson: cvData });
+            } else {
+                const newCvResponse = await createJobCv(jobId, { cvJson: cvData });
+                setCurrentCvId(newCvResponse.cv._id);
+            }
+
             setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
 
             const result = await renderFinalPdfs(jobId);
@@ -730,9 +776,7 @@ const ReviewFinalizePage: React.FC = () => {
 
         try {
             // Ensure latest CV changes are saved before generating PDF
-            const updatePayload: any = {
-                draftCvJson: cvData,
-            };
+            const updatePayload: any = {};
 
             if (cvData && typeof cvData === 'object' && Object.keys(cvData).length > 0) {
                 const currentStatus = jobApplication?.generationStatus;
@@ -741,8 +785,18 @@ const ReviewFinalizePage: React.FC = () => {
                 }
             }
 
-            await updateJob(jobId, updatePayload);
-            setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
+            if (Object.keys(updatePayload).length > 0) {
+                await updateJob(jobId, updatePayload);
+                setJobApplication(prev => prev ? { ...prev, ...updatePayload } : null);
+            }
+
+            // Save CV to Unified Model
+            if (currentCvId) {
+                await updateCv(currentCvId, { cvJson: cvData });
+            } else {
+                const newCvResponse = await createJobCv(jobId, { cvJson: cvData });
+                setCurrentCvId(newCvResponse.cv._id);
+            }
 
             const result = await renderCvPdf(jobId);
             setFinalPdfFiles(prev => ({ ...prev, cv: result.cvFilename }));
@@ -931,7 +985,7 @@ const ReviewFinalizePage: React.FC = () => {
 
             const generatedText = await generateCoverLetter(jobId, language as 'en' | 'de', baseCvDataToUse);
 
-            await updateJobDraft(jobId, {
+            await updateJob(jobId, {
                 draftCoverLetterText: generatedText
             });
 

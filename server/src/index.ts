@@ -1,15 +1,15 @@
+// IMPORTANT: This MUST be the first import to load environment variables before any other modules
+import './config/env';
+
 import express, { Express, Request, Response } from 'express';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import { closeBrowser } from './utils/pdfGenerator'; // Assuming this is still needed
 
-dotenv.config();
-
 // Import routes
 import jobApplicationRoutes from './routes/jobApplications';
 import authRoutes from './routes/auth';
-import cvRoutes from './routes/cv';
+import cvsRoutes from './routes/cvs'; // Unified CV routes
 import generatorRoutes from './routes/generator';
 import analysisRoutes from './routes/analysis'; // Import is correct
 import coverLetterRoutes from './routes/coverLetter';
@@ -71,7 +71,7 @@ app.get('/', (req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/auth', authRoutes); // Auth routes (likely public or specific middleware)
-app.use('/api/cv', protect, cvRoutes);  // Protect CV routes
+app.use('/api/cvs', protect, cvsRoutes); // Unified CV routes
 app.use('/api/job-applications', protect, jobApplicationRoutes); // Protect Job Application routes
 app.use('/api/generator', protect, generatorRoutes); // Protect Generator routes
 app.use('/api/analysis', analysisRoutes); // Mounting looks correct

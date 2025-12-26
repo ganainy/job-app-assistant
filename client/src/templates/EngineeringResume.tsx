@@ -26,7 +26,7 @@ const EngineeringResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ da
       case 'Basic': rating = 2; break;
       default: rating = 1; break;
     }
-    
+
     return Array.from({ length: 5 }, (_, i) => {
       const isFilled = i < rating;
       return (
@@ -84,7 +84,7 @@ const EngineeringResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ da
             }}
             data-preserve="true"
           ></div>
-          
+
           <div className="relative z-10 mx-auto text-center" style={{ maxWidth: '8.27in', width: '100%' }}>
             <h1 className="text-lg font-black mb-1 tracking-tight">
               {resumeData.firstName} {resumeData.lastName}
@@ -101,7 +101,7 @@ const EngineeringResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ da
             >
               {resumeData.experiences && resumeData.experiences.length > 0 ? resumeData.experiences[0].title.toUpperCase() : 'PROFESSIONAL'}
             </div>
-            
+
             <div className="flex flex-wrap justify-center gap-1 text-xs mb-2">
               {resumeData.email && (
                 <div
@@ -323,7 +323,19 @@ const EngineeringResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ da
                       data-preserve="true"
                     >
                       <div className="text-gray-700 text-xs whitespace-pre-line">
-                        {section.content}
+                        {section.content.split('\n').map((line, i) => {
+                          const parts = line.split(/(\*\*.*?\*\*)/g);
+                          return (
+                            <div key={i} style={{ minHeight: '1.2em' }}>
+                              {parts.map((part, j) => {
+                                if (part.startsWith('**') && part.endsWith('**')) {
+                                  return <strong key={j}>{part.slice(2, -2)}</strong>;
+                                }
+                                return <span key={j}>{part}</span>;
+                              })}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </section>

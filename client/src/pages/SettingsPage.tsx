@@ -711,7 +711,7 @@ const SettingsPage: React.FC = () => {
                   <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
                     {defaultProvider === 'ollama'
                       ? 'No models found. Please ensure Ollama is running and you have installed models (e.g., run "ollama pull llama3" in your terminal).'
-                      : `No models available. Please configure your ${defaultProvider === 'gemini' ? 'Gemini' : 'OpenRouter'} API key in the settings above first.`}
+                      : `No models available. Please configure your ${defaultProvider === 'gemini' ? 'Gemini' : 'OpenRouter'} API key in the settings first.`}
                   </p>
                 ) : (
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">

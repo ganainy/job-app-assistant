@@ -23,7 +23,7 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
       case 'Basic': rating = 2; break;
       default: rating = 1; break;
     }
-    
+
     const segments = Array.from({ length: 12 }, (_, i) => {
       const isFilled = i < Math.round((rating / 5) * 12);
       return (
@@ -53,8 +53,8 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
   };
 
   return (
-    <div 
-      ref={ref} 
+    <div
+      ref={ref}
       style={{
         fontFamily: '"Times New Roman", serif',
         fontSize: '12px',
@@ -107,7 +107,7 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
           >
             {data.firstName} {data.lastName}
           </div>
-          
+
           <div
             style={{
               borderTop: '3px solid #000',
@@ -115,7 +115,7 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
             }}
             data-preserve="true"
           ></div>
-          
+
           <div
             style={{
               fontSize: '11px',
@@ -219,7 +219,7 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
                 data-preserve="true"
               ></div>
             </div>
-            
+
             {data.experiences.map((experience, index) => (
               <div
                 key={experience.id}
@@ -313,7 +313,7 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
                 data-preserve="true"
               ></div>
             </div>
-            
+
             {data.education.map((education) => (
               <div
                 key={education.id}
@@ -388,7 +388,7 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
                 data-preserve="true"
               ></div>
             </div>
-            
+
             <div
               style={{
                 display: 'grid',
@@ -484,7 +484,7 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
                 data-preserve="true"
               ></div>
             </div>
-            
+
             <ul
               style={{
                 listStyle: 'disc',
@@ -548,7 +548,7 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
                 data-preserve="true"
               ></div>
             </div>
-            
+
             <div
               style={{
                 display: 'grid',
@@ -695,7 +695,19 @@ const ATSOptimizedResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
                   }}
                   data-preserve="true"
                 >
-                  {section.content}
+                  {section.content.split('\n').map((line, i) => {
+                    const parts = line.split(/(\*\*.*?\*\*)/g);
+                    return (
+                      <div key={i} style={{ minHeight: '1.2em' }}>
+                        {parts.map((part, j) => {
+                          if (part.startsWith('**') && part.endsWith('**')) {
+                            return <strong key={j}>{part.slice(2, -2)}</strong>;
+                          }
+                          return <span key={j}>{part}</span>;
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}

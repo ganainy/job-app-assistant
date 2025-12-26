@@ -116,12 +116,26 @@ const ClassicProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeData 
 
         {data.customSections && data.customSections.length > 0 && (
           <>
-            <SectionHeader>KEY ACHIEVEMENTS</SectionHeader>
-            <ul style={{ margin: 0, paddingLeft: 20, marginBottom: 15 }}>
-              {data.customSections.map((section) => (
-                <li key={section.id}>{section.content}</li>
-              ))}
-            </ul>
+            {data.customSections.map((section) => (
+              <div key={section.id}>
+                <SectionHeader>{section.heading.toUpperCase()}</SectionHeader>
+                <div style={{ marginBottom: 15, whiteSpace: 'pre-line' }}>
+                  {section.content.split('\n').map((line, i) => {
+                    const parts = line.split(/(\*\*.*?\*\*)/g);
+                    return (
+                      <div key={i} style={{ minHeight: '1.2em' }}>
+                        {parts.map((part, j) => {
+                          if (part.startsWith('**') && part.endsWith('**')) {
+                            return <strong key={j}>{part.slice(2, -2)}</strong>;
+                          }
+                          return <span key={j}>{part}</span>;
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </>
         )}
 
@@ -194,7 +208,7 @@ const ClassicProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeData 
                   case 'Basic': rating = 2; break;
                   default: rating = 1; break;
                 }
-                
+
                 return (
                   <div key={language.id}>
                     <b>{language.name}</b> – {language.proficiency}

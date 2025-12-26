@@ -12,16 +12,22 @@ const router: Router = express.Router();
 
 // --- Environment Variable for JWT Secret ---
 // IMPORTANT: Set this in your server/.env file!
+// Using lazy evaluation to allow .env to load first
+let _cachedJwtSecret: string | null = null;
 const getJwtSecret = (): string => {
+    if (_cachedJwtSecret) {
+        return _cachedJwtSecret;
+    }
     const secret = process.env.JWT_SECRET;
     if (!secret) {
         console.error("FATAL ERROR: JWT_SECRET is not defined in .env file.");
         process.exit(1);
     }
+    _cachedJwtSecret = secret;
     return secret;
 };
 
-const JWT_SECRET: string = getJwtSecret();
+// JWT_SECRET is now accessed via the getter function, not evaluated at module load
 const JWT_EXPIRY: string = process.env.JWT_EXPIRY || '1d'; // Default to 1 day expiry
 
 // --- Registration Route ---
@@ -33,15 +39,15 @@ router.post('/register', validateRequest({ body: registerBodySchema }), async (r
         // Check if user already exists by email
         const existingUserByEmail = await User.findOne({ email });
         if (existingUserByEmail) {
-             res.status(400).json({ message: 'User with this email already exists.' });
-             return;
+            res.status(400).json({ message: 'User with this email already exists.' });
+            return;
         }
 
         // Check if username is already taken
         const existingUserByUsername = await User.findOne({ username });
         if (existingUserByUsername) {
-             res.status(400).json({ message: 'Username is already taken. Please choose a different username.' });
-             return;
+            res.status(400).json({ message: 'Username is already taken. Please choose a different username.' });
+            return;
         }
 
         // Create new user instance - Assign plain password to passwordHash temporarily
@@ -56,16 +62,16 @@ router.post('/register', validateRequest({ body: registerBodySchema }), async (r
         await newUser.save();
 
         // Don't usually log user in immediately after register, make them log in separately
-        res.status(201).json({ 
+        res.status(201).json({
             message: 'User registered successfully. Please log in.',
-            requiresApiKeys: true 
+            requiresApiKeys: true
         });
 
     } catch (error) {
         console.error("Registration Error:", error);
-         if (error instanceof Error && error.name === 'ValidationError') {
+        if (error instanceof Error && error.name === 'ValidationError') {
             // Extract specific validation messages if needed
-             res.status(400).json({ message: 'Registration validation failed', errors: error.message });
+            res.status(400).json({ message: 'Registration validation failed', errors: error.message });
             return;
         }
         res.status(500).json({ message: 'Server error during registration.' });
@@ -82,15 +88,15 @@ router.post('/login', validateRequest({ body: loginBodySchema }), async (req: Va
         // Find user by email
         const user = await User.findOne({ email });
         if (!user) {
-             res.status(401).json({ message: 'Invalid credentials.' }); // Use generic message
-             return ;
+            res.status(401).json({ message: 'Invalid credentials.' }); // Use generic message
+            return;
         }
 
         // Compare provided password with the stored hash
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
-             res.status(401).json({ message: 'Invalid credentials.' }); // Use generic message
-             return ;
+            res.status(401).json({ message: 'Invalid credentials.' }); // Use generic message
+            return;
         }
 
         // --- Generate JWT ---
@@ -102,7 +108,7 @@ router.post('/login', validateRequest({ body: loginBodySchema }), async (req: Va
 
         const token = jwt.sign(
             payload,
-            JWT_SECRET,
+            getJwtSecret(),
             { expiresIn: JWT_EXPIRY as any }
         );
 

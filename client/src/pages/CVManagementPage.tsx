@@ -1,7 +1,14 @@
 // client/src/pages/CVManagementPage.tsx
 import React, { useState, ChangeEvent, FormEvent, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { uploadCV, getCurrentCv, updateCurrentCv, deleteCurrentCv } from '../services/cvApi';
+import {
+  uploadCV,
+  getMasterCv,
+  getAllCvs,
+  updateCv,
+  deleteCv,
+  CVDocument
+} from '../services/cvApi';
 import CvFormEditor from '../components/cv-editor/CvFormEditor';
 import CvLivePreview from '../components/cv-editor/CvLivePreview';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
@@ -11,13 +18,13 @@ import { fetchAllSectionsAnalysis, fetchSectionAnalysis, SectionAnalysisResult }
 import { improveSection } from '../services/generatorApi';
 import { scanAts, getAtsScores, getLatestAts, AtsScores, getAtsForJob } from '../services/atsApi';
 import { getAllTemplates } from '../templates/config';
-import { getJobsWithCvs, JobApplication, updateJob } from '../services/jobApi';
 import Sidebar from '../components/cv-management/Sidebar';
 
 const CVManagementPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [currentCvData, setCurrentCvData] = useState<JsonResumeSchema | null>(null);
+  const [masterCvId, setMasterCvId] = useState<string | null>(null); // Store master CV's MongoDB ID
   const [isLoadingCv, setIsLoadingCv] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -47,10 +54,10 @@ const CVManagementPage: React.FC = () => {
 
   const [searchParams] = useSearchParams();
   // UI state
-  const [activeCvId, setActiveCvId] = useState<string>(searchParams.get('jobId') || 'master'); // 'master' or job._id
+  const [activeCvId, setActiveCvId] = useState<string | null>(null); // CV's MongoDB _id (null = loading)
 
-  // Job-specific CVs state
-  const [jobCvs, setJobCvs] = useState<JobApplication[]>([]);
+  // All CVs state (master + job CVs) from unified model
+  const [allCvs, setAllCvs] = useState<CVDocument[]>([]);
   const [isLoadingJobCvs, setIsLoadingJobCvs] = useState<boolean>(false);
 
   // Track original CV data for unsaved changes detection
@@ -66,22 +73,33 @@ const CVManagementPage: React.FC = () => {
     return errorMessage?.toLowerCase().includes('api key');
   };
 
-  // Computed properties for active CV context
-  const activeJob = useMemo(() => {
-    return activeCvId === 'master' ? null : jobCvs.find(j => j._id === activeCvId);
-  }, [activeCvId, jobCvs]);
+  // Derived state from allCvs
+  const masterCv = useMemo(() => allCvs.find(cv => cv.isMasterCv), [allCvs]);
+  const jobCvs = useMemo(() => allCvs.filter(cv => !cv.isMasterCv), [allCvs]);
 
+  // Get active CV document
+  const activeCv = useMemo(() => {
+    if (!activeCvId) return masterCv || null;
+    return allCvs.find(cv => cv._id === activeCvId) || null;
+  }, [activeCvId, allCvs, masterCv]);
+
+  // Get active job (for job CVs)
+  const activeJob = useMemo(() => {
+    return activeCv?.isMasterCv === false ? activeCv.jobApplication : null;
+  }, [activeCv]);
+
+  // Get active CV data (cvJson)
   const activeCvData = useMemo(() => {
-    if (activeCvId === 'master') return currentCvData;
-    return activeJob?.draftCvJson || null;
-  }, [activeCvId, currentCvData, activeJob]);
+    if (!activeCv) return currentCvData; // Fallback to legacy state during transition
+    return activeCv.cvJson || null;
+  }, [activeCv, currentCvData]);
 
   // Calculate unsaved changes
   const hasUnsavedChanges = useMemo(() => {
     if (!activeCvData) return false;
 
     // For master CV
-    if (activeCvId === 'master') {
+    if (activeCv?.isMasterCv) {
       if (!originalCvDataRef.current) return false;
       try {
         const currentStr = JSON.stringify(activeCvData);
@@ -96,7 +114,7 @@ const CVManagementPage: React.FC = () => {
     // For Job CVs - we don't track unsaved changes as strictly yet since we don't have the original ref for each job easily accessible without more complex state
     // But we can check if it's currently saving
     return saveStatus === 'saving';
-  }, [activeCvData, activeCvId, saveStatus, saveTrigger]); // Include saveTrigger to force recalculation
+  }, [activeCvData, activeCv, saveStatus, saveTrigger]); // Include saveTrigger to force recalculation
 
   // Generate a simple hash for CV comparison (only relevant sections)
   // Note: This should match the backend hash generation logic
@@ -204,8 +222,8 @@ const CVManagementPage: React.FC = () => {
 
     try {
       // Trigger ATS scan
-      // If activeCvId is a job ID, pass it. If 'master', pass undefined.
-      const jobId = activeCvId === 'master' ? undefined : activeCvId;
+      // If activeCv is master, pass undefined for jobId
+      const jobId = activeCv?.isMasterCv ? undefined : activeCv?.jobApplicationId || undefined;
 
       const response = await scanAts(jobId, atsAnalysisId || undefined);
       setAtsAnalysisId(response.analysisId);
@@ -243,25 +261,30 @@ const CVManagementPage: React.FC = () => {
     const fetchCv = async () => {
       setIsLoadingCv(true);
       try {
-        const response = await getCurrentCv();
-        const cvData = response.cvData || null;
+        const response = await getMasterCv();
+        const cvDoc = response.cv;
+        const cvData = cvDoc?.cvJson || null;
         setCurrentCvData(cvData);
+        setMasterCvId(cvDoc?._id || null); // Store the CV's MongoDB ID
         originalCvDataRef.current = cvData ? JSON.parse(JSON.stringify(cvData)) : null;
         // Reset save trigger to ensure proper comparison
         setSaveTrigger(0);
 
-        // Load saved template preference
-        if (response.selectedTemplate) {
-          setSelectedTemplate(response.selectedTemplate);
+        // Load saved template preference from CV document
+        if (cvDoc?.templateId) {
+          setSelectedTemplate(cvDoc.templateId);
         }
 
         // Load cached analysis if available
         // Backend has already verified the hash matches, so we can trust the cache
-        if (cvData && response.analysisCache && response.analysisCache.analyses) {
+        if (cvData && cvDoc?.analysisCache) {
           console.log('Loading cached analysis results');
-          setAnalyses(response.analysisCache.analyses);
-          // Store the hash for future comparisons (backend uses SHA256, we'll use it for reference)
-          lastAnalyzedCvHashRef.current = response.analysisCache.cvHash;
+          const cache = cvDoc.analysisCache as { analyses?: Record<string, any>; cvHash?: string };
+          if (cache.analyses) {
+            setAnalyses(cache.analyses);
+            // Store the hash for future comparisons
+            lastAnalyzedCvHashRef.current = cache.cvHash || null;
+          }
         }
 
         // Load existing ATS scores if available
@@ -284,7 +307,8 @@ const CVManagementPage: React.FC = () => {
         setIsLoadingCv(false);
 
         // Run analysis after CV is loaded (only if no valid cache)
-        if (cvData && (!response.analysisCache || !response.analysisCache.analyses)) {
+        const cache = cvDoc?.analysisCache as { analyses?: Record<string, any> } | null;
+        if (cvData && (!cache || !cache.analyses)) {
           // We can optionally auto-run here or just let the user decide.
           // For better UX on first load, maybe we just show "Analysis needed"
           setIsAnalysisOutdated(true);
@@ -312,26 +336,32 @@ const CVManagementPage: React.FC = () => {
     };
   }, []);
 
-  // Fetch job-specific CVs
+  // Fetch all CVs (master + job) from unified API
   useEffect(() => {
-    const fetchJobCvs = async () => {
+    const fetchAllCvsData = async () => {
       setIsLoadingJobCvs(true);
       try {
-        const jobs = await getJobsWithCvs();
-        setJobCvs(jobs);
+        const response = await getAllCvs();
+        setAllCvs(response.cvs);
+
+        // Set activeCvId to master CV if not set yet
+        const master = response.cvs.find(cv => cv.isMasterCv);
+        if (master && !activeCvId) {
+          setActiveCvId(master._id);
+        }
       } catch (error: any) {
-        console.error("Error fetching job-specific CVs:", error);
+        console.error("Error fetching CVs:", error);
         // Silently fail - job CVs are optional
       } finally {
         setIsLoadingJobCvs(false);
       }
     };
 
-    // Only fetch if we have a master CV
-    if (currentCvData) {
-      fetchJobCvs();
+    // Fetch when master CV is loaded
+    if (masterCvId) {
+      fetchAllCvsData();
     }
-  }, [currentCvData]);
+  }, [masterCvId]);
 
   // Fetch ATS scores when switching context
   useEffect(() => {
@@ -339,15 +369,15 @@ const CVManagementPage: React.FC = () => {
       setAtsScores(null); // Clear while loading
 
       try {
-        if (activeCvId === 'master') {
+        if (activeCv?.isMasterCv) {
           const atsResponse = await getLatestAts();
           if (atsResponse.atsScores) {
             setAtsScores(atsResponse.atsScores);
             setAtsAnalysisId(atsResponse.analysisId);
           }
-        } else {
+        } else if (activeCv?.jobApplicationId) {
           // Fetch for specific job
-          const atsResponse = await getAtsForJob(activeCvId);
+          const atsResponse = await getAtsForJob(activeCv.jobApplicationId);
           if (atsResponse.atsScores) {
             setAtsScores(atsResponse.atsScores);
             setAtsAnalysisId(atsResponse.analysisId);
@@ -361,7 +391,7 @@ const CVManagementPage: React.FC = () => {
     if (activeCvData) {
       fetchContextAts();
     }
-  }, [activeCvId, activeCvData]);
+  }, [activeCv, activeCvData]);
 
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -502,8 +532,9 @@ const CVManagementPage: React.FC = () => {
       const response = await uploadCV(selectedFile);
 
       setUploadProgress(60);
-      const cvData = response.cvData || null;
+      const cvData = response.cv?.cvJson || null;
       setCurrentCvData(cvData);
+      setMasterCvId(response.cv?._id || null); // Store the new CV's MongoDB ID
       originalCvDataRef.current = cvData ? JSON.parse(JSON.stringify(cvData)) : null;
       // Reset save trigger to ensure proper comparison
       setSaveTrigger(0);
@@ -534,12 +565,12 @@ const CVManagementPage: React.FC = () => {
   };
 
   const handleCvChange = (updatedCv: JsonResumeSchema) => {
-    if (activeCvId === 'master') {
+    if (activeCv?.isMasterCv) {
       setCurrentCvData(updatedCv);
-    } else {
-      // Optimistically update job CV
-      setJobCvs(prev => prev.map(j =>
-        j._id === activeCvId ? { ...j, draftCvJson: updatedCv } : j
+    } else if (activeCvId) {
+      // Optimistically update job CV in allCvs
+      setAllCvs((prev: CVDocument[]) => prev.map((cv: CVDocument) =>
+        cv._id === activeCvId ? { ...cv, cvJson: updatedCv } : cv
       ));
     }
 
@@ -576,10 +607,10 @@ const CVManagementPage: React.FC = () => {
   const handleTemplateChange = (newTemplate: string) => {
     setSelectedTemplate(newTemplate);
     // Save template preference immediately when changed
-    if (currentCvData) {
+    if (currentCvData && masterCvId) {
       // Use a separate timeout to avoid conflicts with CV auto-save
       setTimeout(() => {
-        updateCurrentCv(currentCvData, newTemplate).catch((error) => {
+        updateCv(masterCvId, { cvJson: currentCvData, templateId: newTemplate }).catch((error: any) => {
           console.error("Error saving template preference:", error);
         });
       }, 100);
@@ -601,19 +632,22 @@ const CVManagementPage: React.FC = () => {
     try {
       let message = 'CV updated successfully!';
 
-      if (activeCvId === 'master') {
-        const response = await updateCurrentCv(activeCvData, selectedTemplate);
-        message = response.message || message;
+      if (!activeCv?._id) {
+        throw new Error('CV ID not found. Please refresh the page.');
+      }
+
+      // Use unified updateCv API for both master and job CVs
+      const response = await updateCv(activeCv._id, {
+        cvJson: activeCvData,
+        templateId: activeCv.isMasterCv ? selectedTemplate : undefined
+      });
+      message = response.message || message;
+
+      if (activeCv.isMasterCv) {
         // Deep copy to ensure proper comparison - update the ref with the exact data that was saved
         originalCvDataRef.current = JSON.parse(JSON.stringify(activeCvData));
         // Trigger recalculation of hasUnsaved changes
         setSaveTrigger(prev => prev + 1);
-      } else {
-        // Save Job CV
-        await updateJob(activeCvId, {
-          draftCvJson: activeCvData
-        });
-        message = 'Job CV updated successfully!';
       }
 
       setSaveStatus('saved');
@@ -644,28 +678,49 @@ const CVManagementPage: React.FC = () => {
         setIsSaving(false);
       }
     }
-  }, [activeCvData, activeCvId, selectedTemplate]);
+  }, [activeCvData, activeCv, selectedTemplate]);
 
 
-  const handleDeleteCv = async () => {
-    if (!currentCvData) {
-      return;
-    }
+  const handleDeleteCv = async (cvId: string) => {
+    // Find the CV to determine if it's master or job
+    const cvToDelete = allCvs.find(cv => cv._id === cvId);
+    const isJobCv = cvToDelete && !cvToDelete.isMasterCv;
 
-    // Confirm deletion
-    if (!window.confirm('Are you sure you want to delete your CV? This action cannot be undone.')) {
+    const confirmMessage = isJobCv
+      ? 'Are you sure you want to delete this job-specific CV? This action cannot be undone.'
+      : 'Are you sure you want to delete your master CV? This action cannot be undone.';
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     setIsDeleting(true);
     try {
-      await deleteCurrentCv();
-      setCurrentCvData(null);
-      originalCvDataRef.current = null;
-      setSelectedFile(null);
-      const fileInput = document.getElementById('cvFileInput') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      setToast({ message: 'CV deleted successfully.', type: 'success' });
+      // Use unified deleteCv API for both master and job CVs
+      await deleteCv(cvId);
+
+      if (isJobCv) {
+        // Update local state - remove the CV from allCvs list
+        setAllCvs((prev: CVDocument[]) => prev.filter((cv: CVDocument) => cv._id !== cvId));
+
+        // Switch to master CV if we were viewing the deleted job CV
+        if (activeCvId === cvId && masterCv) {
+          setActiveCvId(masterCv._id);
+        }
+
+        setToast({ message: 'Job CV deleted successfully.', type: 'success' });
+      } else {
+        // Master CV deleted
+        setCurrentCvData(null);
+        setMasterCvId(null);
+        setAllCvs((prev: CVDocument[]) => prev.filter((cv: CVDocument) => cv._id !== cvId));
+        originalCvDataRef.current = null;
+        setSelectedFile(null);
+        setActiveCvId(null);
+        const fileInput = document.getElementById('cvFileInput') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+        setToast({ message: 'CV deleted successfully.', type: 'success' });
+      }
     } catch (error: any) {
       console.error("Error deleting CV:", error);
       setToast({ message: error.message || 'Failed to delete CV.', type: 'error' });
@@ -797,7 +852,7 @@ const CVManagementPage: React.FC = () => {
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <Sidebar
-        masterCv={currentCvData}
+        masterCv={masterCv || null}
         jobCvs={jobCvs}
         activeCvId={activeCvId}
         onSelectCv={setActiveCvId}
@@ -821,11 +876,18 @@ const CVManagementPage: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6 -mx-8 -mt-8 mb-8">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate max-w-2xl">
-                    {activeCvData?.basics?.name ? `${activeCvData.basics.name}_CV.pdf` : 'CV_Document.pdf'}
-                  </h1>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate max-w-2xl">
+                      {activeCvData?.basics?.name ? `${activeCvData.basics.name}_CV.pdf` : 'CV_Document.pdf'}
+                    </h1>
+                    {activeCv?.isMasterCv && (
+                      <span className="px-3 py-1 text-xs font-bold tracking-wide bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full border border-purple-200 dark:border-purple-700">
+                        MASTER CV
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {activeCvId === 'master' ? 'Master CV Document' : 'Job-Specific CV Document'}
+                    {activeCv?.isMasterCv ? 'Your primary CV document' : 'Job-Specific CV Document'}
                   </p>
                 </div>
               </div>
@@ -1041,7 +1103,7 @@ const CVManagementPage: React.FC = () => {
             {/* CV Editor */}
             <div id="master-cv-editor">
               {/* For Job CVs - Show Read-Only Preview with link to Review page */}
-              {activeCvId !== 'master' && activeJob && (
+              {activeCv && !activeCv.isMasterCv && activeJob && (
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                   <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
                     <div className="flex items-center gap-3">
@@ -1053,7 +1115,7 @@ const CVManagementPage: React.FC = () => {
                       </span>
                     </div>
                     <Link
-                      to={`/jobs/${activeCvId}/review/cv`}
+                      to={`/jobs/${activeCv.jobApplicationId}/review/cv`}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium text-sm shadow-sm hover:shadow-md transition-all"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1075,7 +1137,8 @@ const CVManagementPage: React.FC = () => {
               )}
 
               {/* For Master CV - Preview Only */}
-              {activeCvId === 'master' && (
+              {/* Also show this fallback if it's a job-specific CV but activeJob is missing (orphaned or unlinked) */}
+              {((activeCv && activeCv.isMasterCv) || (activeCv && !activeCv.isMasterCv && !activeJob)) && (
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                   <div className="p-6">
                     <div style={{ minHeight: '800px' }}>

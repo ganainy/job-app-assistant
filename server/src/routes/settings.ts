@@ -360,14 +360,27 @@ router.delete('/api-keys/:service', asyncHandler(async (req: Request, res: Respo
   }
 
   // Remove the key
-  if (service === 'gemini' || service === 'apify') {
+  if (service === 'gemini') {
+    // Clear both legacy integrations AND AI provider settings for gemini
+    await Profile.findOneAndUpdate(
+      { userId },
+      {
+        $set: {
+          'integrations.gemini.accessToken': null,
+          'integrations.gemini.enabled': false,
+          'aiProviderSettings.providers.gemini.accessToken': null,
+          'aiProviderSettings.providers.gemini.enabled': false,
+        },
+      }
+    );
+  } else if (service === 'apify') {
     // Legacy integrations
     await Profile.findOneAndUpdate(
       { userId },
       {
         $set: {
-          [`integrations.${service}.accessToken`]: null,
-          [`integrations.${service}.enabled`]: false,
+          'integrations.apify.accessToken': null,
+          'integrations.apify.enabled': false,
         },
       }
     );

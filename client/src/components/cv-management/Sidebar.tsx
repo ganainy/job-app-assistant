@@ -1,11 +1,10 @@
 import React from 'react';
-import { JobApplication } from '../../services/jobApi';
-import { JsonResumeSchema } from '../../../../server/src/types/jsonresume';
+import { CVDocument } from '../../services/cvApi';
 
 interface SidebarProps {
-    masterCv: JsonResumeSchema | null;
-    jobCvs: JobApplication[];
-    activeCvId: string;
+    masterCv: CVDocument | null;
+    jobCvs: CVDocument[];
+    activeCvId: string | null;
     onSelectCv: (id: string) => void;
     onAddNewCv: () => void;
     onDeleteCv?: (id: string) => void;
@@ -23,6 +22,17 @@ const Sidebar: React.FC<SidebarProps> = ({
     onReplaceCv,
     className = ''
 }) => {
+    // Helper to get display name for a CV
+    const getCvDisplayName = (cv: CVDocument, jobTitle?: string): string => {
+        if (cv.isMasterCv) {
+            const name = cv.cvJson?.basics?.name;
+            return name ? `${name}_CV.pdf` : 'CV_Document_1.pdf';
+        } else {
+            const title = jobTitle || cv.jobApplication?.jobTitle;
+            return title ? `${title.replace(/\s+/g, '_')}_CV.pdf` : 'Job_CV.pdf';
+        }
+    };
+
     return (
         <div className={`flex flex-row items-center w-full bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 ${className}`}>
             {/* Header */}
@@ -42,20 +52,20 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {/* Master CV */}
                 {masterCv && (
                     <div
-                        className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200 text-left group border ${activeCvId === 'master'
+                        className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200 text-left group border ${activeCvId === masterCv._id
                             ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-medium'
                             : 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                             }`}
                     >
                         <button
-                            onClick={() => onSelectCv('master')}
+                            onClick={() => onSelectCv(masterCv._id)}
                             className="flex items-center gap-2 min-w-0"
                         >
-                            <svg className={`w-4 h-4 flex-shrink-0 ${activeCvId === 'master' ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className={`w-4 h-4 flex-shrink-0 ${activeCvId === masterCv._id ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                             <span className="truncate text-sm max-w-[150px]">
-                                {masterCv.basics?.name ? `${masterCv.basics.name}_CV.pdf` : 'CV_Document_1.pdf'}
+                                {getCvDisplayName(masterCv)}
                             </span>
                         </button>
                         {/* Action Buttons */}
@@ -64,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onReplaceCv('master');
+                                        onReplaceCv(masterCv._id);
                                     }}
                                     className="p-1 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                                     title="Replace CV"
@@ -78,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onDeleteCv('master');
+                                        onDeleteCv(masterCv._id);
                                     }}
                                     className="p-1 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
                                     title="Delete CV"
@@ -93,23 +103,23 @@ const Sidebar: React.FC<SidebarProps> = ({
                 )}
 
                 {/* Job CVs */}
-                {jobCvs.map((job) => (
+                {jobCvs.map((cv) => (
                     <div
-                        key={job._id}
-                        className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200 text-left group border ${activeCvId === job._id
+                        key={cv._id}
+                        className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200 text-left group border ${activeCvId === cv._id
                             ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-medium'
                             : 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                             }`}
                     >
                         <button
-                            onClick={() => onSelectCv(job._id)}
+                            onClick={() => onSelectCv(cv._id)}
                             className="flex items-center gap-2 min-w-0"
                         >
-                            <svg className={`w-4 h-4 flex-shrink-0 ${activeCvId === job._id ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className={`w-4 h-4 flex-shrink-0 ${activeCvId === cv._id ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                             <span className="truncate text-sm max-w-[150px]">
-                                {job.jobTitle ? `${job.jobTitle.replace(/\s+/g, '_')}_CV.pdf` : 'Job_CV.pdf'}
+                                {getCvDisplayName(cv)}
                             </span>
                         </button>
                         {/* Action Buttons */}
@@ -118,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onDeleteCv(job._id);
+                                        onDeleteCv(cv._id);
                                     }}
                                     className="p-1 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
                                     title="Delete CV"

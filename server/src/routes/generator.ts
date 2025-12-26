@@ -9,6 +9,7 @@ import { generateContent } from '../utils/aiService';
 import { GoogleGenerativeAIError } from '@google/generative-ai';
 import { JsonResumeSchema } from '../types/jsonresume';
 import mongoose from 'mongoose';
+import CV from '../models/CV'; // Import Unified CV Model
 import { generateCvPdfFromJsonResume, generateCoverLetterPdf } from '../utils/pdfGenerator'; // Import PDF generators
 import { validateRequest, ValidatedRequest } from '../middleware/validateRequest';
 import { generateDocumentsBodySchema, finalizeGenerationBodySchema, improveSectionBodySchema } from '../validations/generatorSchemas';
@@ -268,7 +269,7 @@ const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, r
             { _id: jobId, userId: userId },
             {
                 $set: {
-                    draftCvJson: tailoredCvJson,
+                    // draftCvJson: tailoredCvJson, // REMOVED: Now stored in CV model
                     draftCoverLetterText: coverLetterText,
                     language: requestedLanguage, // Store language used for draft
                     generationStatus: 'draft_ready' // Set status to draft_ready
@@ -278,10 +279,27 @@ const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, r
         );
 
         if (!updateResult) {
-            // If findOneAndUpdate returns null, it means the document wasn't found or didn't match the filter
-            // This shouldn't happen if the initial findOne worked, but good to handle.
             throw new Error("Failed to find and update job application with draft data.");
         }
+
+        // Save CV to Unified CV Model
+        let jobCv = await CV.findOne({ jobApplicationId: jobId, userId: userId });
+        if (jobCv) {
+            jobCv.cvJson = tailoredCvJson;
+            await jobCv.save();
+        } else {
+            // Create new Job CV
+            await CV.create({
+                userId: userId,
+                jobApplicationId: jobId,
+                isMasterCv: false,
+                cvJson: tailoredCvJson,
+                // Inherit template from master if possible, or default?
+                // For now, let's leave templateId undefined (will use default)
+            });
+        }
+
+        console.log(`Draft saved successfully for job ${jobId}. Status set to draft_ready. CV saved to unified model.`);
         console.log(`Draft saved successfully for job ${jobId}. Status set to draft_ready.`);
 
         // --- 7. Send Success Response (Draft Ready) ---
@@ -393,8 +411,7 @@ const finalizeGenerationHandler: RequestHandler = async (req: ValidatedRequest, 
             { _id: jobId, userId: user._id.toString() }, // Use authenticated user ID for filter
             {
                 $set: {
-                    // Save the CV JSON that was generated *before* asking user input
-                    draftCvJson: tailoredCvJson,
+                    // draftCvJson: tailoredCvJson, // REMOVED: Now stored in CV model
                     // Save the cover letter *after* replacing placeholders
                     draftCoverLetterText: finalCoverLetterText,
                     language: language, // Ensure language is saved/updated
@@ -408,6 +425,22 @@ const finalizeGenerationHandler: RequestHandler = async (req: ValidatedRequest, 
             console.error(`Failed to find and update job application ${jobId} during finalization.`);
             throw new Error("Failed to update job application with finalized draft data. Job may no longer exist.");
         }
+
+        // Save CV to Unified CV Model
+        let jobCv = await CV.findOne({ jobApplicationId: jobId, userId: user._id.toString() });
+        if (jobCv) {
+            jobCv.cvJson = tailoredCvJson;
+            await jobCv.save();
+        } else {
+            // Create new Job CV
+            await CV.create({
+                userId: user._id.toString(),
+                jobApplicationId: jobId,
+                isMasterCv: false,
+                cvJson: tailoredCvJson,
+            });
+        }
+
         console.log(`Finalized draft saved successfully for job ${jobId}. Status set to draft_ready.`);
 
         // Respond indicating draft is ready
@@ -479,10 +512,23 @@ const renderFinalPdfsHandler: RequestHandler = async (req: ValidatedRequest, res
             res.status(400).json({ message: 'Draft documents must be ready or previously finalized before rendering.', currentStatus: job.generationStatus });
             return;
         }
-        if (!job.draftCvJson || typeof job.draftCvJson !== 'object' || Object.keys(job.draftCvJson).length === 0) {
+
+        // Fetch CV from unified model
+        const jobCv = await CV.findOne({ jobApplicationId: jobId, userId: userId });
+
+        let cvJsonData: JsonResumeSchema | null = null;
+        if (jobCv && jobCv.cvJson) {
+            cvJsonData = jobCv.cvJson;
+        } else if (job.draftCvJson && typeof job.draftCvJson === 'object' && Object.keys(job.draftCvJson).length > 0) {
+            // Fallback to legacy field
+            cvJsonData = job.draftCvJson as JsonResumeSchema;
+        }
+
+        if (!cvJsonData || Object.keys(cvJsonData).length === 0) {
             res.status(400).json({ message: 'Missing or invalid draft CV data.' });
             return;
         }
+
         if (!job.draftCoverLetterText || typeof job.draftCoverLetterText !== 'string') {
             res.status(400).json({ message: 'Missing or invalid draft cover letter text.' });
             return;
@@ -531,7 +577,7 @@ const renderFinalPdfsHandler: RequestHandler = async (req: ValidatedRequest, res
 
         // 3. Prepare Filenames for New PDFs
         const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
-        const cvJsonData = job.draftCvJson as JsonResumeSchema;
+        // cvJsonData is already set above
         // const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant'); // Removed from filename
         const companySanitized = sanitize(job.companyName);
         // const titleSanitized = sanitize(job.jobTitle); // Removed from filename
@@ -639,10 +685,24 @@ const renderCvPdfHandler: RequestHandler = async (req: ValidatedRequest, res): P
             res.status(404).json({ message: 'Job application not found or access denied.' });
             return;
         }
-        if (!job.draftCvJson || typeof job.draftCvJson !== 'object' || Object.keys(job.draftCvJson).length === 0) {
+
+        // Fetch CV from unified model
+        const jobCv = await CV.findOne({ jobApplicationId: jobId, userId: userId });
+
+        // Use CV logic:
+        let cvJsonData: JsonResumeSchema | null = null;
+        if (jobCv && jobCv.cvJson) {
+            cvJsonData = jobCv.cvJson;
+        } else if (job.draftCvJson && typeof job.draftCvJson === 'object' && Object.keys(job.draftCvJson).length > 0) {
+            // Fallback to legacy field
+            cvJsonData = job.draftCvJson as JsonResumeSchema;
+        }
+
+        if (!cvJsonData || Object.keys(cvJsonData).length === 0) {
             res.status(400).json({ message: 'Missing or invalid draft CV data.' });
             return;
         }
+
         const language = (job.language === 'en' || job.language === 'de') ? job.language : 'en';
 
         // Delete old CV PDF if exists
@@ -660,7 +720,7 @@ const renderCvPdfHandler: RequestHandler = async (req: ValidatedRequest, res): P
 
         // Generate new CV PDF
         const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
-        const cvJsonData = job.draftCvJson as JsonResumeSchema; // Restored
+        // cvJsonData is already set output
         // const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
         const companySanitized = sanitize(job.companyName);
         // const titleSanitized = sanitize(job.jobTitle);
@@ -713,6 +773,21 @@ const renderCoverLetterPdfHandler: RequestHandler = async (req: ValidatedRequest
         }
         const language = (job.language === 'en' || job.language === 'de') ? job.language : 'en';
 
+        // Fetch CV from unified model for header data
+        const jobCv = await CV.findOne({ jobApplicationId: jobId, userId: userId });
+
+        let cvJsonData: JsonResumeSchema | null = null;
+        if (jobCv && jobCv.cvJson) {
+            cvJsonData = jobCv.cvJson;
+        } else if (job.draftCvJson && typeof job.draftCvJson === 'object' && Object.keys(job.draftCvJson).length > 0) {
+            // Fallback to legacy field
+            cvJsonData = job.draftCvJson as JsonResumeSchema;
+        }
+
+        // If no CV data, use empty object (cover letter might not need much from CV except header)
+        // But generateCoverLetterPdf expects it.
+        if (!cvJsonData) cvJsonData = {} as JsonResumeSchema;
+
         // Delete old Cover Letter PDF if exists
         if (job.generatedCoverLetterFilename) {
             const oldClPath = path.join(TEMP_PDF_DIR, path.basename(job.generatedCoverLetterFilename));
@@ -728,7 +803,7 @@ const renderCoverLetterPdfHandler: RequestHandler = async (req: ValidatedRequest
 
         // Generate new Cover Letter PDF
         const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
-        const cvJsonData = job.draftCvJson as JsonResumeSchema;
+        // cvJsonData set above
         // const applicantName = sanitize(cvJsonData?.basics?.name || 'Applicant');
         const companySanitized = sanitize(job.companyName);
         // const titleSanitized = sanitize(job.jobTitle);
@@ -887,18 +962,37 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
         }
 
         // 6. Save ONLY the CV draft (not cover letter)
+        // 6. Save ONLY the CV draft (not cover letter)
         console.log(`Saving CV draft for job ${jobId}...`);
+
         await JobApplication.findOneAndUpdate(
             { _id: jobId, userId: userId },
             {
                 $set: {
-                    draftCvJson: tailoredCvJson,
+                    // draftCvJson: tailoredCvJson, // REMOVED: Now stored in CV model
                     language: requestedLanguage,
                     generationStatus: 'draft_ready'
                 }
             },
             { new: true }
         );
+
+        // Save CV to Unified CV Model
+        let jobCv = await CV.findOne({ jobApplicationId: jobId, userId: userId });
+        if (jobCv) {
+            jobCv.cvJson = tailoredCvJson;
+            await jobCv.save();
+        } else {
+            // Create new Job CV if missing
+            await CV.create({
+                userId: userId,
+                jobApplicationId: jobId,
+                isMasterCv: false,
+                cvJson: tailoredCvJson,
+            });
+        }
+
+        console.log(`CV draft saved successfully for job ${jobId}. Saved to unified CV model.`);
         console.log(`CV draft saved successfully for job ${jobId}.`);
 
         res.status(200).json({

@@ -14,7 +14,7 @@ const ModernCleanResume = forwardRef<HTMLDivElement, { data: ResumeData }>((prop
         <h1 className="text-lg font-bold text-gray-900 mb-1">
           {data.firstName} {data.lastName}
         </h1>
-        
+
         <div className="flex flex-wrap justify-center gap-2 text-xs text-gray-600 mb-3">
           {data.email && (
             <div className="flex items-center gap-1">
@@ -130,15 +130,8 @@ const ModernCleanResume = forwardRef<HTMLDivElement, { data: ResumeData }>((prop
           <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b-2 border-blue-600">
             Skills & Technologies
           </h2>
-          <div className="flex flex-wrap gap-1">
-            {data.skills.map((skill, index) => (
-              <span
-                key={index}
-                className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full font-medium"
-              >
-                {skill}
-              </span>
-            ))}
+          <div className="text-gray-700 text-xs leading-relaxed">
+            {data.skills.join(" • ")}
           </div>
         </section>
       )}
@@ -199,7 +192,20 @@ const ModernCleanResume = forwardRef<HTMLDivElement, { data: ResumeData }>((prop
             {section.heading}
           </h2>
           <div className="text-gray-700 text-xs leading-relaxed whitespace-pre-line">
-            {section.content}
+            {section.content.split('\n').map((line, i) => {
+              // Simple bold parsing for **text**
+              const parts = line.split(/(\*\*.*?\*\*)/g);
+              return (
+                <div key={i} className="min-h-[1.2em]">
+                  {parts.map((part, j) => {
+                    if (part.startsWith('**') && part.endsWith('**')) {
+                      return <strong key={j} className="text-gray-900 font-semibold">{part.slice(2, -2)}</strong>;
+                    }
+                    return <span key={j}>{part}</span>;
+                  })}
+                </div>
+              );
+            })}
           </div>
         </section>
       ))}

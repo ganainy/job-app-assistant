@@ -26,7 +26,7 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
       case 'Basic': rating = 2; break;
       default: rating = 1; break;
     }
-    
+
     return Array.from({ length: 5 }, (_, i) => {
       const isFilled = i < rating;
       return (
@@ -61,8 +61,8 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
     skills.forEach(skill => {
       let found = false;
       for (const [category, categorySkills] of Object.entries(categories)) {
-        if (categorySkills.some(categorySkill => 
-          skill.toLowerCase().includes(categorySkill.toLowerCase()) || 
+        if (categorySkills.some(categorySkill =>
+          skill.toLowerCase().includes(categorySkill.toLowerCase()) ||
           categorySkill.toLowerCase().includes(skill.toLowerCase())
         )) {
           (categorized as any)[category].push(skill);
@@ -83,14 +83,14 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
   return (
     <div ref={ref} className="bg-white text-black mx-auto" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace", fontSize: '11px', lineHeight: '1.5', maxWidth: '8.27in', width: '100%' }}>
       <header className="relative mb-4" style={{ background: 'linear-gradient(135deg, #1f2937 0%, #374151 100%)', padding: '16px', borderRadius: '0' }}>
-        <div 
-          data-preserve="true" 
+        <div
+          data-preserve="true"
           className="flex items-center mb-3"
-          style={{ 
-            background: '#111827', 
-            padding: '6px 10px', 
-            borderRadius: '4px', 
-            marginBottom: '12px' 
+          style={{
+            background: '#111827',
+            padding: '6px 10px',
+            borderRadius: '4px',
+            marginBottom: '12px'
           }}
         >
           <div className="flex gap-1">
@@ -110,11 +110,11 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
               {data.firstName} {data.lastName}
             </h1>
           </div>
-          
+
           <div className="text-gray-300 mb-3" style={{ fontSize: '12px', fontWeight: '500' }}>
             {data.experiences && data.experiences.length > 0 ? data.experiences[0].title : 'Professional'}
           </div>
-          
+
           <div className="grid grid-cols-2 gap-1 text-xs mb-3" style={{ background: '#111827', padding: '8px', borderRadius: '4px', fontFamily: 'monospace' }} data-preserve="true">
             {data.email && (
               <div className="flex items-center gap-1" style={{ color: '#60a5fa' }} data-preserve="true">
@@ -149,13 +149,13 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
           </div>
         </div>
 
-        <div 
-          data-preserve="true" 
+        <div
+          data-preserve="true"
           className="absolute bottom-0 left-0 right-0"
-          style={{ 
-            height: '2px', 
-            background: 'linear-gradient(90deg, #10b981, #3b82f6, #8b5cf6)', 
-            borderRadius: '0 0 8px 8px' 
+          style={{
+            height: '2px',
+            background: 'linear-gradient(90deg, #10b981, #3b82f6, #8b5cf6)',
+            borderRadius: '0 0 8px 8px'
           }}
         ></div>
       </header>
@@ -169,7 +169,7 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                 const summary = () = {"{"}
               </h2>
             </div>
-            <div 
+            <div
               className="p-4 rounded-lg ml-6"
               style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '4px solid #10b981' }}
               data-preserve="true"
@@ -192,11 +192,11 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                 Technical Stack
               </h2>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               {Object.entries(skillCategories).map(([category, skills]) => {
                 if (skills.length === 0) return null;
-                
+
                 const categoryColors: Record<string, { bg: string; border: string; text: string }> = {
                   languages: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
                   frameworks: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' },
@@ -204,9 +204,9 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                   tools: { bg: '#e0e7ff', border: '#8b5cf6', text: '#5b21b6' },
                   other: { bg: '#f3f4f6', border: '#6b7280', text: '#374151' }
                 };
-                
+
                 const colors = categoryColors[category];
-                
+
                 return (
                   <div key={category} className="mb-4">
                     <h3 className="font-semibold mb-2 capitalize" style={{ fontSize: '14px', color: colors.text }}>
@@ -217,7 +217,7 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                         <span
                           key={index}
                           className="px-2 py-1 rounded text-xs font-medium"
-                          style={{ 
+                          style={{
                             background: colors.bg,
                             color: colors.text,
                             border: `1px solid ${colors.border}`
@@ -243,7 +243,7 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                 Work Experience
               </h2>
             </div>
-            
+
             <div className="space-y-6">
               {data.experiences.map((experience, index) => (
                 <div key={experience.id} className="relative">
@@ -258,9 +258,9 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                           {experience.location && ` • ${experience.location}`}
                         </p>
                       </div>
-                      <div 
+                      <div
                         className="text-white px-3 py-1 rounded-full text-xs font-medium mt-1 md:mt-0"
-                        style={{ 
+                        style={{
                           background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                           minWidth: 'fit-content'
                         }}
@@ -269,12 +269,12 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                         {formatDateRange(experience.startDate, experience.endDate, experience.current)}
                       </div>
                     </div>
-                    
+
                     {experience.description && (
-                      <div 
+                      <div
                         className="p-3 rounded-lg"
-                        style={{ 
-                          background: '#f8fafc', 
+                        style={{
+                          background: '#f8fafc',
                           border: '1px solid #e2e8f0',
                           borderLeft: '3px solid #3b82f6'
                         }}
@@ -297,12 +297,12 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
             {data.education.length > 0 && data.education.some(edu => edu.school || edu.degree || edu.field || edu.startDate || edu.endDate) && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <div 
+                  <div
                     data-preserve="true"
-                    style={{ 
-                      width: '16px', 
-                      height: '16px', 
-                      background: '#f59e0b', 
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      background: '#f59e0b',
                       borderRadius: '3px',
                       display: 'flex',
                       alignItems: 'center',
@@ -317,7 +317,7 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                 </div>
                 <div className="space-y-3">
                   {data.education.map((education) => (
-                    <div 
+                    <div
                       key={education.id}
                       className="p-3 rounded-lg"
                       style={{ background: '#fef9e7', border: '1px solid #fde68a' }}
@@ -347,12 +347,12 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
             {data.certifications.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <div 
+                  <div
                     data-preserve="true"
-                    style={{ 
-                      width: '16px', 
-                      height: '16px', 
-                      background: '#10b981', 
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      background: '#10b981',
                       borderRadius: '3px',
                       display: 'flex',
                       alignItems: 'center',
@@ -367,7 +367,7 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                 </div>
                 <div className="space-y-3">
                   {data.certifications.map((certification) => (
-                    <div 
+                    <div
                       key={certification.id}
                       className="p-3 rounded-lg"
                       style={{ background: '#ecfdf5', border: '1px solid #a7f3d0' }}
@@ -398,12 +398,12 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
             {data.languages.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <div 
+                  <div
                     data-preserve="true"
-                    style={{ 
-                      width: '16px', 
-                      height: '16px', 
-                      background: '#8b5cf6', 
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      background: '#8b5cf6',
                       borderRadius: '3px',
                       display: 'flex',
                       alignItems: 'center',
@@ -418,8 +418,8 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                 </div>
                 <div className="space-y-3">
                   {data.languages.map((language) => (
-                    <div 
-                      key={language.id} 
+                    <div
+                      key={language.id}
                       className="flex justify-between items-center p-3 rounded-lg"
                       style={{ background: '#f3f0ff', border: '1px solid #c4b5fd' }}
                       data-preserve="true"
@@ -448,12 +448,12 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
             {data.customSections.map((section) => (
               <section key={section.id}>
                 <div className="flex items-center gap-2 mb-3">
-                  <div 
+                  <div
                     data-preserve="true"
-                    style={{ 
-                      width: '16px', 
-                      height: '16px', 
-                      background: '#6b7280', 
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      background: '#6b7280',
                       borderRadius: '3px',
                       display: 'flex',
                       alignItems: 'center',
@@ -466,13 +466,25 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                     {section.heading}
                   </h2>
                 </div>
-                <div 
+                <div
                   className="p-4 rounded-lg"
                   style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}
                   data-preserve="true"
                 >
                   <div className="text-gray-700 leading-relaxed whitespace-pre-line" style={{ fontSize: '12px' }}>
-                    {section.content}
+                    {section.content.split('\n').map((line, i) => {
+                      const parts = line.split(/(\*\*.*?\*\*)/g);
+                      return (
+                        <div key={i} style={{ minHeight: '1.2em' }}>
+                          {parts.map((part, j) => {
+                            if (part.startsWith('**') && part.endsWith('**')) {
+                              return <strong key={j} className="text-gray-900 font-bold">{part.slice(2, -2)}</strong>;
+                            }
+                            return <span key={j}>{part}</span>;
+                          })}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </section>
@@ -480,10 +492,10 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
           </div>
         )}
 
-        <div 
-          data-preserve="true" 
+        <div
+          data-preserve="true"
           className="mt-8 text-center"
-          style={{ 
+          style={{
             padding: '12px',
             background: '#1f2937',
             color: '#9ca3af',

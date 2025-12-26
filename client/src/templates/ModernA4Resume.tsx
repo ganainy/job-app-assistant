@@ -24,7 +24,7 @@ const ModernA4Resume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ data 
       case 'Basic': rating = 2; break;
       default: rating = 1; break;
     }
-    
+
     return Array.from({ length: 5 }, (_, i) => {
       const isFilled = i < rating;
       return (
@@ -67,11 +67,11 @@ const ModernA4Resume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ data 
             }}
             data-preserve="true"
           ></div>
-          
+
           <h1 className="text-xl font-bold mb-1 relative z-10">
             {data.firstName} {data.lastName}
           </h1>
-          
+
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm relative z-10 print-contact-grid">
             {data.email && (
               <div className="flex items-center gap-2">
@@ -226,7 +226,7 @@ const ModernA4Resume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ data 
                   }}
                   data-preserve="true"
                 ></div>
-                
+
                 <div
                   style={{
                     marginLeft: '16px',
@@ -339,7 +339,7 @@ const ModernA4Resume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ data 
               data-preserve="true"
             ></div>
           </div>
-          <div 
+          <div
             className="grid gap-2"
             style={{
               gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))'
@@ -350,11 +350,11 @@ const ModernA4Resume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ data 
                 key={index}
                 className="text-xs text-center py-1 px-2 font-medium"
                 style={{
-                  background: index % 3 === 0 
-                    ? 'linear-gradient(135deg, #ddd6fe, #c4b5fd)' 
-                    : index % 3 === 1 
-                    ? 'linear-gradient(135deg, #bfdbfe, #93c5fd)'
-                    : 'linear-gradient(135deg, #bbf7d0, #86efac)',
+                  background: index % 3 === 0
+                    ? 'linear-gradient(135deg, #ddd6fe, #c4b5fd)'
+                    : index % 3 === 1
+                      ? 'linear-gradient(135deg, #bfdbfe, #93c5fd)'
+                      : 'linear-gradient(135deg, #bbf7d0, #86efac)',
                   borderRadius: '12px',
                   color: '#374151',
                   border: '1px solid rgba(255, 255, 255, 0.5)'
@@ -489,7 +489,19 @@ const ModernA4Resume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ data 
                 data-preserve="true"
               >
                 <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
-                  {section.content}
+                  {section.content.split('\n').map((line, i) => {
+                    const parts = line.split(/(\*\*.*?\*\*)/g);
+                    return (
+                      <div key={i} style={{ minHeight: '1.2em' }}>
+                        {parts.map((part, j) => {
+                          if (part.startsWith('**') && part.endsWith('**')) {
+                            return <strong key={j} className="text-gray-900 font-bold">{part.slice(2, -2)}</strong>;
+                          }
+                          return <span key={j}>{part}</span>;
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </section>

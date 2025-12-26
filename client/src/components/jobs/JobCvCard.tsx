@@ -3,6 +3,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { JobApplication, updateJob } from '../../services/jobApi';
 import { JsonResumeSchema } from '../../../../server/src/types/jsonresume';
+import { getJobCv, updateCv, createJobCv } from '../../services/cvApi';
 import CvFormEditor from '../cv-editor/CvFormEditor';
 import GeneralCvAtsPanel from '../ats/GeneralCvAtsPanel';
 import { scanAts, getAtsScores, AtsScores } from '../../services/atsApi';
@@ -21,6 +22,24 @@ const JobCvCard: React.FC<JobCvCardProps> = ({ jobApplication, onUpdate }) => {
     const [isScanningAts, setIsScanningAts] = useState<boolean>(false);
     const [atsAnalysisId, setAtsAnalysisId] = useState<string | null>(null);
     const [atsPollingIntervalId, setAtsPollingIntervalId] = useState<NodeJS.Timeout | null>(null);
+    const [currentCvId, setCurrentCvId] = useState<string | null>(null);
+
+    // Fetch Job CV
+    useEffect(() => {
+        const fetchCv = async () => {
+            try {
+                const res = await getJobCv(jobApplication._id);
+                if (res.cv) {
+                    setCvData(res.cv.cvJson);
+                    setCurrentCvId(res.cv._id);
+                    originalCvDataRef.current = JSON.parse(JSON.stringify(res.cv.cvJson));
+                }
+            } catch (err) {
+                // Ignore errors, default state uses legacy draftCvJson
+            }
+        };
+        fetchCv();
+    }, [jobApplication._id]);
 
     const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const originalCvDataRef = useRef<JsonResumeSchema>(jobApplication.draftCvJson || { basics: {} });
@@ -125,15 +144,19 @@ const JobCvCard: React.FC<JobCvCardProps> = ({ jobApplication, onUpdate }) => {
         setSaveStatus('saving');
 
         try {
-            const updatedJob = await updateJob(jobApplication._id, {
-                draftCvJson: dataToSave
-            });
+            // Save to Unified CV Model
+            if (currentCvId) {
+                await updateCv(currentCvId, { cvJson: dataToSave });
+            } else {
+                const newCv = await createJobCv(jobApplication._id, { cvJson: dataToSave });
+                setCurrentCvId(newCv.cv._id);
+            }
 
             originalCvDataRef.current = JSON.parse(JSON.stringify(dataToSave));
             setSaveStatus('saved');
 
             if (onUpdate) {
-                onUpdate(updatedJob);
+                onUpdate(jobApplication);
             }
 
             setTimeout(() => {
@@ -151,7 +174,7 @@ const JobCvCard: React.FC<JobCvCardProps> = ({ jobApplication, onUpdate }) => {
                 setIsSaving(false);
             }
         }
-    }, [cvData, jobApplication._id, onUpdate]);
+    }, [cvData, jobApplication._id, onUpdate, currentCvId]);
 
     // Format date helper
     const formatDate = (dateString?: string) => {

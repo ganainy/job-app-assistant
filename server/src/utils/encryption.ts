@@ -5,10 +5,16 @@ import crypto from 'crypto';
  * Get the encryption key from environment variables
  * The key must be 32 bytes (256 bits) for AES-256
  * If provided as a string, it will be hashed to 32 bytes
+ * Uses lazy evaluation to allow .env to load first
  */
+let _cachedEncryptionKey: Buffer | null = null;
 const getEncryptionKey = (): Buffer => {
+  if (_cachedEncryptionKey) {
+    return _cachedEncryptionKey;
+  }
+
   const key = process.env.ENCRYPTION_KEY;
-  
+
   if (!key) {
     console.error("FATAL ERROR: ENCRYPTION_KEY is not defined in .env file.");
     console.error("Generate one using: openssl rand -base64 32");
@@ -18,14 +24,16 @@ const getEncryptionKey = (): Buffer => {
   // If the key is exactly 32 bytes, use it directly
   // Otherwise, hash it to get a consistent 32-byte key
   if (key.length === 32) {
-    return Buffer.from(key, 'utf8');
+    _cachedEncryptionKey = Buffer.from(key, 'utf8');
+  } else {
+    // Hash the key to ensure it's exactly 32 bytes
+    _cachedEncryptionKey = crypto.createHash('sha256').update(key).digest();
   }
 
-  // Hash the key to ensure it's exactly 32 bytes
-  return crypto.createHash('sha256').update(key).digest();
+  return _cachedEncryptionKey;
 };
 
-const ENCRYPTION_KEY = getEncryptionKey();
+// ENCRYPTION_KEY is now accessed via the getter function, not evaluated at module load
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16; // 16 bytes for AES
 
@@ -44,17 +52,17 @@ export const encrypt = (plaintext: string | null | undefined): string | null => 
   try {
     // Generate a random IV (Initialization Vector)
     const iv = crypto.randomBytes(IV_LENGTH);
-    
+
     // Create cipher
-    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-    
+    const cipher = crypto.createCipheriv(ALGORITHM, getEncryptionKey(), iv);
+
     // Encrypt the data
     let encrypted = cipher.update(plaintext, 'utf8', 'base64');
     encrypted += cipher.final('base64');
-    
+
     // Get authentication tag
     const authTag = cipher.getAuthTag();
-    
+
     // Return format: iv:authTag:encryptedData (all base64)
     return `${iv.toString('base64')}:${authTag.toString('base64')}:${encrypted}`;
   } catch (error) {
@@ -78,7 +86,7 @@ export const decrypt = (encryptedData: string | null | undefined): string | null
   try {
     // Split the encrypted data into components
     const parts = encryptedData.split(':');
-    
+
     // Should have exactly 3 parts: iv, authTag, encryptedData
     if (parts.length !== 3) {
       // If it doesn't have 3 parts, it might be unencrypted (for migration purposes)
@@ -88,19 +96,19 @@ export const decrypt = (encryptedData: string | null | undefined): string | null
     }
 
     const [ivBase64, authTagBase64, encrypted] = parts;
-    
+
     // Decode from base64
     const iv = Buffer.from(ivBase64, 'base64');
     const authTag = Buffer.from(authTagBase64, 'base64');
-    
+
     // Create decipher
-    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    const decipher = crypto.createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
     decipher.setAuthTag(authTag);
-    
+
     // Decrypt the data
     let decrypted = decipher.update(encrypted, 'base64', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
   } catch (error) {
     console.error('Decryption error:', error);
@@ -120,7 +128,7 @@ export const isEncrypted = (data: string | null | undefined): boolean => {
   if (!data || data.trim() === '') {
     return false;
   }
-  
+
   // Encrypted data should have format: iv:authTag:encryptedData
   const parts = data.split(':');
   return parts.length === 3;

@@ -101,7 +101,7 @@ function splitName(name?: string): { firstName: string; lastName: string } {
 
 function extractLinkedIn(profiles?: Array<{ network?: string; url?: string }>): string {
   if (!profiles || !Array.isArray) return '';
-  const linkedInProfile = profiles.find(p => 
+  const linkedInProfile = profiles.find(p =>
     p.network && p.network.toLowerCase().includes('linkedin')
   );
   return linkedInProfile?.url || '';
@@ -110,7 +110,7 @@ function extractLinkedIn(profiles?: Array<{ network?: string; url?: string }>): 
 function extractWebsite(basics?: { url?: string; profiles?: Array<{ network?: string; url?: string }> }): string {
   if (basics?.url) return basics.url;
   if (basics?.profiles && Array.isArray(basics.profiles)) {
-    const websiteProfile = basics.profiles.find(p => 
+    const websiteProfile = basics.profiles.find(p =>
       p.network && !p.network.toLowerCase().includes('linkedin')
     );
     return websiteProfile?.url || '';
@@ -130,13 +130,13 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
   const basics = jsonResume.basics || {};
   const location = basics.location || {};
   const { firstName, lastName } = splitName(basics.name);
-  
+
   const experiences: Experience[] = (jsonResume.work || []).map((workItem, index) => {
     const company = workItem.name || workItem.company || '';
     const position = workItem.position || workItem.jobTitle || '';
     const endDate = workItem.endDate || '';
     const isCurrent = endDate === '' || endDate.toLowerCase() === 'present' || !endDate;
-    
+
     return {
       id: generateId(),
       company,
@@ -148,11 +148,11 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
       description: formatDescription(workItem),
     };
   });
-  
+
   const education: Education[] = (jsonResume.education || []).map((eduItem) => {
     const endDate = eduItem.endDate || '';
     const isCurrent = endDate === '' || endDate.toLowerCase() === 'present' || !endDate;
-    
+
     return {
       id: generateId(),
       school: eduItem.institution || '',
@@ -165,7 +165,7 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
       gpa: eduItem.score || '',
     };
   });
-  
+
   const skills: string[] = [];
   if (jsonResume.skills && Array.isArray(jsonResume.skills)) {
     jsonResume.skills.forEach(skill => {
@@ -174,7 +174,7 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
       }
     });
   }
-  
+
   const certifications: Certification[] = (jsonResume.certificates || []).map((cert) => ({
     id: generateId(),
     name: cert.name || '',
@@ -182,7 +182,7 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
     date: cert.date || '',
     url: cert.url,
   }));
-  
+
   const languages: Language[] = (jsonResume.languages || []).map((lang) => {
     const proficiency = mapFluencyToProficiency(lang.fluency);
     return {
@@ -192,20 +192,27 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
       rating: mapProficiencyToRating(proficiency),
     };
   });
-  
+
   const customSections: CustomSection[] = [];
   if (jsonResume.projects && Array.isArray(jsonResume.projects) && jsonResume.projects.length > 0) {
-    jsonResume.projects.forEach((project) => {
-      if (project.name || project.description) {
-        customSections.push({
-          id: generateId(),
-          heading: project.name || 'Project',
-          content: project.description || (project.highlights ? project.highlights.join('\n') : ''),
-        });
+    const projectContent = jsonResume.projects.map(project => {
+      let content = project.name ? `**${project.name}**\n` : '';
+      content += project.description ? `${project.description}\n` : '';
+      if (project.highlights && project.highlights.length > 0) {
+        content += project.highlights.join('\n');
       }
-    });
+      return content;
+    }).join('\n\n');
+
+    if (projectContent.trim()) {
+      customSections.push({
+        id: generateId(),
+        heading: 'Projects',
+        content: projectContent.trim(),
+      });
+    }
   }
-  
+
   return {
     firstName,
     lastName,
