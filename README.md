@@ -24,10 +24,13 @@ VibeHired is an AI-powered job application assistant built on Google Gemini AI t
 - **Status Tracking:** Track applications through multiple stages with custom statuses
 
 ### CV Management
+- **Unified Master CV:** Maintain a single "Master CV" as your source of truth and create tailored versions for each job application without duplicating data efforts
 - **AI-Powered CV Parsing:** Upload CV files (PDF, DOCX, RTF, TXT) and Google Gemini AI automatically parses and structures content into JSON Resume schema format
-- **Rich CV Editor:** Comprehensive editor with section-by-section editing capabilities
+- **Rich CV Editor:** Comprehensive editor with section-by-section editing capabilities and real-time preview
+- **Formatted Project Lists:** Automatically consolidates projects into a clean, single section with markdown-style bold titles for professional rendering
+- **Rich Text Support:** Templates now support bold text formatting in custom sections for emphasized keywords and titles
 - **AI CV Analysis:** AI-powered analysis of CV sections with intelligent improvement suggestions and recommendations
-- **Multiple CV Versions:** Store and manage multiple CV versions
+- **Multiple Versions:** Store and manage unlimited job-specific CV versions linked to applications
 
 ### AI-Powered Features
 - **Intelligent CV Analysis:** Google Gemini AI analyzes your CV against job descriptions to identify strengths, gaps, and areas for improvement with actionable feedback
@@ -78,6 +81,7 @@ VibeHired is an AI-powered job application assistant built on Google Gemini AI t
 - **Backend:** Node.js, Express, TypeScript, MongoDB, Mongoose
 - **Authentication:** JWT (jsonwebtoken), bcryptjs
 - **File Handling:** Multer
+- **Image Hosting:** Cloudinary
 - **AI:** Google Generative AI SDK (`@google/generative-ai`)
 - **Web Scraping:** Apify (for LinkedIn profile scraping)
 - **PDF Generation:** Puppeteer
@@ -135,6 +139,13 @@ VibeHired is an AI-powered job application assistant built on Google Gemini AI t
      #   - Online: Use a secure random string generator (minimum 32 characters recommended)
      # Important: Keep this secret secure and never commit it to version control
      JWT_SECRET=<your_strong_random_secret_string>
+
+     # Cloudinary Configuration (Optional - for persistent profile images)
+     # Why: Hosts user profile images efficiently and reliably in production
+     # How to get: Create a free account at https://cloudinary.com
+     CLOUDINARY_CLOUD_NAME=<your_cloud_name>
+     CLOUDINARY_API_KEY=<your_api_key>
+     CLOUDINARY_API_SECRET=<your_api_secret>
      ```
 
 4. **Start development servers:**

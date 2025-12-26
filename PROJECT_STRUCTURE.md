@@ -19,6 +19,7 @@ VibeHired is a full-stack AI-powered job application assistant designed to help 
 - **PDF Generation:** Puppeteer
 - **Authentication:** JWT (jsonwebtoken), bcryptjs
 - **File Handling:** Multer
+- **Image Hosting:** Cloudinary (for persistent profile images)
 - **CV Schema:** JSON Resume standard
 - **Charts:** Recharts (for analytics visualizations)
 
@@ -210,6 +211,7 @@ The server is a RESTful API built with Node.js, Express, and TypeScript.
 
 - **`src/models`**: Mongoose schemas for MongoDB collections:
   - `User.ts`: User accounts with authentication
+  - `CV.ts`: Unified CV model (Master and Job-specific versions)
   - `JobApplication.ts`: Job application tracking
   - `Profile.ts`: User profiles with integrations (Gemini, Apify, GitHub)
   - `Project.ts`: Portfolio projects
@@ -235,7 +237,7 @@ The server is a RESTful API built with Node.js, Express, and TypeScript.
   - `autoJobRoutes.ts`: `/api/auto-jobs` - Automated job discovery endpoints
   - `chat.ts`: `/api/chat` - AI chat endpoints
   - `coverLetter.ts`: `/api/cover-letter` - Cover letter endpoints
-  - `cv.ts`: `/api/cv` - CV management endpoints
+  - `cvs.ts`: `/api/cvs` - Unified CV management endpoints (Master & Job CVs)
   - `generator.ts`: `/api/generator` - Draft generation endpoints
   - `github.ts`: `/api/github` - GitHub integration endpoints
   - `jobApplications.ts`: `/api/job-applications` - Job application CRUD
@@ -298,6 +300,11 @@ The server is a RESTful API built with Node.js, Express, and TypeScript.
 
 - **`src/scripts`**: Utility scripts:
   - `migrateGeminiKeys.ts`: Migration script for Gemini API keys
+  - `fix-cv-index.ts`: Fixes unique index issues on CV collection
+
+- **`src/config`**: Configuration files:
+  - `cloudinary.ts`: Cloudinary configuration and upload utility
+  - `env.ts`: Environment variable validation and loading
 
 ## Core Capabilities
 
@@ -328,16 +335,18 @@ The server is a RESTful API built with Node.js, Express, and TypeScript.
 
 ### CV Management
 - **CV Upload**: Support for multiple formats (PDF, DOCX, RTF, TXT)
-- **AI Parsing**: Automatic parsing of uploaded CVs into JSON Resume schema
-- **Resume Caching**: Cache parsed resume data to avoid re-parsing identical content
+- **Unified CV Architecture**: Single "Master CV" source of truth with support for unlimited job-specific variations
+- **Format Agnostic**: Stores CV data in a structured JSON Resume format
+- **Master vs. Job CVs**: Clear distinction between the master document and tailored versions for specific applications
 - **Rich Editor**: Comprehensive section-by-section CV editor:
   - Basics (contact info, summary)
   - Work experience with detailed editing
   - Education history
   - Skills with categorization
-  - Projects and achievements
+  - Projects and achievements (Unified "Projects" section)
   - Certificates
   - Languages
+- **Rich Text Support**: Markdown-style bolding support in custom sections for all major templates
 - **CV Analysis**: AI-powered analysis of CV sections with improvement suggestions
 - **Multiple Versions**: Store and manage multiple CV versions
 - **14 Resume Templates**: Professional templates for different industries and styles:
@@ -345,6 +354,7 @@ The server is a RESTful API built with Node.js, Express, and TypeScript.
   - Bold Creative, Corporate Professional, Creative Design
   - Elegant Minimalist, Elite Premium, Engineering
   - Modern A4, Modern Two Column, Software Engineer, German LaTeX
+  - **Enhanced Rendering**: Projects consolidated into single section, ATS-friendly skill lists (Modern Clean)
 
 ### AI-Powered Features
 - **Multi-Provider Support**: Choose from Gemini, OpenRouter, or Ollama

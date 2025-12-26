@@ -62,6 +62,10 @@ const corsOptions = {
 app.use(cors(corsOptions)); // Enable CORS with configuration
 app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
+app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
+// Cloudinary is now used for image storage, so local static file serving is no longer primary
+// but we keep the uploads directory for temporary processing if needed
+
 
 // --- Mount Routes ---
 // Public route (example)

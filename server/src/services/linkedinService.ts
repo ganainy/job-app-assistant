@@ -2,6 +2,9 @@
 import Profile from '../models/Profile';
 import { InternalServerError } from '../utils/errors/AppError';
 import { getApifyToken } from '../utils/apiKeyHelpers';
+import fs from 'fs';
+import path from 'path';
+import { uploadImageToCloudinary } from '../config/cloudinary';
 
 interface LinkedInProfileData {
   basic_info?: {
@@ -51,6 +54,40 @@ interface LinkedInProfileData {
     proficiency?: string;
   }>;
 }
+
+
+/**
+ * Helper to download and save an image locally
+ */
+const downloadAndSaveImage = async (url: string, userId: string): Promise<string> => {
+  try {
+    const uploadsDir = path.join(__dirname, '../../uploads/profile-images');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+
+    const contentType = response.headers.get('content-type');
+    let ext = '.jpg';
+    if (contentType === 'image/png') ext = '.png';
+    else if (contentType === 'image/jpeg') ext = '.jpg';
+    else if (contentType === 'image/webp') ext = '.webp';
+
+    const filename = `profile_${userId}_${Date.now()}${ext}`;
+    const filepath = path.join(uploadsDir, filename);
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    fs.writeFileSync(filepath, buffer);
+
+    return `/uploads/profile-images/${filename}`;
+  } catch (error) {
+    console.error(`[LinkedIn API] Failed to download image: ${error}`);
+    throw error;
+  }
+};
 
 /**
  * Extract username from LinkedIn URL
@@ -169,8 +206,18 @@ export const updateProfileFromLinkedInData = async (
       linkedinData.photo ||
       linkedinData.profile_image;
 
+
     if (profileImageUrl && (!profile.profileImageUrl || forceUpdate)) {
-      updates.profileImageUrl = profileImageUrl;
+      try {
+        // Upload to Cloudinary
+        const cloudImageUrl = await uploadImageToCloudinary(profileImageUrl, `user_${userId}/profile`);
+        updates.profileImageUrl = cloudImageUrl;
+        console.log(`[LinkedIn API] Uploaded profile image to Cloudinary: ${cloudImageUrl}`);
+      } catch (err) {
+        // Fallback to original URL if upload fails
+        console.warn(`[LinkedIn API] Cloudinary upload failed, falling back to remote URL: ${err}`);
+        updates.profileImageUrl = profileImageUrl;
+      }
     }
 
     // Update LinkedIn experience, skills, and languages
