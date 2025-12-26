@@ -1154,9 +1154,9 @@ const AutoJobsPage: React.FC = () => {
                                                     } : null}
                                                     isLoading={
                                                         // Only show loading if workflow is running AND job is still being processed
-                                                        isWorkflowRunning &&
-                                                        (job.processingStatus === 'pending' || job.processingStatus === 'analyzed') &&
-                                                        !job.recommendation
+                                                        !!(isWorkflowRunning &&
+                                                            (job.processingStatus === 'pending' || job.processingStatus === 'analyzed') &&
+                                                            !job.recommendation)
                                                     }
                                                     onRetry={() => handleRetrySkillMatch(job._id)}
                                                     jobId={job._id}

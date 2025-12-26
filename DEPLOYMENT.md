@@ -82,6 +82,9 @@ Set the required environment variables on Heroku:
    | `ENCRYPTION_KEY` | `your-encryption-key-min-32-chars` | Generate a strong random string (min 32 characters) for encrypting API keys. You can use: `openssl rand -base64 32` |
    | `FRONTEND_URL` | `https://your-netlify-app.netlify.app` | Set a placeholder for now, update after Netlify deployment |
    | `NODE_ENV` | `production` | Set to production mode |
+   | `CLOUDINARY_CLOUD_NAME` | `your-cloud-name` | Your Cloudinary cloud name (from Cloudinary Dashboard) |
+   | `CLOUDINARY_API_KEY` | `your-api-key` | Your Cloudinary API key (from Cloudinary Dashboard) |
+   | `CLOUDINARY_API_SECRET` | `your-api-secret` | Your Cloudinary API secret (from Cloudinary Dashboard) |
 
 4. **Save each variable:**
    - Click **Add** after entering each key-value pair
@@ -493,6 +496,9 @@ Replace `your-app-name-backend` with your actual Heroku app name.
 - `ENCRYPTION_KEY` - Secret key for encrypting API keys (min 32 chars)
 - `FRONTEND_URL` - Your Netlify app URL (e.g., `https://your-app.netlify.app`)
 - `NODE_ENV` - Set to `production`
+- `CLOUDINARY_CLOUD_NAME` - Your Cloudinary cloud name
+- `CLOUDINARY_API_KEY` - Your Cloudinary API key
+- `CLOUDINARY_API_SECRET` - Your Cloudinary API secret
 - `PORT` - Automatically set by Heroku (don't add manually)
 
 ### Netlify (Frontend)
