@@ -15,21 +15,25 @@ const AnalyticsPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isLoadingJobs, setIsLoadingJobs] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+    const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+    const fetchStats = async (month?: string) => {
+        try {
+            setIsLoadingStats(true);
+            const data = await getApplicationStats(month);
+            setStats(data);
+        } catch (err: any) {
+            setError(err.message || 'Failed to fetch analytics data.');
+        } finally {
+            setIsLoadingStats(false);
+            setIsLoading(false); // Initial load done
+        }
+    };
 
     useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                setIsLoading(true);
-                const data = await getApplicationStats();
-                setStats(data);
-            } catch (err: any) {
-                setError(err.message || 'Failed to fetch analytics data.');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchStats();
-    }, []);
+        fetchStats(selectedMonth || undefined);
+    }, [selectedMonth]);
 
     useEffect(() => {
         const fetchJobs = async () => {
@@ -46,6 +50,10 @@ const AnalyticsPage: React.FC = () => {
         fetchJobs();
     }, []);
 
+    const handleMonthSelect = (month: string | null) => {
+        setSelectedMonth(month);
+    };
+
     const handleStatusChange = async (jobId: string, newStatus: JobApplication['status']) => {
         try {
             await updateJob(jobId, { status: newStatus });
@@ -56,13 +64,26 @@ const AnalyticsPage: React.FC = () => {
                 )
             );
             // Refresh stats to reflect the change
-            const data = await getApplicationStats();
+            const data = await getApplicationStats(selectedMonth || undefined);
             setStats(data);
         } catch (err: any) {
             console.error('Failed to update job status:', err);
             throw err;
         }
     };
+
+    // Generate last 12 months for dropdown
+    const monthOptions = React.useMemo(() => {
+        const options = [];
+        const today = new Date();
+        for (let i = 0; i < 12; i++) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            options.push({ value, label });
+        }
+        return options;
+    }, []);
 
     if (isLoading) {
         return (
@@ -81,32 +102,56 @@ const AnalyticsPage: React.FC = () => {
         );
     }
 
-    if (!stats) {
-        return (
-            <div className="container mx-auto p-4 text-center text-gray-600 dark:text-gray-300">
-                No analytics data available.
-            </div>
-        );
-    }
-
     return (
         <div className="container mx-auto p-6 lg:p-8">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Analytics Dashboard</h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Analytics Dashboard</h2>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-400">View:</span>
+                    <select
+                        value={selectedMonth || ''}
+                        onChange={(e) => handleMonthSelect(e.target.value || null)}
+                        className="block w-56 pl-3 pr-8 py-2 text-sm border border-gray-300 dark:border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-sm"
+                    >
+                        <option value="">Applications Over Time</option>
+                        {monthOptions.map(option => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            </div>
 
             <StatsSummary
-                totalApplications={stats.totalApplications}
-                applicationsByStatus={stats.applicationsByStatus}
-                applicationsOverTime={stats.applicationsOverTime}
+                totalApplications={stats?.totalApplications || 0}
+                applicationsByStatus={stats?.applicationsByStatus || []}
+                applicationsOverTime={stats?.applicationsOverTime || []}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
                 <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-lg border border-gray-200 dark:border-zinc-800">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Applications by Status</h3>
-                    <ApplicationsByStatusChart data={stats.applicationsByStatus} />
+                    <ApplicationsByStatusChart data={stats?.applicationsByStatus || []} />
                 </div>
-                <div className="lg:col-span-3 bg-white dark:bg-zinc-900 p-6 rounded-lg border border-gray-200 dark:border-zinc-800">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Applications Over Time</h3>
-                    <ApplicationsOverTimeChart data={stats.applicationsOverTime} />
+                <div className="lg:col-span-3 bg-white dark:bg-zinc-900 p-6 rounded-lg border border-gray-200 dark:border-zinc-800 relative">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {selectedMonth ? `Applications in ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Applications Over Time'}
+                        </h3>
+                    </div>
+                    {isLoadingStats ? (
+                        <div className="h-64 flex items-center justify-center">
+                            <Spinner />
+                        </div>
+                    ) : (
+                        <ApplicationsOverTimeChart
+                            data={stats?.applicationsOverTimeByStatus || []}
+                            onMonthClick={handleMonthSelect}
+                            selectedMonth={selectedMonth}
+                        />
+                    )}
                 </div>
             </div>
 

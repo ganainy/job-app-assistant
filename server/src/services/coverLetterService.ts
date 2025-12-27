@@ -42,45 +42,70 @@ export async function generateCoverLetter(
         }
     } else {
         // Construct a focused prompt for cover letter generation
-        prompt = `
-You are a professional candidate applying for a job. Your task is to write a short, authentic, and human-sounding cover letter in ${languageName}.
+        prompt = `You are a hiring expert helping me write a short, natural-sounding cover letter for a software role.
 
-**Target Language:** ${languageName} (${language})
+**Target Language:** ${languageName}
 
 **Inputs:**
-1. **My Experience (CV Data):**
+1. **CV Data:**
 \`\`\`json
 ${JSON.stringify(cvJson, null, 2)}
 \`\`\`
 
-2. **The Job (Description & Details):**
+2. **Job Information:**
    - Job Title: ${jobTitle}
    - Company: ${companyName}
-   - Description:
+   - Job Description:
    ---
    ${jobDescription}
    ---
 
-**Instructions for Writing:**
+**Instructions:**
 
-1.  **Header:** Start with my contact info (Name, Address, Phone, Email) from the CV \`basics\` section, formatted as a standard letter header. Follow with today's date: ${todayDateFormatted}.
+Use ONLY information from my CV and the job description. If a requirement from the job is not covered by my CV, do not invent it; instead, mention honestly that I have not done it yet and that I am motivated and willing to learn it quickly.
 
-2.  **Tone & Style:**
-    -   **Be Human:** Write naturally. Avoid "AI buzzwords" (like "I am thrilled to submit," "aligns perfectly," "unwavering commitment"). Use simple, strong verbs.
-    -   **Be Concise:** Keep it short (max 250 words excluding header). Get to the point.
-    -   **Be Specific:** Do not summarize my whole career. Pick 1-2 specific achievements from the CV that *directly* solve a problem mentioned in the Job Description.
-    -   **No Fluff:** Skip empty adjectives. Show, don't tell.
+**My goal:**
+Write a cover letter that sounds like a human wrote it, not an AI.
 
-3.  **Structure:**
-    -   **Salutation:** "Dear Hiring Manager," (or German equivalent).
-    -   **Opening:** Briefly state what I'm applying for and why I'm interested (1 sentence).
-    -   **Middle:** Connect *one* specific past success to a key requirement of this job. Explain how I can help them immediately.
-    -   **Closing:** A quick wrap-up and call to action (e.g., "I'd love to discuss how I can help [Company Name]..."). Sign off professionally.
+**Structure:**
+
+1. **Header:**
+   - Start with my contact info (Name, Address, Phone, Email) from the CV \`basics\` section.
+   - Follow with today's date: ${todayDateFormatted}
+
+2. **Salutation:**
+   - "Dear Hiring Manager," (or ${languageName} equivalent).
+
+3. **First paragraph:**
+   - Refer to the role and company by name.
+   - One sentence on why the role interests me.
+   - One sentence connecting my background to their main focus (e.g. mobile, backend, Kotlin, Java, TypeScript, Android).
+
+4. **Second paragraph:**
+   - Pick 2–3 of the most relevant experiences from my CV and relate them directly to the job requirements.
+   - Use concrete, down-to-earth phrasing (e.g. “built”, “debugged”, “shipped”, “worked in a small team”) instead of hype.
+   - If the job asks for skills/technologies not clearly in my CV, explicitly say something like: “I have not worked with [MISSING-SKILL] yet, but I have done [RELATED-THING from my CV], and I am confident I can learn [MISSING-SKILL] quickly.”
+
+5. **Third paragraph:**
+   - One sentence about what I want to contribute/learn in this role.
+   - One sentence about availability (e.g. starting date) if it is in my CV or I provide it.
+   - Simple closing line (no clichés like “dream job” or “perfect fit”).
+
+**Style guidelines:**
+- Use first person singular (“I”) and simple, clear language.
+- Use short to medium-length sentences.
+- Avoid very formal phrases like “herewith”, “therefore”, or “to whom it may concern”.
+- Avoid listing too many technologies; choose only those that match the job description.
+- Do not copy sentences from my CV; rephrase them.
+- IF job location not near where i live: mention that iam willing to relocate.
+- Cover letter language: same as job description language (${languageName}).
+- Keep it concise: max 3 short paragraphs, around 200–250 words.
+- No buzzword stuffing, no exaggerated claims, no generic filler.
+- Match the tone of a normal, motivated junior/mid software engineer.
 
 **Output:**
--   Return ONLY the final cover letter text.
--   No markdown blocks, no explanations.
-`;
+- Return ONLY the final cover letter text.
+- No markdown blocks, no explanations.`;
     }
 
     try {

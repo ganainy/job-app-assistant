@@ -56,20 +56,30 @@ const createJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
     res.status(401).json({ message: 'User not authenticated correctly.' });
     return;
   }
-  const { jobTitle, companyName, status, jobUrl, notes, jobDescriptionText } = req.validated!.body!;
+  const { jobTitle, companyName, status, jobUrl, notes, jobDescriptionText, salary, contact, language, createdAt } = req.validated!.body!;
 
   try {
-    const newJob = new JobApplication({
+    const jobData: any = {
       userId: req.user._id, // Assign the user ID from the request
       jobTitle,
       companyName,
       status: status || 'Not Applied',
       jobUrl,
       notes,
+      salary,
+      contact,
+      language,
       jobDescriptionText, // Pass scraped text if provided
       isAutoJob: false, // Manual job
       showInDashboard: true // Manual jobs always show in dashboard
-    });
+    };
+
+    // Allow setting custom createdAt date
+    if (createdAt) {
+      jobData.createdAt = new Date(createdAt);
+    }
+
+    const newJob = new JobApplication(jobData);
 
     const savedJob = await newJob.save();
 
@@ -176,14 +186,42 @@ const updateJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
     return;
   }
   try {
-    // Ensure req.body doesn't contain userId if you don't want it changeable
-    // delete req.body.userId; // Optional safeguard
+    // Prepare update data
+    const updateData: any = { ...req.validated!.body! };
 
-    const updatedJob = await JobApplication.findOneAndUpdate(
-      { _id: req.validated!.params!.id, userId: req.user._id }, // Find by ID and userId
-      req.validated!.body!, // Pass the validated updates
-      { new: true, runValidators: true } // Options: return updated doc, run schema checks
-    );
+    // Check if createdAt is being updated
+    const isUpdatingCreatedAt = updateData.createdAt !== undefined;
+
+    // Convert date strings to Date objects if present
+    if (updateData.createdAt && typeof updateData.createdAt === 'string') {
+      updateData.createdAt = new Date(updateData.createdAt);
+    }
+    if (updateData.dateApplied && typeof updateData.dateApplied === 'string') {
+      updateData.dateApplied = new Date(updateData.dateApplied);
+    }
+
+    let updatedJob;
+
+    if (isUpdatingCreatedAt) {
+      // Use native MongoDB driver to bypass Mongoose's timestamp protection
+      // Manually set updatedAt since we're bypassing Mongoose
+      updateData.updatedAt = new Date();
+
+      const result = await JobApplication.collection.findOneAndUpdate(
+        { _id: new mongoose.Types.ObjectId(req.validated!.params!.id), userId: req.user._id },
+        { $set: updateData },
+        { returnDocument: 'after' }
+      );
+      updatedJob = result ? await JobApplication.findById(req.validated!.params!.id) : null;
+    } else {
+      // Use normal Mongoose update for other fields
+      updatedJob = await JobApplication.findOneAndUpdate(
+        { _id: req.validated!.params!.id, userId: req.user._id },
+        { $set: updateData },
+        { new: true, runValidators: true }
+      );
+    }
+
     if (!updatedJob) {
       res.status(404).json({ message: 'Job application not found or not authorized to update' });
       return;
@@ -298,7 +336,99 @@ const scrapeJobHandler: RequestHandler = async (req: ValidatedRequest, res) => {
 router.patch('/:id/scrape', validateRequest({ params: objectIdParamSchema, body: scrapeJobBodySchema }), scrapeJobHandler);
 
 
-// ---  Create Job From URL Endpoint ---
+// ---  Extract Job Data from Text for Existing Job Endpoint ---
+// PATCH /api/jobs/:id/extract-from-text
+const extractFromTextHandler: RequestHandler = async (req: ValidatedRequest, res) => {
+  if (!req.user) {
+    res.status(401).json({ message: 'User not authenticated.' });
+    return;
+  }
+  const { id: jobId } = req.validated!.params!;
+  const { text } = req.validated!.body!; // Expect text in the validated request body
+
+  const userId = req.user._id as mongoose.Types.ObjectId;
+  const userIdString = userId.toString();
+
+  try {
+    // 1. Verify the job exists and belongs to the user
+    const existingJob = await JobApplication.findOne({ _id: jobId, userId: userId });
+    if (!existingJob) {
+      res.status(404).json({ message: 'Job application not found or access denied.' });
+      return;
+    }
+
+    console.log(`Extracting job data from text for job ${jobId} (length: ${text.length})`);
+
+    // 2. Call the AI extractor for text
+    const extractedData: ExtractedJobData = await extractJobDataFromText(text, userIdString);
+
+    // 3. Update the existing job with extracted data
+    const existingExtractedData = existingJob.extractedData as any || {};
+    const updateData: any = {
+      jobDescriptionText: extractedData.jobDescriptionText,
+      language: extractedData.language,
+      extractedData: {
+        ...existingExtractedData,
+        location: extractedData.location || existingExtractedData.location,
+        salaryRaw: extractedData.salary || existingExtractedData.salaryRaw,
+        keyDetails: extractedData.keyDetails || existingExtractedData.keyDetails
+      }
+    };
+
+    // Only update job title and company if they were successfully extracted
+    // and are different from existing values (allow AI to fill in blanks)
+    if (extractedData.jobTitle && extractedData.jobTitle !== 'Unknown Position') {
+      updateData.jobTitle = extractedData.jobTitle;
+    }
+    if (extractedData.companyName && extractedData.companyName !== 'Unknown Company') {
+      updateData.companyName = extractedData.companyName;
+    }
+    if (extractedData.notes) {
+      updateData.notes = existingJob.notes
+        ? `${existingJob.notes}\n\n${extractedData.notes}`
+        : extractedData.notes;
+    }
+
+    const updatedJob = await JobApplication.findOneAndUpdate(
+      { _id: jobId, userId: userId },
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedJob) {
+      res.status(404).json({ message: 'Job application could not be updated.' });
+      return;
+    }
+
+    console.log(`Successfully extracted and updated job data for job ${jobId}`);
+
+    // 4. Trigger recommendation generation in background
+    if (updatedJob.jobDescriptionText && updatedJob.jobDescriptionText.trim().length > 0) {
+      getJobRecommendation(userId, updatedJob._id as mongoose.Types.ObjectId, true).catch(error => {
+        console.error(`Failed to generate recommendation for job ${jobId}:`, error);
+      });
+    }
+
+    res.status(200).json(updatedJob);
+
+  } catch (error: any) {
+    console.error(`Failed to extract job data for job ${jobId}:`, error);
+
+    if (error?.statusCode && error?.isOperational) {
+      res.status(error.statusCode).json({
+        message: error.message || 'Failed to extract job data from text.'
+      });
+      return;
+    }
+
+    res.status(500).json({
+      message: error?.message || 'Failed to extract job data from text. Unknown server error.'
+    });
+  }
+};
+router.patch('/:id/extract-from-text', validateRequest({ params: objectIdParamSchema, body: createJobFromTextBodySchema }), extractFromTextHandler);
+
+
 // POST /api/jobs/create-from-url
 const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, res) => {
   if (!req.user) {

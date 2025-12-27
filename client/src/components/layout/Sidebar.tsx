@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 
 const BagFilledIcon = () => (
-    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+    <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
         <path d="M20 6h-3V4c0-1.1-.9-2-2-2H9c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9 4h6v2H9V4zm11 15H4V10h2v1h2v-1h6v1h2v-1h2v9z" />
     </svg>
 );
@@ -49,7 +49,7 @@ const AutoJobsIcon = () => (
 
 const PortfolioIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
     </svg>
 );
 
@@ -94,7 +94,10 @@ const Sidebar = () => {
             </button>
 
             {/* Brand */}
-            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 px-6'} h-20 border-b border-slate-100 dark:border-slate-800/50 transition-all duration-300 overflow-hidden whitespace-nowrap`}>
+            <Link
+                to="/dashboard"
+                className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 px-6'} h-20 border-b border-slate-100 dark:border-slate-800/50 transition-all duration-300 overflow-hidden whitespace-nowrap hover:bg-slate-50 dark:hover:bg-slate-800/50`}
+            >
                 <div className="text-purple-600 dark:text-purple-400 shrink-0">
                     <BagFilledIcon />
                 </div>
@@ -103,7 +106,7 @@ const Sidebar = () => {
                         VibeHired
                     </span>
                 )}
-            </div>
+            </Link>
 
             {/* Navigation */}
             <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
@@ -142,9 +145,6 @@ const Sidebar = () => {
                         <div className="flex-1 min-w-0 overflow-hidden">
                             <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
                                 {user?.email || 'User'}
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                                Free Plan
                             </p>
                         </div>
                     )}

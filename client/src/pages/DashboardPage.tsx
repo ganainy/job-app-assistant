@@ -16,7 +16,7 @@ import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import Toast from '../components/common/Toast';
 
 // Define type for the form data used in the Add/Edit modal
-type JobFormData = Partial<Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt' | 'generationStatus' | 'generatedCvFilename' | 'generatedCoverLetterFilename'>>;
+type JobFormData = Partial<Omit<JobApplication, '_id' | 'updatedAt' | 'generationStatus' | 'generatedCvFilename' | 'generatedCoverLetterFilename'>>;
 
 // Explicitly list sortable keys for type safety
 type SortableJobKeys = 'jobTitle' | 'companyName' | 'status' | 'createdAt' | 'language';
@@ -152,8 +152,11 @@ const DashboardPage: React.FC = () => {
       status: job.status,
       jobUrl: job.jobUrl,
       notes: job.notes,
+      salary: job.salary,
+      contact: job.contact,
       dateApplied: job.dateApplied,
-      language: job.language
+      language: job.language,
+      createdAt: job.createdAt
     });
     setModalError(null);
     setModalMode('edit');
@@ -599,6 +602,9 @@ const DashboardPage: React.FC = () => {
                           </div>
                         </th>
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Language</th>
+                        <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Salary</th>
+                        <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Contact</th>
+                        <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Link</th>
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -615,9 +621,45 @@ const DashboardPage: React.FC = () => {
                             <JobStatusBadge type="application" status={job.status} />
                           </td>
                           <td className="p-4 text-slate-600 dark:text-slate-400">
-                            {new Date(job.createdAt).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
+                            {new Date(job.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </td>
                           <td className="p-4 text-slate-600 dark:text-slate-400">{job.language ? job.language.toUpperCase() : '-'}</td>
+                          <td className="p-4 text-slate-600 dark:text-slate-400">{job.salary || '-'}</td>
+                          <td className="p-4 text-slate-600 dark:text-slate-400" onClick={(e) => e.stopPropagation()}>
+                            {job.contact ? (
+                              // Check if it's an email
+                              job.contact.includes('@') ? (
+                                <a href={`mailto:${job.contact}`} className="text-indigo-500 dark:text-indigo-400 hover:underline" title={`Email ${job.contact}`}>
+                                  {job.contact.length > 20 ? job.contact.substring(0, 20) + '...' : job.contact}
+                                </a>
+                              ) : // Check if it's a URL
+                                job.contact.startsWith('http') ? (
+                                  <a href={job.contact} target="_blank" rel="noopener noreferrer" className="text-indigo-500 dark:text-indigo-400 hover:underline" title={job.contact}>
+                                    {job.contact.length > 20 ? job.contact.substring(0, 20) + '...' : job.contact}
+                                  </a>
+                                ) : (
+                                  // Plain text
+                                  <span title={job.contact}>{job.contact.length > 20 ? job.contact.substring(0, 20) + '...' : job.contact}</span>
+                                )
+                            ) : '-'}
+                          </td>
+                          <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                            {job.jobUrl ? (
+                              <a
+                                href={job.jobUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                                title="Open job posting"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-500">-</span>
+                            )}
+                          </td>
                           <td className="p-4">
                             <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                               <button
@@ -777,6 +819,58 @@ const DashboardPage: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Date Added */}
+                  {(() => {
+                    // Helper to format date for input
+                    const formatDateForInput = (dateString?: string): string => {
+                      if (!dateString) {
+                        // For new jobs, default to today
+                        if (modalMode === 'add') {
+                          const today = new Date();
+                          const year = today.getFullYear();
+                          const month = String(today.getMonth() + 1).padStart(2, '0');
+                          const day = String(today.getDate()).padStart(2, '0');
+                          return `${year}-${month}-${day}`;
+                        }
+                        return '';
+                      }
+                      try {
+                        const date = new Date(dateString);
+                        if (isNaN(date.getTime())) return '';
+                        // Format as YYYY-MM-DD for input type="date"
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                      } catch {
+                        return '';
+                      }
+                    };
+
+                    return (
+                      <div className="mb-5">
+                        <label htmlFor="createdAt" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Date Added
+                        </label>
+                        <input
+                          type="date"
+                          id="createdAt"
+                          name="createdAt"
+                          value={formatDateForInput(formData.createdAt)}
+                          onChange={(e) => {
+                            const dateValue = e.target.value;
+                            if (dateValue) {
+                              // Convert to ISO string
+                              const newDate = new Date(dateValue + 'T12:00:00');
+                              setFormData(prev => ({ ...prev, createdAt: newDate.toISOString() }));
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                        />
+                      </div>
+                    );
+                  })()}
+
                   {/* Job URL */}
                   <div className="mb-5">
                     <label htmlFor="jobUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -789,13 +883,55 @@ const DashboardPage: React.FC = () => {
                         </svg>
                       </div>
                       <input
-                        type="url"
+                        type="text"
                         id="jobUrl"
                         name="jobUrl"
                         value={formData.jobUrl || ''}
                         onChange={handleInputChange}
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          if (val && !/^https?:\/\//i.test(val)) {
+                            // Automatically add https:// if missing
+                            setFormData(prev => ({ ...prev, jobUrl: `https://${val}` }));
+                          }
+                        }}
                         placeholder="https://..."
+                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Salary and Contact - Side by Side */}
+                  <div className="grid grid-cols-2 gap-4 mb-5">
+                    {/* Salary */}
+                    <div>
+                      <label htmlFor="salary" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Salary
+                      </label>
+                      <input
+                        type="text"
+                        id="salary"
+                        name="salary"
+                        value={formData.salary || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                        placeholder="e.g., 50k-70k, $80,000"
+                      />
+                    </div>
+
+                    {/* Contact */}
+                    <div>
+                      <label htmlFor="contact" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Contact
+                      </label>
+                      <input
+                        type="text"
+                        id="contact"
+                        name="contact"
+                        value={formData.contact || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                        placeholder="Email, link, or name"
                       />
                     </div>
                   </div>

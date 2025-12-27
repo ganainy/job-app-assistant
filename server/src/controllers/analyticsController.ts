@@ -12,7 +12,8 @@ export const getJobApplicationStats = asyncHandler(async (req: Request, res: Res
         return res.status(401).json({ message: 'Not authenticated' });
     }
 
-    const stats = await getJobApplicationStatsService(userId);
+    const month = req.query.month as string | undefined;
+    const stats = await getJobApplicationStatsService(userId, month);
 
     res.status(200).json(stats);
 });

@@ -26,7 +26,11 @@ export const createJobBodySchema = z.object({
   status: jobStatusEnum.optional(),
   jobUrl: z.string().url('Invalid URL format').optional().or(z.literal('')),
   notes: z.string().optional(),
+  salary: z.string().optional(),
+  contact: z.string().optional(),
+  language: z.string().optional(),
   jobDescriptionText: z.string().optional(),
+  createdAt: z.string().optional(),
 });
 
 /**
@@ -38,8 +42,11 @@ export const updateJobBodySchema = z.object({
   status: jobStatusEnum.optional(),
   jobUrl: z.string().url('Invalid URL format').optional().or(z.literal('')),
   notes: z.string().optional(),
+  salary: z.string().optional(),
+  contact: z.string().optional(),
   jobDescriptionText: z.string().optional(),
-  dateApplied: z.string().datetime().optional().or(z.date().optional()),
+  dateApplied: z.string().optional(),
+  createdAt: z.string().optional(),
   // Allow updating generation-related fields
   generationStatus: z.enum(['none', 'pending_input', 'pending_generation', 'draft_ready', 'finalized', 'error']).optional(),
   draftCvJson: z.any().optional(),

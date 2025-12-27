@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { updateCustomPrompts } from '../services/settingsApi';
-import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi } from '../services/jobApi';
+import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, extractJobFromTextApi } from '../services/jobApi';
 import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments, generateCvOnly } from '../services/generatorApi';
 import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi';
 import { scanAts, getAtsScores, getAtsForJob, AtsScores, deleteAtsAnalysis } from '../services/atsApi';
@@ -186,6 +186,10 @@ const ReviewFinalizePage: React.FC = () => {
     const [availableCvs, setAvailableCvs] = useState<{ id: string; name: string; data: any }[]>([]);
     const [selectedBaseCvId, setSelectedBaseCvId] = useState<string>('master');
     const [selectedClBaseCvId, setSelectedClBaseCvId] = useState<string>('master');
+
+    // Extract with AI State
+    const [pastedJobText, setPastedJobText] = useState<string>('');
+    const [isExtractingWithAi, setIsExtractingWithAi] = useState<boolean>(false);
 
     const ATS_POLLING_INTERVAL_MS = 3000; // Poll more frequently for ATS
     const ATS_POLLING_TIMEOUT_MS = 120000; // 2 minutes timeout
@@ -663,6 +667,26 @@ const ReviewFinalizePage: React.FC = () => {
             setRefreshError(error.message || 'Failed to refresh job details.');
         } finally {
             setIsRefreshing(false);
+        }
+    };
+
+    const handleExtractWithAi = async () => {
+        if (!jobId || !pastedJobText || pastedJobText.trim().length < 50) return;
+
+        setIsExtractingWithAi(true);
+        setRefreshError(null);
+        try {
+            // Use AI to extract job data from the pasted text
+            const updatedJob = await extractJobFromTextApi(jobId, pastedJobText.trim());
+            setJobApplication(updatedJob);
+            setPastedJobText(''); // Clear the textarea
+            showToast('Job details extracted successfully', 'success');
+        } catch (error: any) {
+            console.error("Error extracting job details:", error);
+            setRefreshError(error.message || 'Failed to extract job details.');
+            showToast('Failed to extract job details', 'error');
+        } finally {
+            setIsExtractingWithAi(false);
         }
     };
 
@@ -1406,12 +1430,12 @@ const ReviewFinalizePage: React.FC = () => {
                         >
                             <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Match</p>
                             <p className={`text-sm font-semibold ${isLoadingRecommendation
-                                    ? 'text-gray-400 dark:text-gray-500'
-                                    : recommendation?.score !== null && recommendation?.score !== undefined
-                                        ? recommendation.shouldApply
-                                            ? 'text-green-600 dark:text-green-400'
-                                            : 'text-amber-600 dark:text-amber-400'
-                                        : 'text-gray-400 dark:text-gray-500'
+                                ? 'text-gray-400 dark:text-gray-500'
+                                : recommendation?.score !== null && recommendation?.score !== undefined
+                                    ? recommendation.shouldApply
+                                        ? 'text-green-600 dark:text-green-400'
+                                        : 'text-amber-600 dark:text-amber-400'
+                                    : 'text-gray-400 dark:text-gray-500'
                                 }`}>
                                 {isLoadingRecommendation ? (
                                     <span className="inline-flex items-center gap-1">
@@ -1431,7 +1455,7 @@ const ReviewFinalizePage: React.FC = () => {
                         {jobApplication.status !== 'Applied' && (
                             <button
                                 onClick={handleMarkAsApplied}
-                                className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500 rounded-lg shadow-sm transition-all flex items-center gap-1.5 hover:scale-105 active:scale-95"
+                                className="px-4 py-3 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500 rounded-lg shadow-sm transition-all flex items-center gap-1.5 hover:scale-105 active:scale-95 self-stretch"
                                 title="Mark this job as Applied"
                             >
                                 <span className="material-symbols-outlined text-[18px]">check_circle</span>
@@ -1792,17 +1816,55 @@ const ReviewFinalizePage: React.FC = () => {
                                                 {jobApplication.jobDescriptionText}
                                             </div>
                                         ) : (
-                                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                            <div className="flex flex-col items-center justify-center py-8 text-center">
                                                 <span className="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-600 mb-2">description</span>
-                                                <p className="text-text-sub-light dark:text-text-sub-dark mb-4">No job description available.</p>
-                                                {!isRefreshing && (
-                                                    <button
-                                                        onClick={handleRefreshJobDetails}
-                                                        className="text-primary hover:underline text-sm"
-                                                    >
-                                                        Click here to scrape from URL
-                                                    </button>
-                                                )}
+                                                <p className="text-text-sub-light dark:text-text-sub-dark mb-6">No job description available.</p>
+
+                                                {/* Extract with AI Section */}
+                                                <div className="w-full max-w-2xl">
+                                                    <div className="relative">
+                                                        <textarea
+                                                            value={pastedJobText}
+                                                            onChange={(e) => setPastedJobText(e.target.value)}
+                                                            placeholder="Paste job description here..."
+                                                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg px-4 py-3 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 disabled:opacity-50 resize-y min-h-[120px] text-sm transition-all"
+                                                            rows={5}
+                                                            disabled={isExtractingWithAi}
+                                                        />
+                                                        {isExtractingWithAi && (
+                                                            <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center gap-2">
+                                                                <Spinner size="md" />
+                                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Extracting job details...</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex justify-center gap-3 mt-4">
+                                                        <button
+                                                            onClick={handleExtractWithAi}
+                                                            disabled={isExtractingWithAi || !pastedJobText || pastedJobText.trim().length < 50}
+                                                            className="bg-indigo-600 text-white font-medium py-2 px-5 rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm flex items-center gap-2"
+                                                        >
+                                                            {isExtractingWithAi ? (
+                                                                <>
+                                                                    <Spinner size="sm" />
+                                                                    <span>Extracting...</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                                                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5A2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5a2.5 2.5 0 0 0 2.5 2.5a2.5 2.5 0 0 0 2.5-2.5a2.5 2.5 0 0 0-2.5-2.5Z" />
+                                                                    </svg>
+                                                                    <span>Extract with AI</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                    {pastedJobText && pastedJobText.trim().length > 0 && pastedJobText.trim().length < 50 && (
+                                                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                                                            Please paste more text (at least 50 characters)
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -2544,13 +2606,9 @@ const ReviewFinalizePage: React.FC = () => {
                                     <p className="text-gray-600 dark:text-gray-400">
                                         Job description is required to provide AI application advice.
                                     </p>
-                                    <button
-                                        onClick={handleRefreshJobDetails}
-                                        disabled={isRefreshing || !jobApplication?.jobUrl}
-                                        className="mt-2 text-sm text-primary hover:underline"
-                                    >
-                                        Scrape job description
-                                    </button>
+                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-500">
+                                        Go to the Job Description tab and paste the job description.
+                                    </p>
                                 </div>
                             </div>
                         )}

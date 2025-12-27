@@ -14,15 +14,15 @@ const JobStatusBadge: React.FC<JobStatusBadgeProps> = ({ type, status, className
     const getStatusConfig = () => {
         if (type === 'application') {
             const appStatus = status as ApplicationStatus;
-            // Only 'Applied' gets green text, everything else is plain gray text
+            // Each status gets a distinctive color
             const configs: Record<ApplicationStatus, { color: string; label: string }> = {
                 'Applied': { color: 'text-green-600 dark:text-green-400 font-medium', label: 'Applied' },
                 'Not Applied': { color: 'text-slate-500 dark:text-slate-400', label: 'Not Applied' },
-                'Interview': { color: 'text-slate-500 dark:text-slate-400', label: 'Interview' },
-                'Assessment': { color: 'text-slate-500 dark:text-slate-400', label: 'Assessment' },
-                'Rejected': { color: 'text-slate-500 dark:text-slate-400', label: 'Rejected' },
-                'Closed': { color: 'text-slate-500 dark:text-slate-400', label: 'Closed' },
-                'Offer': { color: 'text-slate-500 dark:text-slate-400', label: 'Offer' },
+                'Interview': { color: 'text-blue-600 dark:text-blue-400 font-medium', label: 'Interview' },
+                'Assessment': { color: 'text-purple-600 dark:text-purple-400 font-medium', label: 'Assessment' },
+                'Rejected': { color: 'text-red-500 dark:text-red-400', label: 'Rejected' },
+                'Closed': { color: 'text-slate-400 dark:text-slate-500', label: 'Closed' },
+                'Offer': { color: 'text-emerald-600 dark:text-emerald-400 font-semibold', label: 'Offer 🎉' },
             };
             return configs[appStatus];
         } else {

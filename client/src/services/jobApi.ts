@@ -16,6 +16,8 @@ export interface JobApplication {
     dateApplied?: string; // Dates are often strings in JSON
     jobUrl?: string;
     notes?: string;
+    salary?: string; // Can be number, range, or text (e.g., "50k-70k", "$80,000 - $100,000")
+    contact?: string; // Email, URL, or name
     jobDescriptionText?: string;
     language?: 'en' | 'de'; // More specific type
     draftCvJson?: any | null; // Use JsonResumeSchema if imported, else any
@@ -32,8 +34,8 @@ export interface JobApplication {
     };
     // userId?: string; // Add later
 }
-export type CreateJobPayload = Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt' | 'draftCvJson' | 'draftCoverLetterText' | 'generationStatus'>; // Exclude draft fields on create
-export type UpdateJobPayload = Partial<Omit<JobApplication, '_id' | 'userId' | 'createdAt' | 'updatedAt'>>; // Allow updating most fields
+export type CreateJobPayload = Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt' | 'draftCvJson' | 'draftCoverLetterText' | 'generationStatus'> & { createdAt?: string }; // Allow optional createdAt on create
+export type UpdateJobPayload = Partial<Omit<JobApplication, '_id' | 'userId' | 'updatedAt'>>; // Allow updating most fields including createdAt
 
 interface ScrapeResponse {
     message: string;
@@ -157,6 +159,20 @@ export const createJobFromTextApi = async (text: string): Promise<JobApplication
         return response.data;
     } catch (error: any) {
         console.error(`Error creating job from pasted text:`, error);
+        if (axios.isAxiosError(error) && error.response) {
+            throw error.response.data;
+        }
+        throw { message: 'An unknown error occurred while extracting job details.' };
+    }
+};
+
+// ---  Extract Job Data from Text for Existing Job ---
+export const extractJobFromTextApi = async (jobId: string, text: string): Promise<JobApplication> => {
+    try {
+        const response = await axios.patch<JobApplication>(`${API_BASE_URL}/job-applications/${jobId}/extract-from-text`, { text });
+        return response.data;
+    } catch (error: any) {
+        console.error(`Error extracting job data from text:`, error);
         if (axios.isAxiosError(error) && error.response) {
             throw error.response.data;
         }

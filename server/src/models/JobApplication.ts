@@ -14,6 +14,8 @@ export interface IJobApplication extends Document {
     dateApplied?: Date; // Optional: Mark when applied
     jobUrl?: string; // Optional but useful
     notes?: string; // Optional user notes
+    salary?: string; // Salary (can be number, range, or text like "50k-70k")
+    contact?: string; // Contact info (email, link, or name)
     jobDescriptionText?: string; // Store the scraped text
     language?: string; // Language of the job
 
@@ -90,6 +92,8 @@ const JobApplicationSchema: Schema = new Schema(
         dateApplied: { type: Date },
         jobUrl: { type: String, trim: true },
         notes: { type: String, trim: true },
+        salary: { type: String, trim: true }, // Flexible format: "50000", "50k-70k", "$80,000 - $100,000"
+        contact: { type: String, trim: true }, // Email, URL, or name
         jobDescriptionText: { type: String }, // Text from scraping
         language: { type: String, trim: true },
 

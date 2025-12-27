@@ -38,18 +38,17 @@ Example output structure:
 }
 \`\`\``;
 
-export const DEFAULT_COVER_LETTER_PROMPT = `You are an expert career advisor and professional cover letter writer specialized in the {{language}} job market.
-Your task is to write a compelling, tailored cover letter for a specific job application in {{language}}.
+export const DEFAULT_COVER_LETTER_PROMPT = `You are a hiring expert helping me write a short, natural-sounding cover letter for a software role.
 
 **Target Language:** {{language}}
 
 **Inputs:**
-1. **CV Data (JSON Resume Schema):**
+1. **CV Data:**
 \`\`\`json
 {{cvData}}
 \`\`\`
 
-2. **Target Job Information:**
+2. **Job Information:**
    - Job Title: {{jobTitle}}
    - Company: {{companyName}}
    - Job Description:
@@ -59,43 +58,48 @@ Your task is to write a compelling, tailored cover letter for a specific job app
 
 **Instructions:**
 
-Write a professional cover letter in {{language}} following these guidelines:
+Use ONLY information from my CV and the job description. If a requirement from the job is not covered by my CV, do not invent it; instead, mention honestly that I have not done it yet and that I am motivated and willing to learn it quickly.
 
-1. **Header Section:**
-   - Start the cover letter with the sender's contact information block at the very top
-   - Extract the following details directly from the CV's \`basics\` section:
-     * \`basics.name\`
-     * \`basics.location.address\` (if available, include street address on its own line)
-     * \`basics.location.city\`, \`basics.location.postalCode\` (combine on one line, e.g., "Berlin, 10117" or "12345 Example City")
-     * \`basics.phone\` (if available, label appropriately, e.g., "Phone: +49 123 456789")
-     * \`basics.email\` (if available, label appropriately, e.g., "Email: your.email@example.com")
-   - Format these details cleanly as a standard sender address block, with each piece of information on a new line where appropriate
-   - After the sender's address block, include today's date on its own line: {{todayDate}}
+**My goal:**
+Write a cover letter that sounds like a human wrote it, not an AI.
+
+**Structure:**
+
+1. **Header:**
+   - Start with my contact info (Name, Address, Phone, Email) from the CV \`basics\` section.
+   - Follow with today's date: {{todayDate}}
 
 2. **Salutation:**
-   - Use "Dear Hiring Manager," for English or "Sehr geehrte Damen und Herren," for German
-   - Only use a specific name if it can be reliably extracted from the job description
+   - "Dear Hiring Manager," (or {{language}} equivalent).
 
-3. **Body Content (3-4 paragraphs):**
-   - **Opening Paragraph:** Introduce yourself and clearly state the role you are applying for: "{{jobTitle}}" at "{{companyName}}". Express genuine enthusiasm for the position.
-   - **Middle Paragraphs (1-2 paragraphs):** Highlight 2-3 key qualifications or experiences from your CV that directly match the most important requirements in the job description. Explain why these qualifications make you a strong fit. Use specific examples and achievements from your CV.
-   - **Closing Paragraph:** Express your enthusiasm for the specific role and company. Include a call to action (e.g., expressing eagerness for an interview) and a professional closing (e.g., "Sincerely," / "Mit freundlichen Grüßen,").
+3. **First paragraph:**
+   - Refer to the role and company by name.
+   - One sentence on why the role interests me.
+   - One sentence connecting my background to their main focus (e.g. mobile, backend, Kotlin, Java, TypeScript, Android).
 
-4. **Tone and Style:**
-   - Professional, confident, and enthusiastic
-   - Tailored specifically to the job description
-   - Use keywords from the job description naturally
-   - Avoid generic phrases and clichés
-   - Keep it concise (approximately 3-4 paragraphs in the body)
-   - All content must be in {{language}}
+4. **Second paragraph:**
+   - Pick 2–3 of the most relevant experiences from my CV and relate them directly to the job requirements.
+   - Use concrete, down-to-earth phrasing (e.g. “built”, “debugged”, “shipped”, “worked in a small team”) instead of hype.
+   - If the job asks for skills/technologies not clearly in my CV, explicitly say something like: “I have not worked with [MISSING-SKILL] yet, but I have done [RELATED-THING from my CV], and I am confident I can learn [MISSING-SKILL] quickly.”
 
-5. **Output Format:**
-   - Return ONLY the complete cover letter text as a single string
-   - Include the header with contact information and date
-   - Include the salutation, body paragraphs, and closing
-   - Use newline characters (\\n) to separate lines appropriately
-   - Do NOT wrap the response in JSON or markdown code blocks
-   - Do NOT include any explanations or additional text outside the cover letter content
+5. **Third paragraph:**
+   - One sentence about what I want to contribute/learn in this role.
+   - One sentence about availability (e.g. starting date) if it is in my CV or I provide it.
+   - Simple closing line (no clichés like “dream job” or “perfect fit”).
 
-**Important:** The entire cover letter must be returned as plain text, ready to use. Do not include placeholders or ask for additional information.`;
+**Style guidelines:**
+- Use first person singular (“I”) and simple, clear language.
+- Use short to medium-length sentences.
+- Avoid very formal phrases like “herewith”, “therefore”, or “to whom it may concern”.
+- Avoid listing too many technologies; choose only those that match the job description.
+- Do not copy sentences from my CV; rephrase them.
+- IF job location not near where i live: mention that iam willing to relocate.
+- Cover letter language: same as job description language ({{language}}).
+- Keep it concise: max 3 short paragraphs, around 200–250 words.
+- No buzzword stuffing, no exaggerated claims, no generic filler.
+- Match the tone of a normal, motivated junior/mid software engineer.
+
+**Output:**
+- Return ONLY the final cover letter text.
+- No markdown blocks, no explanations.`;
 
