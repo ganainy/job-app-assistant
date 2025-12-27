@@ -170,7 +170,7 @@ export const ApplicationsOverTimeChart: React.FC<ApplicationsOverTimeChartProps>
     }
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 h-full">
             {/* Legend */}
             <div className="flex flex-wrap gap-2 text-xs">
                 {VISIBLE_STATUSES.map(status => (
@@ -193,11 +193,11 @@ export const ApplicationsOverTimeChart: React.FC<ApplicationsOverTimeChartProps>
             </div>
 
             {/* Chart */}
-            <div className={`h-[300px] w-full ${!selectedMonth && onMonthClick ? 'cursor-pointer' : ''}`}>
+            <div className={`flex-1 min-h-0 w-full min-h-[300px] overflow-hidden ${!selectedMonth && onMonthClick ? 'cursor-pointer' : ''}`}>
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                         data={chartData}
-                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 50 }}
                         onClick={(e: any) => {
                             if (!selectedMonth && onMonthClick && e && e.activePayload && e.activePayload[0]) {
                                 const clickedMonth = e.activePayload[0].payload.key;
@@ -244,13 +244,6 @@ export const ApplicationsOverTimeChart: React.FC<ApplicationsOverTimeChartProps>
                     </LineChart>
                 </ResponsiveContainer>
             </div>
-
-            {/* Helper text for drill down */}
-            {!selectedMonth && onMonthClick && (
-                <p className="text-xs text-center text-gray-400 dark:text-gray-500 mt-2">
-                    Click on a month name column to view monthly details
-                </p>
-            )}
         </div>
     );
 };

@@ -42,12 +42,12 @@ VibeHired is an AI-powered job application assistant built on Google Gemini AI t
 - **Smart Placeholder System:** AI detects missing information and uses intelligent placeholder handling with context-aware user input modals
 
 ### Analytics Dashboard
-- **Statistics Overview:** Total applications, applications by status, month-over-month trends
+- **Statistics Overview:** Key metrics (Total, Response Rate, Interviews, Offers) with "vs last month" trend indicators
 - **Visual Charts:** 
-  - Applications by status (pie/bar charts)
-  - Applications over time (line charts)
-- **Pipeline Kanban:** Interactive kanban board for managing application pipeline
-- **Real-time Updates:** Statistics update as applications are added or modified
+  - Application Velocity (line chart with capacity for daily/monthly views)
+  - Weekly Goal Tracker with editable targets
+  - Pipeline Conversion (Rejected vs Interview vs Offer rates)
+- **Recent Activity:** Real-time feed of latest application updates
 
 ### Portfolio System
 - **Portfolio Setup:** Comprehensive setup page for configuring your portfolio
@@ -184,7 +184,7 @@ After starting the application:
 |---------|-------------|------------|
 | **Auto Jobs** | Automated job discovery with AI-powered analysis and filtering. Manually trigger job searches and get intelligent job recommendations. | ![Auto Jobs](demo/auto-jobs.png) |
 | **Dashboard** | The main dashboard provides a comprehensive view of all job applications with filtering, sorting, and quick actions. | ![Dashboard](demo/main-dashbaord.png) |
-| **Analytics Dashboard** | Track your application progress with detailed statistics, charts, and a visual kanban pipeline. | ![Analytics](demo/analytics-dashboard.png) |
+| **Analytics Dashboard** | Visual dashboard with real-time metrics, status trends, weekly application goals, and pipeline yield analysis. | ![Analytics](demo/analytics-dashboard.png) |
 | **Job Details** | View detailed job information and manage individual job applications. | ![Job Details](demo/job-details.png) |
 | **Custom Job CV** | Review and customize AI-generated CVs tailored to specific job applications. | ![Custom Job CV](demo/custom-job-cv.png) |
 | **Custom Job Cover Letter** | Review and customize AI-generated cover letters tailored to specific job applications. | ![Custom Job Cover Letter](demo/custom-job-coverletter.png) |

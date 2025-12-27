@@ -4,10 +4,13 @@ import { getApplicationStats, ApplicationStats } from '../services/analyticsApi'
 import { getJobs, updateJob, JobApplication } from '../services/jobApi';
 import ErrorAlert from '../components/common/ErrorAlert';
 import Spinner from '../components/common/Spinner';
-import { StatsSummary } from '../components/analytics/StatsSummary';
-import { ApplicationsByStatusChart } from '../components/analytics/ApplicationsByStatusChart';
+import { StatsGrid } from '../components/analytics/StatsGrid';
 import { ApplicationsOverTimeChart } from '../components/analytics/ApplicationsOverTimeChart';
+import { WeeklyGoalWidget } from '../components/analytics/WeeklyGoalWidget';
+import { PipelineConversionWidget } from '../components/analytics/PipelineConversionWidget';
+import { RecentActivityWidget } from '../components/analytics/RecentActivityWidget';
 import ApplicationPipelineKanban from '../components/jobs/ApplicationPipelineKanban';
+import { Calendar } from 'lucide-react';
 
 const AnalyticsPage: React.FC = () => {
     const [stats, setStats] = useState<ApplicationStats | null>(null);
@@ -18,6 +21,17 @@ const AnalyticsPage: React.FC = () => {
     const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
     const [isLoadingStats, setIsLoadingStats] = useState(false);
 
+    // Weekly Goal State (Persisted)
+    const [weeklyGoal, setWeeklyGoal] = useState<number>(() => {
+        const saved = localStorage.getItem('weeklyGoalTarget');
+        return saved ? parseInt(saved, 10) : 20;
+    });
+
+    const handleUpdateWeeklyGoal = (newTarget: number) => {
+        setWeeklyGoal(newTarget);
+        localStorage.setItem('weeklyGoalTarget', newTarget.toString());
+    };
+
     const fetchStats = async (month?: string) => {
         try {
             setIsLoadingStats(true);
@@ -27,7 +41,7 @@ const AnalyticsPage: React.FC = () => {
             setError(err.message || 'Failed to fetch analytics data.');
         } finally {
             setIsLoadingStats(false);
-            setIsLoading(false); // Initial load done
+            setIsLoading(false);
         }
     };
 
@@ -57,13 +71,11 @@ const AnalyticsPage: React.FC = () => {
     const handleStatusChange = async (jobId: string, newStatus: JobApplication['status']) => {
         try {
             await updateJob(jobId, { status: newStatus });
-            // Update local state
             setJobs(prevJobs =>
                 prevJobs.map(job =>
                     job._id === jobId ? { ...job, status: newStatus } : job
                 )
             );
-            // Refresh stats to reflect the change
             const data = await getApplicationStats(selectedMonth || undefined);
             setStats(data);
         } catch (err: any) {
@@ -103,18 +115,19 @@ const AnalyticsPage: React.FC = () => {
     }
 
     return (
-        <div className="container mx-auto p-6 lg:p-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Analytics Dashboard</h2>
+        <div className="h-full overflow-y-auto bg-slate-50 dark:bg-black p-6 lg:p-8 space-y-6">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Analytics Overview</h2>
 
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-400">View:</span>
+                <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-md px-3 py-1.5 shadow-sm">
+                    <Calendar className="w-4 h-4 text-slate-500" />
                     <select
                         value={selectedMonth || ''}
                         onChange={(e) => handleMonthSelect(e.target.value || null)}
-                        className="block w-56 pl-3 pr-8 py-2 text-sm border border-gray-300 dark:border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-sm"
+                        className="text-sm bg-transparent border-none focus:ring-0 text-slate-700 dark:text-slate-200 cursor-pointer"
                     >
-                        <option value="">Applications Over Time</option>
+                        <option value="">Last 6 Months</option>
                         {monthOptions.map(option => (
                             <option key={option.value} value={option.value}>
                                 {option.label}
@@ -124,44 +137,69 @@ const AnalyticsPage: React.FC = () => {
                 </div>
             </div>
 
-            <StatsSummary
-                totalApplications={stats?.totalApplications || 0}
-                applicationsByStatus={stats?.applicationsByStatus || []}
-                applicationsOverTime={stats?.applicationsOverTime || []}
-            />
+            {/* Top Stats Grid */}
+            <StatsGrid stats={stats} jobs={jobs} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
-                <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-lg border border-gray-200 dark:border-zinc-800">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Applications by Status</h3>
-                    <ApplicationsByStatusChart data={stats?.applicationsByStatus || []} />
-                </div>
-                <div className="lg:col-span-3 bg-white dark:bg-zinc-900 p-6 rounded-lg border border-gray-200 dark:border-zinc-800 relative">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {selectedMonth ? `Applications in ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'Applications Over Time'}
-                        </h3>
-                    </div>
-                    {isLoadingStats ? (
-                        <div className="h-64 flex items-center justify-center">
-                            <Spinner />
+            {/* Middle Row: Velocity Chart + Weekly Goal */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Application Velocity Chart */}
+                <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-lg border border-slate-200 dark:border-zinc-800 flex flex-col h-[400px] min-w-0">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">Application Velocity</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Applications sent vs status changes</p>
                         </div>
-                    ) : (
-                        <ApplicationsOverTimeChart
-                            data={stats?.applicationsOverTimeByStatus || []}
-                            onMonthClick={handleMonthSelect}
-                            selectedMonth={selectedMonth}
-                        />
-                    )}
+                        {/* Legend is handled inside the chart component */}
+                    </div>
+
+                    <div className="flex-1 w-full min-h-0 min-w-0">
+                        {isLoadingStats ? (
+                            <div className="h-full flex items-center justify-center">
+                                <Spinner />
+                            </div>
+                        ) : (
+                            <ApplicationsOverTimeChart
+                                data={stats?.applicationsOverTimeByStatus || []}
+                                onMonthClick={handleMonthSelect}
+                                selectedMonth={selectedMonth}
+                            />
+                        )}
+                    </div>
+                </div>
+
+                {/* Weekly Goal Widget */}
+                <div>
+                    <WeeklyGoalWidget
+                        jobs={jobs}
+                        target={weeklyGoal}
+                        onUpdateTarget={handleUpdateWeeklyGoal}
+                    />
                 </div>
             </div>
 
-            <div>
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Application Pipeline</h3>
-                <ApplicationPipelineKanban
-                    jobs={jobs}
-                    isLoading={isLoadingJobs}
-                    onStatusChange={handleStatusChange}
-                />
+            {/* Bottom Row: Pipeline + Recent Activity */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Pipeline Conversion */}
+                <div>
+                    <PipelineConversionWidget stats={stats} />
+                </div>
+
+                {/* Recent Activity */}
+                <div className="lg:col-span-2">
+                    <RecentActivityWidget jobs={jobs} />
+                </div>
+            </div>
+
+            {/* Kanban Board Section */}
+            <div className="mt-8 pt-8 border-t border-slate-200 dark:border-zinc-800">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Application Pipeline</h3>
+                <div className="bg-slate-100 dark:bg-zinc-900/50 p-4 rounded-xl border border-slate-200 dark:border-zinc-800">
+                    <ApplicationPipelineKanban
+                        jobs={jobs}
+                        isLoading={isLoadingJobs}
+                        onStatusChange={handleStatusChange}
+                    />
+                </div>
             </div>
         </div>
     );
