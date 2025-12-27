@@ -10,12 +10,10 @@ import {
   CreateJobPayload,
   createJobFromTextApi
 } from '../services/jobApi';
-import { getApiKeys } from '../services/settingsApi';
+
 import JobStatusBadge from '../components/jobs/JobStatusBadge';
-import JobRecommendationBadge from '../components/jobs/JobRecommendationBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import Toast from '../components/common/Toast';
-import { getAllJobRecommendations, JobRecommendation } from '../services/jobRecommendationApi';
 
 // Define type for the form data used in the Add/Edit modal
 type JobFormData = Partial<Omit<JobApplication, '_id' | 'createdAt' | 'updatedAt' | 'generationStatus' | 'generatedCvFilename' | 'generatedCoverLetterFilename'>>;
@@ -52,9 +50,7 @@ const DashboardPage: React.FC = () => {
   // --- Toast State ---
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // --- API Key Status ---
-  const [isGeminiKeyMissing, setIsGeminiKeyMissing] = useState<boolean>(false);
-  const [isCheckingApiKeys, setIsCheckingApiKeys] = useState<boolean>(true);
+
 
   // --- Delete Confirmation Modal State ---
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ isOpen: boolean; jobId: string | null; jobTitle: string }>({
@@ -67,30 +63,7 @@ const DashboardPage: React.FC = () => {
   // --- Pagination State ---
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // --- Recommendations State ---
-  const [recommendations, setRecommendations] = useState<Record<string, JobRecommendation>>({});
-  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState<boolean>(false);
-  const [pendingRecommendationJobIds, setPendingRecommendationJobIds] = useState<Set<string>>(new Set());
 
-  // --- useEffect: Check API keys status ---
-  useEffect(() => {
-    const checkApiKeys = async () => {
-      setIsCheckingApiKeys(true);
-      try {
-        const apiKeys = await getApiKeys();
-        // Check new location for Gemini key (aiProviders.providers.gemini)
-        const hasGeminiKey = apiKeys.aiProviders?.providers?.gemini?.accessToken;
-        setIsGeminiKeyMissing(!hasGeminiKey);
-      } catch (err: any) {
-        console.error("Failed to check API keys:", err);
-        // If we can't check, assume key is missing to show warning
-        setIsGeminiKeyMissing(true);
-      } finally {
-        setIsCheckingApiKeys(false);
-      }
-    };
-    checkApiKeys();
-  }, []);
 
   // --- useEffect: Fetch initial job data ---
   useEffect(() => {
@@ -110,49 +83,6 @@ const DashboardPage: React.FC = () => {
     fetchJobs();
   }, []);
 
-  // --- useEffect: Fetch recommendations when jobs are loaded ---
-  useEffect(() => {
-    const fetchRecommendations = async () => {
-      if (jobs.length === 0) {
-        setRecommendations({});
-        return;
-      }
-
-      setIsLoadingRecommendations(true);
-      try {
-        const fetchedRecommendations = await getAllJobRecommendations();
-        setRecommendations(fetchedRecommendations);
-        // Clear pending jobs that now have recommendations
-        setPendingRecommendationJobIds(prev => {
-          const updated = new Set(prev);
-          Object.keys(fetchedRecommendations).forEach(jobId => updated.delete(jobId));
-          return updated;
-        });
-      } catch (err: any) {
-        console.error("Failed to fetch recommendations:", err);
-        setRecommendations({});
-      } finally {
-        setIsLoadingRecommendations(false);
-      }
-    };
-
-    if (!isLoading) {
-      fetchRecommendations();
-    }
-  }, [jobs, isLoading]);
-
-  // --- Function to refetch recommendations ---
-  const refetchRecommendations = async () => {
-    setIsLoadingRecommendations(true);
-    try {
-      const fetchedRecommendations = await getAllJobRecommendations();
-      setRecommendations(fetchedRecommendations);
-    } catch (err: any) {
-      console.error("Failed to refetch recommendations:", err);
-    } finally {
-      setIsLoadingRecommendations(false);
-    }
-  };
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -255,8 +185,6 @@ const DashboardPage: React.FC = () => {
         const payload = formData as CreateJobPayload;
         const createdJob = await createJob(payload);
         setJobs(prevJobs => [createdJob, ...prevJobs]);
-        // Mark this job as pending recommendation
-        setPendingRecommendationJobIds(prev => new Set(prev).add(createdJob._id));
         handleCloseModal();
         setToast({ message: 'Job application added successfully!', type: 'success' });
       } else if (modalMode === 'edit' && currentJobId) {
@@ -291,11 +219,6 @@ const DashboardPage: React.FC = () => {
     try {
       await deleteJob(jobId);
       setJobs(prevJobs => prevJobs.filter(job => job._id !== jobId));
-      setRecommendations(prev => {
-        const updated = { ...prev };
-        delete updated[jobId];
-        return updated;
-      });
       setDeleteConfirmModal({ isOpen: false, jobId: null, jobTitle: '' });
       setToast({ message: 'Job application deleted successfully!', type: 'success' });
     } catch (err: any) {
@@ -332,8 +255,6 @@ const DashboardPage: React.FC = () => {
     try {
       const newJob = await createJobFromTextApi(jobTextInput);
       setJobs(prevJobs => [newJob, ...prevJobs]);
-      // Mark this job as pending recommendation
-      setPendingRecommendationJobIds(prev => new Set(prev).add(newJob._id));
       setJobTextInput('');
       setToast({ message: 'Job application created successfully!', type: 'success' });
     } catch (err: any) {
@@ -465,44 +386,7 @@ const DashboardPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Job Dashboard</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">Manage your job applications and track your progress.</p>
         </div>
-        {/* Persistent API Key Warning Banner */}
-        {!isCheckingApiKeys && isGeminiKeyMissing && (
-          <div className="mb-6 p-4 rounded-lg border bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 mt-0.5">
-                <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-semibold mb-1 text-amber-800 dark:text-amber-300">
-                  API Key Required
-                </h3>
-                <p className="text-sm mb-3 text-amber-700 dark:text-amber-400">
-                  Gemini API key is required to use AI features like job extraction, CV analysis, and document generation. Please add your Gemini API key in Settings. You can get a free API key from{' '}
-                  <a
-                    href="https://makersuite.google.com/app/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-amber-900 dark:hover:text-amber-300"
-                  >
-                    https://makersuite.google.com/app/apikey
-                  </a>
-                </p>
-                <Link
-                  to="/settings"
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-amber-600 hover:bg-amber-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Go to Settings
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
+
 
         {/* Add Job Section */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 space-y-6">
@@ -705,7 +589,6 @@ const DashboardPage: React.FC = () => {
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Job Title</th>
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Company</th>
                         <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Status</th>
-                        <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Job Match Score</th>
                         <th
                           onClick={() => handleSort('createdAt')}
                           className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -730,12 +613,6 @@ const DashboardPage: React.FC = () => {
                           <td className="p-4 text-slate-600 dark:text-slate-400">{job.companyName}</td>
                           <td className="p-4">
                             <JobStatusBadge type="application" status={job.status} />
-                          </td>
-                          <td className="p-4">
-                            <JobRecommendationBadge
-                              recommendation={recommendations[job._id] || null}
-                              isLoading={isLoadingRecommendations || pendingRecommendationJobIds.has(job._id)}
-                            />
                           </td>
                           <td className="p-4 text-slate-600 dark:text-slate-400">
                             {new Date(job.createdAt).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}

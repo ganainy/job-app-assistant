@@ -2,6 +2,7 @@
 import JobApplication from '../models/JobApplication';
 import Profile from '../models/Profile';
 import User from '../models/User';
+import CV from '../models/CV';
 import WorkflowRun from '../models/WorkflowRun';
 import { retrieveJobs, extractJobId, JobSearchOptions } from './jobAcquisitionService';
 import { analyzeJobCompanyAndRelevance } from './jobAnalysisService';
@@ -28,22 +29,22 @@ export interface WorkflowStats {
 
 /**
  * Get user's base resume text
- * Fetches from User's cvJson (Master CV) and converts to text
+ * Fetches from CV model (Master CV) and converts to text
  */
 const getUserResumeText = async (userId: string): Promise<string> => {
     try {
-        const user = await User.findById(userId);
+        // Fetch master CV from unified CV model
+        const masterCv = await CV.findOne({
+            userId: new mongoose.Types.ObjectId(userId),
+            isMasterCv: true
+        });
 
-        if (!user) {
-            throw new Error(`User not found: ${userId}`);
-        }
-
-        if (!user.cvJson) {
+        if (!masterCv || !masterCv.cvJson) {
             throw new Error('User has not uploaded a Master CV. Please upload your CV in the CV Management section before using Auto Jobs.');
         }
 
         // Convert JSON Resume to text format
-        const resumeText = convertJsonResumeToText(user.cvJson as any);
+        const resumeText = convertJsonResumeToText(masterCv.cvJson as any);
         return resumeText;
     } catch (error: any) {
         console.error(`Error retrieving resume for user ${userId}:`, error.message);

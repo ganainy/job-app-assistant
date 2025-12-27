@@ -1,8 +1,13 @@
 import mongoose from 'mongoose';
 import JobApplication, { IJobApplication } from '../models/JobApplication';
-import User from '../models/User';
+import CV from '../models/CV';
 import { analyzeWithGemini } from './atsGeminiService';
 import { JsonResumeSchema } from '../types/jsonresume';
+
+export interface KeywordAnalysis {
+    matchedKeywords: string[];
+    missingKeywords: string[];
+}
 
 export interface JobRecommendation {
     shouldApply: boolean;
@@ -11,6 +16,7 @@ export interface JobRecommendation {
     cached: boolean;
     cachedAt?: Date;
     error?: string;
+    keywordAnalysis?: KeywordAnalysis;
 }
 
 export async function getJobRecommendation(
@@ -39,28 +45,20 @@ export async function getJobRecommendation(
                 score: job.recommendation.score,
                 reason: job.recommendation.reason,
                 cached: true,
-                cachedAt: job.recommendation.cachedAt
+                cachedAt: job.recommendation.cachedAt,
+                keywordAnalysis: (job.recommendation as any).keywordAnalysis
             };
         }
 
-        const user = await User.findById(userIdObj).select('cvJson');
-        if (!user) {
+        // Fetch master CV from the unified CV model
+        const masterCv = await CV.findOne({ userId: userIdObj, isMasterCv: true });
+        if (!masterCv || !masterCv.cvJson) {
             return {
                 shouldApply: false,
                 score: null,
-                reason: 'User not found',
+                reason: 'Please upload your master CV first to get recommendations',
                 cached: false,
-                error: 'User not found'
-            };
-        }
-
-        if (!user.cvJson) {
-            return {
-                shouldApply: false,
-                score: null,
-                reason: 'Please upload your CV first to get recommendations',
-                cached: false,
-                error: 'CV not found'
+                error: 'Master CV not found - please upload your CV on the CV Management page'
             };
         }
 
@@ -76,7 +74,7 @@ export async function getJobRecommendation(
 
         const analysisResult = await analyzeWithGemini(
             userIdObj.toString(),
-            user.cvJson as JsonResumeSchema,
+            masterCv.cvJson as JsonResumeSchema,
             job.jobDescriptionText
         );
 
@@ -89,14 +87,14 @@ export async function getJobRecommendation(
                 cachedAt: new Date(),
                 error: errorMsg
             };
-            
+
             // Store error in recommendation field
             await JobApplication.findByIdAndUpdate(
                 jobIdObj,
                 { $set: { recommendation: recommendationWithError } },
                 { new: true }
             );
-            
+
             return {
                 shouldApply: false,
                 score: null,
@@ -109,6 +107,14 @@ export async function getJobRecommendation(
         const score = analysisResult.score;
         let shouldApply: boolean;
         let reason: string;
+
+        // Extract keyword analysis from ATS results
+        const matchedKeywords = analysisResult.details.complianceDetails?.keywordsMatched || [];
+        const missingKeywords = analysisResult.details.complianceDetails?.keywordsMissing || [];
+        const keywordAnalysis: KeywordAnalysis = {
+            matchedKeywords,
+            missingKeywords
+        };
 
         if (score >= 70) {
             shouldApply = true;
@@ -131,7 +137,8 @@ export async function getJobRecommendation(
             score,
             shouldApply,
             reason,
-            cachedAt: new Date()
+            cachedAt: new Date(),
+            keywordAnalysis
         };
 
         await JobApplication.findByIdAndUpdate(
@@ -145,7 +152,8 @@ export async function getJobRecommendation(
             score,
             reason,
             cached: false,
-            cachedAt: recommendation.cachedAt
+            cachedAt: recommendation.cachedAt,
+            keywordAnalysis
         };
 
     } catch (error: any) {
@@ -165,16 +173,16 @@ export async function getAllJobRecommendations(
 ): Promise<Record<string, JobRecommendation>> {
     try {
         const userIdObj = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
-        
+
         const jobs = await JobApplication.find({ userId: userIdObj }).select('_id recommendation jobDescriptionText') as IJobApplication[];
-        
+
         const recommendations: Record<string, JobRecommendation> = {};
         const jobsToGenerate: Array<{ jobId: mongoose.Types.ObjectId; jobIdString: string }> = [];
-        
+
         for (const job of jobs) {
             const jobId = job._id as mongoose.Types.ObjectId;
             const jobIdString = jobId.toString();
-            
+
             if (job.recommendation) {
                 recommendations[jobIdString] = {
                     shouldApply: job.recommendation.shouldApply,
@@ -196,7 +204,7 @@ export async function getAllJobRecommendations(
                 }
             }
         }
-        
+
         for (const { jobId, jobIdString } of jobsToGenerate) {
             try {
                 const recommendation = await getJobRecommendation(userIdObj, jobId, true);
@@ -212,7 +220,7 @@ export async function getAllJobRecommendations(
                 };
             }
         }
-        
+
         return recommendations;
     } catch (error: any) {
         console.error('Error getting all job recommendations:', error);
@@ -225,19 +233,19 @@ export async function regenerateAllJobRecommendations(
 ): Promise<Record<string, JobRecommendation>> {
     try {
         const userIdObj = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
-        
+
         const jobs = await JobApplication.find({ userId: userIdObj }) as IJobApplication[];
-        
+
         const recommendations: Record<string, JobRecommendation> = {};
-        
+
         for (const job of jobs) {
             const jobId = job._id as mongoose.Types.ObjectId;
             const jobIdString = jobId.toString();
-            
+
             const recommendation = await getJobRecommendation(userIdObj, jobId, true);
             recommendations[jobIdString] = recommendation;
         }
-        
+
         return recommendations;
     } catch (error: any) {
         console.error('Error regenerating all job recommendations:', error);

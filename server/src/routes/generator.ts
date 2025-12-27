@@ -130,16 +130,13 @@ const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, r
         const currentUser = await User.findById(userId);
         if (!currentUser) { res.status(404).json({ message: "User not found." }); return; }
 
-        // Fetch Base CV from Unified CV Model first, fallback to User model
+        // Fetch Base CV from Unified CV Model
         let baseCvJson: JsonResumeSchema | null = null;
         const masterCv = await CV.findOne({ userId, isMasterCv: true });
 
         if (masterCv && masterCv.cvJson) {
             baseCvJson = masterCv.cvJson;
             console.log("Using Master CV from Unified CV Model.");
-        } else if (currentUser.cvJson) {
-            baseCvJson = currentUser.cvJson as JsonResumeSchema;
-            console.log("Using legacy Master CV from User model.");
         }
 
         if (!baseCvJson?.basics) { res.status(400).json({ message: 'Valid base CV with basics section not found in user profile.' }); return; }
@@ -175,6 +172,7 @@ const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, r
                 *   CRITICAL OUTPUT STRUCTURE: The output for the CV MUST be a complete JSON object strictly adhering to the JSON Resume Schema (https://jsonresume.org/schema/). Include standard sections like \`basics\`, \`work\`, \`education\`, \`skills\`, etc., as applicable based on the input CV.
                 *   Specific Key Mapping: Use standard JSON Resume keys like \`basics\`, \`work\`, \`volunteer\`, \`education\`, \`awards\`, \`certificates\`, \`publications\`, \`skills\`, \`languages\`, \`interests\`, \`references\`, \`projects\`. DO NOT use non-standard keys like 'personalInfo' or 'experience'.
                 *   **IMPORTANT:** Ensure the \`basics.summary\` field is populated with a strong, tailored professional summary based on the candidate's profile and the job description. Do not leave this field empty.
+                *   **IMPORTANT:** Do NOT mention the specific name of the company you are applying to anywhere in the generated CV (e.g. in the summary, objective, or descriptions). Focus on the role and skills, but keep the document company-agnostic.
                 *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in ${languageName}.
 
             B.  **Write the Cover Letter (in ${languageName}):**
@@ -261,7 +259,7 @@ const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, r
 
         if (requiredInputs.length > 0) {
             // --- Handle Pending Input ---
-            console.log(`Placeholders found for job ${jobId}:`, uniquePlaceholders);
+            console.log(`Placeholders found for job ${jobId}.`, uniquePlaceholders);
             const pendingResponse: GeneratePendingResponse = {
                 status: "pending_input",
                 message: "AI requires additional information to finalize the draft.",
@@ -877,14 +875,11 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
             console.log(`Using overridden Base CV data for job ${jobId}`);
             baseCvJson = baseCvDataOverride;
         } else {
-            // Fetch Base CV from Unified CV Model first, fallback to User model
+            // Fetch Base CV from Unified CV Model
             const masterCv = await CV.findOne({ userId, isMasterCv: true });
             if (masterCv && masterCv.cvJson) {
                 baseCvJson = masterCv.cvJson;
                 console.log("Using Master CV from Unified CV Model.");
-            } else if (currentUser.cvJson) {
-                baseCvJson = currentUser.cvJson as JsonResumeSchema;
-                console.log("Using legacy Master CV from User model.");
             }
         }
 
@@ -935,6 +930,7 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
             *   CRITICAL OUTPUT STRUCTURE: The output MUST be a complete JSON object strictly adhering to the JSON Resume Schema (https://jsonresume.org/schema/).
             *   Use standard JSON Resume keys like \`basics\`, \`work\`, \`volunteer\`, \`education\`, \`awards\`, \`certificates\`, \`publications\`, \`skills\`, \`languages\`, \`interests\`, \`references\`, \`projects\`.
             *   **IMPORTANT:** Ensure the \`basics.summary\` field is populated with a strong, tailored professional summary based on the candidate's profile and the job description. Do not leave this field empty.
+            *   **IMPORTANT:** Do NOT mention the specific name of the company you are applying to anywhere in the generated CV (e.g. in the summary, objective, or descriptions). Focus on the role and skills, but keep the document company-agnostic.
             *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in ${languageName}.
             *   **IMPORTANT:** Also provide a list of changes you made, explaining what was modified and why it improves the CV for this specific job.
 

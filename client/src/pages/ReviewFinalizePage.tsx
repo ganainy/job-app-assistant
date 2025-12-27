@@ -22,6 +22,7 @@ import ErrorAlert from '../components/common/ErrorAlert';
 import Spinner from '../components/common/Spinner';
 import Toast from '../components/common/Toast';
 import JobStatusBadge from '../components/jobs/JobStatusBadge';
+import { getJobRecommendation, JobRecommendation } from '../services/jobRecommendationApi';
 import CoverLetterEditor from '../components/CoverLetterEditor';
 import { JobChatWindow, FloatingChatButton } from '../components/chat';
 import PromptCustomizer from '../components/common/PromptCustomizer';
@@ -76,6 +77,11 @@ const ReviewFinalizePage: React.FC = () => {
     const [atsAnalysisId, setAtsAnalysisId] = useState<string | null>(null);
     const [atsPollingIntervalId, setAtsPollingIntervalId] = useState<NodeJS.Timeout | null>(null);
     const [atsProgressMessage, setAtsProgressMessage] = useState<string>('');
+    // --- AI Application Advice State ---
+    const [recommendation, setRecommendation] = useState<JobRecommendation | null>(null);
+    const [isLoadingRecommendation, setIsLoadingRecommendation] = useState<boolean>(false);
+    const [isRefreshingRecommendation, setIsRefreshingRecommendation] = useState<boolean>(false);
+    const [isRecommendationModalOpen, setIsRecommendationModalOpen] = useState<boolean>(false);
     const [activeTab, setActiveTab] = useState<'ai-review' | 'job-description' | 'cover-letter' | 'cv'>(() => {
         // Priority 1: URL Param
         if (tab && ['ai-review', 'job-description', 'cover-letter', 'cv'].includes(tab)) {
@@ -363,6 +369,48 @@ const ReviewFinalizePage: React.FC = () => {
     useEffect(() => {
         setAvailableTemplates(getAllTemplates());
     }, []);
+
+    // Fetch AI recommendation when job application is loaded
+    useEffect(() => {
+        const fetchRecommendation = async () => {
+            if (!jobId || !jobApplication?.jobDescriptionText) {
+                setRecommendation(null);
+                return;
+            }
+
+            setIsLoadingRecommendation(true);
+            try {
+                const result = await getJobRecommendation(jobId);
+                setRecommendation(result);
+            } catch (err: any) {
+                console.error('Failed to fetch recommendation:', err);
+                setRecommendation(null);
+            } finally {
+                setIsLoadingRecommendation(false);
+            }
+        };
+
+        if (jobApplication) {
+            fetchRecommendation();
+        }
+    }, [jobId, jobApplication?.jobDescriptionText]);
+
+    // Handler to refresh AI recommendation
+    const handleRefreshRecommendation = async () => {
+        if (!jobId) return;
+
+        setIsRefreshingRecommendation(true);
+        try {
+            const result = await getJobRecommendation(jobId, true); // Force refresh
+            setRecommendation(result);
+            showToast('AI recommendation updated!', 'success');
+        } catch (err: any) {
+            console.error('Failed to refresh recommendation:', err);
+            showToast('Failed to update recommendation', 'error');
+        } finally {
+            setIsRefreshingRecommendation(false);
+        }
+    };
 
     const pollAtsScores = useCallback(async (analysisIdToPoll: string, startTime: number, intervalIdRef: NodeJS.Timeout | null) => {
         try {
@@ -1321,30 +1369,75 @@ const ReviewFinalizePage: React.FC = () => {
 
 
             <div className="container mx-auto px-4 py-6">
-                {/* Page Title and Status Badges */}
-                <div className="mb-6">
-                    <div className="flex flex-wrap items-center gap-3 mb-4">
+                {/* Page Header */}
+                <div className="flex items-start justify-between gap-4 mb-6">
+                    {/* Left: Job Info */}
+                    <div className="flex-1 min-w-0">
                         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                             {jobApplication.jobTitle}
                         </h1>
-                        <JobStatusBadge type="application" status={jobApplication.status} />
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400 mt-1.5">
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[18px]">apartment</span>
+                                {jobApplication.companyName}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[18px]">schedule</span>
+                                Created: {formatDate(jobApplication.createdAt)}
+                            </span>
+                        </div>
+                    </div>
 
+                    {/* Right: Status & Match Info */}
+                    <div className="flex items-start gap-6 flex-shrink-0">
+                        {/* Status Column */}
+                        <div className="text-center">
+                            <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Status</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                {jobApplication.status}
+                            </p>
+                        </div>
+
+                        {/* Match Column - Clickable */}
+                        <button
+                            onClick={() => setIsRecommendationModalOpen(true)}
+                            className="text-center cursor-pointer hover:opacity-80 transition-opacity"
+                            title="Click to view AI Application Advice"
+                        >
+                            <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Match</p>
+                            <p className={`text-sm font-semibold ${isLoadingRecommendation
+                                    ? 'text-gray-400 dark:text-gray-500'
+                                    : recommendation?.score !== null && recommendation?.score !== undefined
+                                        ? recommendation.shouldApply
+                                            ? 'text-green-600 dark:text-green-400'
+                                            : 'text-amber-600 dark:text-amber-400'
+                                        : 'text-gray-400 dark:text-gray-500'
+                                }`}>
+                                {isLoadingRecommendation ? (
+                                    <span className="inline-flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                                    </span>
+                                ) : recommendation?.score !== null && recommendation?.score !== undefined ? (
+                                    `${recommendation.score}%`
+                                ) : recommendation?.error ? (
+                                    '—'
+                                ) : (
+                                    '—'
+                                )}
+                            </p>
+                        </button>
+
+                        {/* Mark as Applied Button */}
                         {jobApplication.status !== 'Applied' && (
                             <button
                                 onClick={handleMarkAsApplied}
-                                className="ml-auto sm:ml-2 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500 rounded-lg shadow-sm transition-all flex items-center gap-1.5 transform hover:scale-105 active:scale-95"
+                                className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500 rounded-lg shadow-sm transition-all flex items-center gap-1.5 hover:scale-105 active:scale-95"
                                 title="Mark this job as Applied"
                             >
                                 <span className="material-symbols-outlined text-[18px]">check_circle</span>
                                 <span>Mark as Applied</span>
                             </button>
                         )}
-
-                    </div>
-                    <div className="flex items-center gap-2 text-base text-slate-600 dark:text-slate-400 mb-4">
-                        <span>{jobApplication.companyName}</span>
-                        <span className="text-gray-300 dark:text-gray-600">•</span>
-                        <span className="text-sm">Created: {formatDate(jobApplication.createdAt)}</span>
                     </div>
                 </div>
 
@@ -2394,6 +2487,218 @@ const ReviewFinalizePage: React.FC = () => {
                     />
                 )
             }
+
+            {/* AI Application Advice Modal */}
+            {isRecommendationModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="relative w-full max-w-xl max-h-[80vh] overflow-y-auto rounded-2xl shadow-2xl p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        {/* Modal Header */}
+                        <div className="flex items-center gap-3 mb-6">
+                            <span className={`material-symbols-outlined text-2xl ${recommendation?.shouldApply
+                                ? 'text-green-600 dark:text-green-400'
+                                : recommendation?.error
+                                    ? 'text-red-500 dark:text-red-400'
+                                    : recommendation && !recommendation.shouldApply
+                                        ? 'text-amber-600 dark:text-amber-400'
+                                        : 'text-primary'
+                                }`}>smart_toy</span>
+                            <h2 className="text-xl font-bold text-text-main-light dark:text-text-main-dark">AI Application Advice</h2>
+                            <div className="ml-auto flex items-center gap-2">
+                                <button
+                                    onClick={handleRefreshRecommendation}
+                                    disabled={isLoadingRecommendation || isRefreshingRecommendation || !jobApplication?.jobDescriptionText}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title={!jobApplication?.jobDescriptionText ? 'Job description required' : 'Refresh analysis'}
+                                >
+                                    {isRefreshingRecommendation ? (
+                                        <Spinner size="sm" />
+                                    ) : (
+                                        <span className="material-symbols-outlined text-sm">refresh</span>
+                                    )}
+                                    <span>Refresh</span>
+                                </button>
+                                {/* Close Button */}
+                                <button
+                                    onClick={() => setIsRecommendationModalOpen(false)}
+                                    className="p-1.5 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                    title="Close"
+                                >
+                                    <span className="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Loading State */}
+                        {isLoadingRecommendation && (
+                            <div className="flex items-center gap-3 py-8 justify-center">
+                                <Spinner size="md" />
+                                <span className="text-gray-500 dark:text-gray-400">Analyzing job match...</span>
+                            </div>
+                        )}
+
+                        {/* No Job Description */}
+                        {!isLoadingRecommendation && !jobApplication?.jobDescriptionText && (
+                            <div className="flex items-start gap-3 py-4">
+                                <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 mt-0.5">info</span>
+                                <div>
+                                    <p className="text-gray-600 dark:text-gray-400">
+                                        Job description is required to provide AI application advice.
+                                    </p>
+                                    <button
+                                        onClick={handleRefreshJobDetails}
+                                        disabled={isRefreshing || !jobApplication?.jobUrl}
+                                        className="mt-2 text-sm text-primary hover:underline"
+                                    >
+                                        Scrape job description
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Error State - CV not found */}
+                        {!isLoadingRecommendation && recommendation?.error && recommendation.error.toLowerCase().includes('cv') && (
+                            <div className="flex items-start gap-3 py-4">
+                                <span className="material-symbols-outlined text-amber-500 dark:text-amber-400 mt-0.5">upload_file</span>
+                                <div>
+                                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300 mb-1">Master CV Required</p>
+                                    <p className="text-sm text-amber-600 dark:text-amber-400 mb-3">
+                                        Please upload your master CV first to get AI-powered application advice.
+                                    </p>
+                                    <Link
+                                        to="/manage-cv"
+                                        onClick={() => setIsRecommendationModalOpen(false)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+                                    >
+                                        <span className="material-symbols-outlined text-sm">description</span>
+                                        <span>Upload Master CV</span>
+                                    </Link>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Error State - Other errors */}
+                        {!isLoadingRecommendation && recommendation?.error && !recommendation.error.toLowerCase().includes('cv') && (
+                            <div className="flex items-start gap-3 py-4">
+                                <span className="material-symbols-outlined text-red-500 dark:text-red-400 mt-0.5">error</span>
+                                <div>
+                                    <p className="text-sm font-medium text-red-700 dark:text-red-300 mb-1">Analysis Error</p>
+                                    <p className="text-sm text-red-600 dark:text-red-400">{recommendation.error}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Recommendation Result */}
+                        {!isLoadingRecommendation && recommendation && !recommendation.error && (
+                            <div className="space-y-5">
+                                {/* Main Verdict */}
+                                <div className={`flex items-center gap-4 p-5 rounded-xl ${recommendation.shouldApply
+                                    ? 'bg-green-100 dark:bg-green-900/40'
+                                    : 'bg-amber-100 dark:bg-amber-900/40'
+                                    }`}>
+                                    <div className={`flex items-center justify-center w-14 h-14 rounded-full ${recommendation.shouldApply ? 'bg-green-500' : 'bg-amber-500'
+                                        }`}>
+                                        <span className="material-symbols-outlined text-white text-3xl">
+                                            {recommendation.shouldApply ? 'thumb_up' : 'warning'}
+                                        </span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className={`text-xl font-bold ${recommendation.shouldApply
+                                            ? 'text-green-800 dark:text-green-200'
+                                            : 'text-amber-800 dark:text-amber-200'
+                                            }`}>
+                                            {recommendation.shouldApply ? 'Apply!' : 'Consider Carefully'}
+                                        </p>
+                                        {recommendation.score !== null && (
+                                            <p className={`text-sm ${recommendation.shouldApply
+                                                ? 'text-green-700 dark:text-green-300'
+                                                : 'text-amber-700 dark:text-amber-300'
+                                                }`}>
+                                                Match Score: <span className="font-bold text-lg">{recommendation.score}%</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Reason */}
+                                <div>
+                                    <p className="text-sm font-medium text-text-main-light dark:text-text-main-dark mb-2">Why?</p>
+                                    <p className="text-sm text-text-sub-light dark:text-text-sub-dark leading-relaxed">
+                                        {recommendation.reason}
+                                    </p>
+                                </div>
+
+                                {/* Keyword Analysis Section */}
+                                {recommendation.keywordAnalysis && (
+                                    recommendation.keywordAnalysis.matchedKeywords.length > 0 ||
+                                    recommendation.keywordAnalysis.missingKeywords.length > 0
+                                ) && (
+                                        <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
+                                            <p className="text-sm font-medium text-text-main-light dark:text-text-main-dark mb-3">
+                                                Keyword Analysis
+                                            </p>
+                                            <p className="text-xs text-text-sub-light dark:text-text-sub-dark mb-3">
+                                                <span className="text-green-600 dark:text-green-400 font-medium">Matched</span> keywords in your CV |
+                                                <span className="text-amber-600 dark:text-amber-400 font-medium"> Missing</span> from your CV
+                                            </p>
+                                            <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                                {recommendation.keywordAnalysis.matchedKeywords.map((keyword, idx) => (
+                                                    <span
+                                                        key={`matched-${idx}`}
+                                                        className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800"
+                                                    >
+                                                        {keyword}
+                                                    </span>
+                                                ))}
+                                                {recommendation.keywordAnalysis.missingKeywords.map((keyword, idx) => (
+                                                    <span
+                                                        key={`missing-${idx}`}
+                                                        className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                                                    >
+                                                        {keyword}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                {/* Cached Info */}
+                                {recommendation.cached && recommendation.cachedAt && (
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 pt-2">
+                                        Last analyzed: {new Date(recommendation.cachedAt).toLocaleDateString('en-US', {
+                                            month: 'short',
+                                            day: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* No recommendation yet but has job description */}
+                        {!isLoadingRecommendation && !recommendation && jobApplication?.jobDescriptionText && (
+                            <div className="flex flex-col items-center justify-center py-8 gap-4">
+                                <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 text-4xl">auto_awesome</span>
+                                <p className="text-gray-600 dark:text-gray-400 text-center">
+                                    AI recommendation not yet generated.
+                                </p>
+                                <button
+                                    onClick={handleRefreshRecommendation}
+                                    disabled={isRefreshingRecommendation}
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primaryLight disabled:opacity-50 transition-colors"
+                                >
+                                    {isRefreshingRecommendation ? (
+                                        <Spinner size="sm" />
+                                    ) : (
+                                        <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                                    )}
+                                    <span>Generate Recommendation</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

@@ -58,12 +58,10 @@ const generateCoverLetterHandler: RequestHandler = async (req, res) => {
             console.log(`Using overridden Base CV data for cover letter (Job: ${jobId})`);
             baseCvJson = req.body.baseCvData;
         } else {
-            // Fetch Base CV from Unified CV Model first, fallback to User model
+            // Fetch Base CV from Unified CV Model
             const masterCv = await CV.findOne({ userId, isMasterCv: true });
             if (masterCv && masterCv.cvJson) {
                 baseCvJson = masterCv.cvJson;
-            } else if (currentUser.cvJson) {
-                baseCvJson = currentUser.cvJson as JsonResumeSchema;
             }
         }
 

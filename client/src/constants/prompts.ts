@@ -22,6 +22,7 @@ Your task is to tailor a provided base CV (in JSON Resume format) for a specific
 *   CRITICAL OUTPUT STRUCTURE: The output MUST be a complete JSON object strictly adhering to the JSON Resume Schema (https://jsonresume.org/schema/).
 *   Use standard JSON Resume keys like \`basics\`, \`work\`, \`volunteer\`, \`education\`, \`awards\`, \`certificates\`, \`publications\`, \`skills\`, \`languages\`, \`interests\`, \`references\`, \`projects\`.
 *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in {{language}}.
+*   IMPORTANT: Do NOT mention the specific name of the company you are applying to anywhere in the generated CV (e.g. in the summary, objective, or descriptions). Focus on the role and skills, but keep the document company-agnostic.
 
 **Output Format:**
 Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object should be the complete, tailored CV data as a valid JSON Resume Schema object (in {{language}}).
@@ -97,3 +98,4 @@ Write a professional cover letter in {{language}} following these guidelines:
    - Do NOT include any explanations or additional text outside the cover letter content
 
 **Important:** The entire cover letter must be returned as plain text, ready to use. Do not include placeholders or ask for additional information.`;
+

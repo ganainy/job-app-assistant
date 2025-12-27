@@ -118,8 +118,7 @@ router.post('/login', validateRequest({ body: loginBodySchema }), async (req: Va
             token: token,
             user: { // Send back some user info (excluding password hash!)
                 id: user._id,
-                email: user.email,
-                cvJson: user.cvJson || null
+                email: user.email
             }
         });
 

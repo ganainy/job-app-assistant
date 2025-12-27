@@ -2,6 +2,11 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api';
 
+export interface KeywordAnalysis {
+    matchedKeywords: string[];
+    missingKeywords: string[];
+}
+
 export interface JobRecommendation {
     shouldApply: boolean;
     score: number | null;
@@ -9,6 +14,7 @@ export interface JobRecommendation {
     cached: boolean;
     cachedAt?: string;
     error?: string;
+    keywordAnalysis?: KeywordAnalysis;
 }
 
 export const getJobRecommendation = async (

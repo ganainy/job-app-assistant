@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import { Types } from 'mongoose';
 import CvAnalysis, { ICvAnalysis } from '../models/CvAnalysis';
-import User from '../models/User';
 import JobApplication, { IJobApplication } from '../models/JobApplication';
 import CV from '../models/CV'; // Import Unified CV Model
 import { performAtsAnalysis } from '../services/analysisService';
@@ -63,12 +62,7 @@ export const scanAts = async (req: ValidatedRequest, res: Response) => {
                 cvJson = masterCv.cvJson;
                 console.log('[ATS] Using unified CV model (Master) for ATS analysis');
             } else {
-                const user = await User.findById(userId).select('cvJson');
-                if (!user || !user.cvJson) {
-                    throw new ValidationError('No CV found. Please upload a CV or generate a tailored CV first.');
-                }
-                cvJson = user.cvJson as JsonResumeSchema;
-                console.log('[ATS] Using legacy Master CV (User.cvJson) for ATS analysis');
+                throw new ValidationError('No CV found. Please upload a CV or generate a tailored CV first.');
             }
         }
     } else {
@@ -79,16 +73,7 @@ export const scanAts = async (req: ValidatedRequest, res: Response) => {
             cvJson = masterCv.cvJson;
             console.log('[ATS] Using unified CV model (Master) for general ATS analysis');
         } else {
-            const user = await User.findById(userId).select('cvJson');
-            if (!user) {
-                throw new NotFoundError('User not found');
-            }
-
-            if (!user.cvJson) {
-                throw new ValidationError('No CV found. Please upload a CV first.');
-            }
-            cvJson = user.cvJson as JsonResumeSchema;
-            console.log('[ATS] Using legacy Master CV (User.cvJson) for general ATS analysis');
+            throw new ValidationError('No CV found. Please upload a CV first.');
         }
     }
 
@@ -202,12 +187,7 @@ export const scanAtsForAnalysis = async (req: ValidatedRequest, res: Response) =
                 cvJson = masterCv.cvJson;
                 console.log('[ATS] Using unified CV model (Master) for ATS analysis');
             } else {
-                const user = await User.findById(userId).select('cvJson');
-                if (!user || !user.cvJson) {
-                    throw new ValidationError('No CV found. Please upload a CV or generate a tailored CV first.');
-                }
-                cvJson = user.cvJson as JsonResumeSchema;
-                console.log('[ATS] Using legacy Master CV (User.cvJson) for ATS analysis');
+                throw new ValidationError('No CV found. Please upload a CV or generate a tailored CV first.');
             }
         }
     } else {
@@ -218,12 +198,7 @@ export const scanAtsForAnalysis = async (req: ValidatedRequest, res: Response) =
             cvJson = masterCv.cvJson;
             console.log('[ATS] Using unified CV model (Master) for general ATS analysis');
         } else {
-            const user = await User.findById(userId).select('cvJson');
-            if (!user || !user.cvJson) {
-                throw new ValidationError('No CV found. Please upload a CV first.');
-            }
-            cvJson = user.cvJson as JsonResumeSchema;
-            console.log('[ATS] Using legacy Master CV (User.cvJson) for general ATS analysis');
+            throw new ValidationError('No CV found. Please upload a CV first.');
         }
     }
 

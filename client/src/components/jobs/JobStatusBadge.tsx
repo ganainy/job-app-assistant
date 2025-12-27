@@ -14,14 +14,15 @@ const JobStatusBadge: React.FC<JobStatusBadgeProps> = ({ type, status, className
     const getStatusConfig = () => {
         if (type === 'application') {
             const appStatus = status as ApplicationStatus;
+            // Only 'Applied' gets green text, everything else is plain gray text
             const configs: Record<ApplicationStatus, { color: string; label: string }> = {
-                'Applied': { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', label: 'Applied' },
-                'Not Applied': { color: 'text-gray-500 dark:text-gray-400', label: 'Not Applied' },
-                'Interview': { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300', label: 'Interview' },
-                'Assessment': { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300', label: 'Assessment' },
-                'Rejected': { color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300', label: 'Rejected' },
-                'Closed': { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300', label: 'Closed' },
-                'Offer': { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', label: 'Offer' },
+                'Applied': { color: 'text-green-600 dark:text-green-400 font-medium', label: 'Applied' },
+                'Not Applied': { color: 'text-slate-500 dark:text-slate-400', label: 'Not Applied' },
+                'Interview': { color: 'text-slate-500 dark:text-slate-400', label: 'Interview' },
+                'Assessment': { color: 'text-slate-500 dark:text-slate-400', label: 'Assessment' },
+                'Rejected': { color: 'text-slate-500 dark:text-slate-400', label: 'Rejected' },
+                'Closed': { color: 'text-slate-500 dark:text-slate-400', label: 'Closed' },
+                'Offer': { color: 'text-slate-500 dark:text-slate-400', label: 'Offer' },
             };
             return configs[appStatus];
         } else {
@@ -40,6 +41,16 @@ const JobStatusBadge: React.FC<JobStatusBadgeProps> = ({ type, status, className
 
     const config = getStatusConfig();
 
+    // For application status, render as plain text (no badge styling)
+    if (type === 'application') {
+        return (
+            <span className={`text-sm ${config.color} ${className}`}>
+                {config.label}
+            </span>
+        );
+    }
+
+    // For generation status, keep the badge styling
     return (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color} ${className}`}>
             {config.label}
@@ -48,4 +59,3 @@ const JobStatusBadge: React.FC<JobStatusBadgeProps> = ({ type, status, className
 };
 
 export default JobStatusBadge;
-
