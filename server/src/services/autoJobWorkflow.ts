@@ -234,20 +234,23 @@ async function executeWorkflow(runId: string, userId: string, isManual: boolean)
         await updateProgress('Deduplicate', 'running', 2, 'Checking for duplicates...');
         console.log(`\n→ Checking for duplicates...`);
 
-        const newJobs = [];
-        for (const job of rawJobs) {
-            // Check if job already exists (including soft-deleted ones, to prevent re-fetching)
-            const exists = await JobApplication.findOne({
-                userId: new mongoose.Types.ObjectId(userId),
-                jobId: job.jobId
-            });
+        // Batch deduplication: Single query instead of N sequential queries
+        // This reduces 100 DB round-trips to just 1 query
+        const jobIds = rawJobs.map(job => job.jobId);
+        const existingJobs = await JobApplication.find({
+            userId: new mongoose.Types.ObjectId(userId),
+            jobId: { $in: jobIds }
+        }).select('jobId').lean();
 
-            if (exists) {
+        const existingJobIds = new Set(existingJobs.map(job => job.jobId));
+
+        const newJobs = rawJobs.filter(job => {
+            if (existingJobIds.has(job.jobId)) {
                 stats.duplicates++;
-            } else {
-                newJobs.push(job);
+                return false;
             }
-        }
+            return true;
+        });
         stats.newJobs = newJobs.length;
         console.log(`✓ ${stats.newJobs} new jobs, ${stats.duplicates} duplicates`);
         await updateProgress('Deduplicate', 'completed', 2, `${stats.newJobs} new jobs, ${stats.duplicates} duplicates`);

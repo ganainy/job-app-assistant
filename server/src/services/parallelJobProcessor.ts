@@ -3,8 +3,7 @@ import mongoose from 'mongoose';
 import JobApplication from '../models/JobApplication';
 import Profile from '../models/Profile';
 import { analyzeJobCompanyAndRelevance } from './jobAnalysisService';
-// checkRelevanceWithProvider is no longer needed - merged into analyzeJobCompanyAndRelevance
-import { generateCoverLetterWithProvider } from './generatorService';
+// Cover letter generation is now ON-DEMAND (not during batch processing)
 import { processBatchWithErrors, calculateBatchDelay } from '../utils/batchProcessor';
 import { getRateLimitDelay } from './providerService';
 import { ProviderRegistry } from '../domain/providers/ProviderRegistry';
@@ -107,28 +106,9 @@ async function processSingleJob(
         stats.relevant++;
         console.log(`  ✓ Relevant: ${analysis.relevance.reason} (${analysis.relevance.score ?? 'N/A'}% match)`);
 
-        // Step 3: Generate cover letter
-        const generationModel = models.generation || 'gemini-1.5-pro';
-        const coverLetterResult = await generateCoverLetterWithProvider(
-            structuredResume,
-            analysis.company,
-            {
-                jobTitle: job.jobTitle,
-                companyName: job.companyName,
-                jobDescription: job.jobDescriptionText,
-                extractedData: analysis.job.extractedData
-            },
-            profile,
-            provider,
-            generationModel
-        );
-
-        // TODO: Add coverLetter field to JobApplication model
-        // jobApplication.coverLetter = coverLetterResult.coverLetter;
-        jobApplication.processingStatus = 'generated';
-        await jobApplication.save();
-        stats.generated++;
-        console.log(`  ✓ Generated cover letter`);
+        // NOTE: Cover letter generation is now ON-DEMAND
+        // Cover letters will be generated when the user clicks "Apply" or "Generate Cover Letter"
+        // This saves ~50% of AI calls during batch processing
 
         return { success: true, stats, jobApplication };
 
