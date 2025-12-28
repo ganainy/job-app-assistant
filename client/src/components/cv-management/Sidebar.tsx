@@ -69,7 +69,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             </span>
                         </button>
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pl-1 border-l border-gray-200 dark:border-gray-600 ml-1">
+                        <div className="flex items-center gap-1 pl-1 border-l border-gray-200 dark:border-gray-600 ml-1">
                             {onReplaceCv && (
                                 <button
                                     onClick={(e) => {
@@ -123,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             </span>
                         </button>
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pl-1 border-l border-gray-200 dark:border-gray-600 ml-1">
+                        <div className="flex items-center gap-1 pl-1 border-l border-gray-200 dark:border-gray-600 ml-1">
                             {onDeleteCv && (
                                 <button
                                     onClick={(e) => {
@@ -152,9 +152,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className="flex flex-shrink-0 items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors whitespace-nowrap"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={masterCv ? "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" : "M12 4v16m8-8H4"} />
                 </svg>
-                <span>Add CV</span>
+                <span>{masterCv ? 'Update CV' : 'Add CV'}</span>
             </button>
         </div>
     );

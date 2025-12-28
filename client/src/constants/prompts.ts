@@ -17,11 +17,14 @@ Your task is to tailor a provided base CV (in JSON Resume format) for a specific
 *   Analyze the Base CV Data and the Target Job Description.
 *   Identify relevant skills, experiences, and qualifications from the Base CV that match the job requirements.
 *   Rewrite/rephrase content (summaries, work descriptions, project details) to emphasize relevance IN {{language}}, using keywords from the job description where appropriate.
-*   Maintain factual integrity; do not invent skills or experiences.
+*   STRICT RULE - NO FABRICATION: You must ONLY use information that exists in the Base CV. Do NOT invent, add, or fabricate any skills, experiences, projects, certifications, or qualifications that are not explicitly present in the original CV data. If a skill from the job description is not in the CV, do NOT add it.
+*   Maintain factual integrity; do not invent skills or experiences. Every piece of information in the output must be traceable back to the Base CV.
+*   SIZE CONSTRAINT: The tailored CV should be similar in length and size to the original Base CV. Do not significantly expand or pad the content. Keep descriptions concise and proportional to the original.
 *   Optimize the order of items within sections (e.g., work experience) to highlight the most relevant roles first.
 *   CRITICAL OUTPUT STRUCTURE: The output MUST be a complete JSON object strictly adhering to the JSON Resume Schema (https://jsonresume.org/schema/).
 *   Use standard JSON Resume keys like \`basics\`, \`work\`, \`volunteer\`, \`education\`, \`awards\`, \`certificates\`, \`publications\`, \`skills\`, \`languages\`, \`interests\`, \`references\`, \`projects\`.
 *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in {{language}}.
+*   SECTION LABELS TRANSLATION: Include a \`meta.sectionLabels\` object in the output JSON with translated section names in {{language}}. This object should map English section keys to their {{language}} translations. For example, for German: {"summary": "Zusammenfassung", "work": "Berufserfahrung", "education": "Ausbildung", "skills": "Fähigkeiten & Technologien", "languages": "Sprachen", "projects": "Projekte", "certificates": "Zertifikate", "awards": "Auszeichnungen", "volunteer": "Ehrenamt", "interests": "Interessen", "references": "Referenzen"}.
 *   IMPORTANT: Do NOT mention the specific name of the company you are applying to anywhere in the generated CV (e.g. in the summary, objective, or descriptions). Focus on the role and skills, but keep the document company-agnostic.
 
 **Output Format:**

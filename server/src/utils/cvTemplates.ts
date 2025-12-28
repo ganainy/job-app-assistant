@@ -144,6 +144,52 @@ const getHarvardTemplate = (resume: JsonResumeSchema): string => {
         </div>
     ` : '';
 
+    // Projects
+    const projects = resume.projects?.length ? `
+        <div class="section">
+            <div class="section-title">Projects</div>
+            ${resume.projects.map(project => `
+                <div class="item">
+                    <div class="item-header">
+                        <span>${project.name}</span>
+                        <span>${formatDate(project.startDate)} - ${formatDate(project.endDate) || 'Present'}</span>
+                    </div>
+                    <div class="item-subheader">
+                        <span>${project.description || ''}</span>
+                        ${project.url ? `<span><a href="${project.url}">${project.url}</a></span>` : ''}
+                    </div>
+                    ${project.highlights?.length ? `<ul>${project.highlights.map(h => `<li>${h}</li>`).join('')}</ul>` : ''}
+                </div>
+            `).join('')}
+        </div>
+    ` : '';
+
+    // Certificates
+    const certificates = resume.certificates?.length ? `
+        <div class="section">
+            <div class="section-title">Certifications</div>
+            <ul>
+                ${resume.certificates.map(cert => `
+                    <li>
+                        <strong>${cert.name}</strong> - ${cert.issuer} (${formatDate(cert.date)})
+                    </li>
+                `).join('')}
+            </ul>
+        </div>
+    ` : '';
+
+    // Languages
+    const languages = resume.languages?.length ? `
+        <div class="section">
+            <div class="section-title">Languages</div>
+            <p>
+                ${resume.languages.map(lang => `
+                    <strong>${lang.language}:</strong> ${lang.fluency}
+                `).join(' | ')}
+            </p>
+        </div>
+    ` : '';
+
     return `
         <!DOCTYPE html>
         <html>
@@ -156,7 +202,10 @@ const getHarvardTemplate = (resume: JsonResumeSchema): string => {
             ${summary}
             ${education}
             ${work}
+            ${projects}
             ${skills}
+            ${certificates}
+            ${languages}
         </body>
         </html>
     `;
@@ -284,6 +333,48 @@ const getModernAtsTemplate = (resume: JsonResumeSchema): string => {
         </div>
     ` : '';
 
+    // Projects (Modern ATS)
+    const projects = resume.projects?.length ? `
+        <div class="section">
+            <div class="section-title">Projects</div>
+            ${resume.projects.map(project => `
+                <div class="item">
+                    <div class="item-header">
+                        <span class="company-name">${project.name}</span>
+                        <span class="date-range">${formatDate(project.startDate)} - ${formatDate(project.endDate) || 'Present'}</span>
+                    </div>
+                    ${project.description ? `<div class="position-title">${project.description}</div>` : ''}
+                    ${project.url ? `<div><a href="${project.url}">${project.url}</a></div>` : ''}
+                    ${project.highlights?.length ? `<ul>${project.highlights.map(h => `<li>${h}</li>`).join('')}</ul>` : ''}
+                </div>
+            `).join('')}
+        </div>
+    ` : '';
+
+    // Certificates
+    const certificates = resume.certificates?.length ? `
+        <div class="section">
+            <div class="section-title">Certifications</div>
+            ${resume.certificates.map(cert => `
+                <div class="item" style="margin-bottom: 5px;">
+                    <span class="company-name">${cert.name}</span> - ${cert.issuer} <span class="date-range">(${formatDate(cert.date)})</span>
+                </div>
+            `).join('')}
+        </div>
+    ` : '';
+
+    // Languages
+    const languages = resume.languages?.length ? `
+        <div class="section">
+            <div class="section-title">Languages</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+                ${resume.languages.map(lang => `
+                    <div><strong>${lang.language}</strong>: ${lang.fluency}</div>
+                `).join('')}
+            </div>
+        </div>
+    ` : '';
+
     // Skills
     const skills = resume.skills?.length ? `
         <div class="section">
@@ -309,8 +400,11 @@ const getModernAtsTemplate = (resume: JsonResumeSchema): string => {
             ${header}
             ${summary}
             ${work}
+            ${projects}
             ${education}
             ${skills}
+            ${certificates}
+            ${languages}
         </body>
         </html>
     `;
@@ -441,6 +535,45 @@ const getMinimalistTemplate = (resume: JsonResumeSchema): string => {
         </div>
     ` : '';
 
+    // Projects (Minimalist)
+    const projects = resume.projects?.length ? `
+        <div class="section">
+            <div class="section-title">Projects</div>
+            ${resume.projects.map(project => `
+                <div class="item">
+                    <div class="item-header">
+                        <span class="company-name">${project.name}</span>
+                        <span class="date-range">${formatDate(project.startDate)} - ${formatDate(project.endDate) || 'Present'}</span>
+                    </div>
+                    ${project.description ? `<div class="position-title">${project.description}</div>` : ''}
+                    ${project.highlights?.length ? `<ul>${project.highlights.map(h => `<li>${h}</li>`).join('')}</ul>` : ''}
+                </div>
+            `).join('')}
+        </div>
+    ` : '';
+
+    // Certificates
+    const certificates = resume.certificates?.length ? `
+        <div class="section">
+            <div class="section-title">Certifications</div>
+            <ul>
+                ${resume.certificates.map(cert => `
+                    <li>${cert.name} — ${cert.issuer}</li>
+                `).join('')}
+            </ul>
+        </div>
+    ` : '';
+
+    // Languages
+    const languages = resume.languages?.length ? `
+        <div class="section">
+            <div class="section-title">Languages</div>
+            <p>
+                ${resume.languages.map(lang => encodeURIComponent(lang.language || '')).join(' • ')}
+            </p>
+        </div>
+    ` : '';
+
     return `
         <!DOCTYPE html>
         <html>
@@ -452,8 +585,11 @@ const getMinimalistTemplate = (resume: JsonResumeSchema): string => {
             ${header}
             ${summary}
             ${work}
+            ${projects}
             ${education}
             ${skills}
+            ${certificates}
+            ${languages}
         </body>
         </html>
     `;
@@ -474,6 +610,7 @@ const getGermanLatexTemplate = (resume: JsonResumeSchema, language: 'en' | 'de' 
             languages: 'Languages',
             grade: 'Grade',
             motherTongue: 'Mother tongue',
+            certificates: 'Certifications',
         },
         de: {
             professionalProfile: 'Berufliches Profil',
@@ -484,6 +621,7 @@ const getGermanLatexTemplate = (resume: JsonResumeSchema, language: 'en' | 'de' 
             languages: 'Sprachen',
             grade: 'Note',
             motherTongue: 'Muttersprache',
+            certificates: 'Zertifikate',
         },
     };
 
@@ -690,6 +828,28 @@ const getGermanLatexTemplate = (resume: JsonResumeSchema, language: 'en' | 'de' 
         </section>
     ` : '';
 
+    // Certificates
+    const certificates = resume.certificates?.length ? `
+        <section>
+            <h2>${lang.certificates}</h2>
+            <ul>
+                ${resume.certificates.map(cert => `
+                    <li>
+                        <div class="item-content">
+                            <div>
+                                <strong>${cert.name}</strong>
+                                <div class="company">${cert.issuer}</div>
+                            </div>
+                            <div class="item-right">
+                                ${formatDate(cert.date)}
+                            </div>
+                        </div>
+                    </li>
+                `).join('')}
+            </ul>
+        </section>
+    ` : '';
+
     return `
         <!DOCTYPE html>
         <html>
@@ -701,9 +861,10 @@ const getGermanLatexTemplate = (resume: JsonResumeSchema, language: 'en' | 'de' 
             ${header}
             ${summary}
             ${work}
-            ${education}
             ${projects}
+            ${education}
             ${skills}
+            ${certificates}
             ${languages}
         </body>
         </html>

@@ -166,14 +166,18 @@ const generateDocumentsHandler: RequestHandler = async (req: ValidatedRequest, r
             A.  **Tailor the CV (in ${languageName}, STRICT JSON Resume Schema):**
                 *   Analyze the Base CV Data and the Target Job Description.
                 *   Identify relevant skills, experiences, and qualifications from the Base CV that match the job requirements.
+                *   **MANDATORY: INCLUDE ALL PROJECTS.** You MUST include EVERY single project from the Base CV's "projects" section in the output. Do NOT filter, select, or omit ANY projects, even if they seem less relevant. The user requires the full project list. Tailor the *descriptions* of the projects to the job, but do NOT remove the projects themselves. If the input has 20 projects, the output MUST have 20 projects.
                 *   Rewrite/rephrase content (summaries, work descriptions, project details) to emphasize relevance IN ${languageName}, using keywords from the job description where appropriate.
-                *   Maintain factual integrity; do not invent skills or experiences.
-                *   Optimize the order of items within sections (e.g., work experience) to highlight the most relevant roles first.
+                *   STRICT RULE - NO FABRICATION: You must ONLY use information that exists in the Base CV. Do NOT invent, add, or fabricate any skills, experiences, projects, certifications, or qualifications that are not explicitly present in the original CV data. If a skill from the job description is not in the CV, do NOT add it.
+                *   Maintain factual integrity; do not invent skills or experiences. Every piece of information in the output must be traceable back to the Base CV.
+                *   SIZE CONSTRAINT: The tailored CV should be detailed. Do not summarize so much that key details are lost.
+                *   Optimize the order of items within sections (e.g., work experience) to highlight the most relevant roles first, but keep the less relevant ones further down rather than deleting them.
                 *   CRITICAL OUTPUT STRUCTURE: The output for the CV MUST be a complete JSON object strictly adhering to the JSON Resume Schema (https://jsonresume.org/schema/). Include standard sections like \`basics\`, \`work\`, \`education\`, \`skills\`, etc., as applicable based on the input CV.
                 *   Specific Key Mapping: Use standard JSON Resume keys like \`basics\`, \`work\`, \`volunteer\`, \`education\`, \`awards\`, \`certificates\`, \`publications\`, \`skills\`, \`languages\`, \`interests\`, \`references\`, \`projects\`. DO NOT use non-standard keys like 'personalInfo' or 'experience'.
                 *   **IMPORTANT:** Ensure the \`basics.summary\` field is populated with a strong, tailored professional summary based on the candidate's profile and the job description. Do not leave this field empty.
                 *   **IMPORTANT:** Do NOT mention the specific name of the company you are applying to anywhere in the generated CV (e.g. in the summary, objective, or descriptions). Focus on the role and skills, but keep the document company-agnostic.
                 *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in ${languageName}.
+                *   SECTION LABELS TRANSLATION: Include a \`meta.sectionLabels\` object in the output JSON with translated section names in ${languageName}. This object should map English section keys to their ${languageName} translations. For example, for German: {"summary": "Zusammenfassung", "work": "Berufserfahrung", "education": "Ausbildung", "skills": "Fähigkeiten & Technologien", "languages": "Sprachen", "projects": "Projekte", "certificates": "Zertifikate", "awards": "Auszeichnungen", "volunteer": "Ehrenamt", "interests": "Interessen", "references": "Referenzen"}.
 
             B.  **Write the Cover Letter (in ${languageName}):**
                 *   **CRITICAL:** Start the cover letter text *immediately* with the sender's contact information block. Extract the following details *directly* from the \`basics\` section of the provided Base CV Data JSON:
@@ -854,9 +858,22 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
 
     const { jobId } = req.validated!.params!;
     const requestedLanguage = req.validated!.body?.language === 'de' ? 'de' : 'en';
-    // Validate request body for baseCvData which might be passed
-    const requestBody = req.validated!.body as { language?: string; baseCvData?: any };
+
+    // Validate request body
+    const requestBody = req.validated!.body as {
+        language?: string;
+        baseCvData?: any;
+        baseCvId?: string;
+        jobDescription?: string;
+        customInstructions?: string;
+        maxOutputTokens?: number;
+    };
+
     const baseCvDataOverride = requestBody?.baseCvData;
+    const baseCvId = requestBody?.baseCvId;
+    const jobDescriptionOverride = requestBody?.jobDescription;
+    const customInstructionsOverride = requestBody?.customInstructions;
+    const maxOutputTokens = requestBody?.maxOutputTokens;
 
     const languageName = requestedLanguage === 'de' ? 'German' : 'English';
     const userId = user._id.toString();
@@ -865,29 +882,52 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
         // 1. Fetch Job & User data
         const job = await JobApplication.findOne({ _id: jobId, userId: userId });
         if (!job) { res.status(404).json({ message: 'Job application not found or access denied.' }); return; }
+
+        // Update job description if override provided
+        if (jobDescriptionOverride) {
+            job.jobDescriptionText = jobDescriptionOverride;
+            await job.save();
+        }
+
         if (!job.jobDescriptionText) { res.status(400).json({ message: 'Job description text is missing.' }); return; }
+
         const currentUser = await User.findById(userId);
         if (!currentUser) { res.status(404).json({ message: "User not found." }); return; }
 
         let baseCvJson: JsonResumeSchema | null = null;
+        let usedBaseCvId: string | undefined = undefined;
 
-        if (baseCvDataOverride) {
+        if (baseCvDataOverride && typeof baseCvDataOverride === 'object' && baseCvDataOverride.basics) {
+            // Only use override if it looks like a CV
             console.log(`Using overridden Base CV data for job ${jobId}`);
             baseCvJson = baseCvDataOverride;
-        } else {
-            // Fetch Base CV from Unified CV Model
+        } else if (baseCvId) {
+            // Fetch specific Base CV by ID
+            const specificCv = await CV.findOne({ _id: baseCvId, userId });
+            if (specificCv && specificCv.cvJson) {
+                baseCvJson = specificCv.cvJson;
+                usedBaseCvId = specificCv._id.toString();
+                console.log(`Using specific Base CV (${baseCvId}) for job ${jobId}`);
+            } else {
+                console.warn(`Specific Base CV (${baseCvId}) not found, falling back to Master CV.`);
+            }
+        }
+
+        // Fallback to Master CV if no valid base found yet
+        if (!baseCvJson) {
             const masterCv = await CV.findOne({ userId, isMasterCv: true });
             if (masterCv && masterCv.cvJson) {
                 baseCvJson = masterCv.cvJson;
+                usedBaseCvId = masterCv._id.toString();
                 console.log("Using Master CV from Unified CV Model.");
             }
         }
 
         if (!baseCvJson?.basics) { res.status(400).json({ message: 'Valid base CV with basics section not found in user profile or provided override.' }); return; }
 
-        // Fetch Custom Prompt (if any)
+        // Fetch Custom Prompt (if any) or use override
         const profile = await Profile.findOne({ userId: userId });
-        const customPrompt = profile?.customPrompts?.cvPrompt;
+        let customPrompt = customInstructionsOverride || profile?.customPrompts?.cvPrompt;
 
         // 2. Construct CV-only Gemini Prompt
         let prompt: string;
@@ -924,14 +964,19 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
             **Instructions:**
             *   Analyze the Base CV Data and the Target Job Description.
             *   Identify relevant skills, experiences, and qualifications from the Base CV that match the job requirements.
+            *   **MANDATORY: INCLUDE ALL PROJECTS.** You MUST include EVERY single project from the Base CV's "projects" section in the output. Do NOT filter, select, summarize, or omit ANY projects. The user needs their FULL project history. If the Base CV has 20 projects, the customized CV MUST have 20 projects.
+            *   **DO NOT CONDENSE TO ONE PAGE.** Ignore any internal bias for one-page resumes. If the content requires 2, 3, or more pages, that is acceptable. Completeness is more important than brevity.
             *   Rewrite/rephrase content (summaries, work descriptions, project details) to emphasize relevance IN ${languageName}, using keywords from the job description where appropriate.
-            *   Maintain factual integrity; do not invent skills or experiences.
-            *   Optimize the order of items within sections (e.g., work experience) to highlight the most relevant roles first.
+            *   STRICT RULE - NO FABRICATION: You must ONLY use information that exists in the Base CV. Do NOT invent, add, or fabricate any skills, experiences, projects, certifications, or qualifications that are not explicitly present in the original CV data. If a skill from the job description is not in the CV, do NOT add it.
+            *   Maintain factual integrity; do not invent skills or experiences. Every piece of information in the output must be traceable back to the Base CV.
+            *   SIZE CONSTRAINT: The tailored CV MUST NOT be shorter than the Base CV. It should be detailed and comprehensive.
+            *   Optimize the order of items within sections (e.g., work experience) to highlight the most relevant roles first, but keep the less relevant ones further down rather than deleting them.
             *   CRITICAL OUTPUT STRUCTURE: The output MUST be a complete JSON object strictly adhering to the JSON Resume Schema (https://jsonresume.org/schema/).
             *   Use standard JSON Resume keys like \`basics\`, \`work\`, \`volunteer\`, \`education\`, \`awards\`, \`certificates\`, \`publications\`, \`skills\`, \`languages\`, \`interests\`, \`references\`, \`projects\`.
             *   **IMPORTANT:** Ensure the \`basics.summary\` field is populated with a strong, tailored professional summary based on the candidate's profile and the job description. Do not leave this field empty.
             *   **IMPORTANT:** Do NOT mention the specific name of the company you are applying to anywhere in the generated CV (e.g. in the summary, objective, or descriptions). Focus on the role and skills, but keep the document company-agnostic.
             *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in ${languageName}.
+            *   SECTION LABELS TRANSLATION: Include a \`meta.sectionLabels\` object in the tailoredCv JSON with translated section names in ${languageName}. For example, for German: {"summary": "Zusammenfassung", "work": "Berufserfahrung", "education": "Ausbildung", "skills": "Fähigkeiten & Technologien", "languages": "Sprachen", "projects": "Projekte", "certificates": "Zertifikate", "awards": "Auszeichnungen", "volunteer": "Ehrenamt", "interests": "Interessen", "references": "Referenzen"}.
             *   **IMPORTANT:** Also provide a list of changes you made, explaining what was modified and why it improves the CV for this specific job.
 
             **Output Format:**
@@ -977,7 +1022,7 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
         console.log(`Generating ${languageName} CV only for job ${jobId}...`);
         await JobApplication.updateOne({ _id: jobId, userId: userId }, { $set: { generationStatus: 'pending_generation' } });
 
-        const result = await generateContent(userId, prompt);
+        const result = await generateContent(userId, prompt, { maxTokens: maxOutputTokens }); // Pass maxTokens if provided
         const responseText = result.text;
         console.log("Received CV generation response from AI.");
 

@@ -55,7 +55,7 @@ const ModernCleanResume = forwardRef<HTMLDivElement, { data: ResumeData }>((prop
       {data.summary && (
         <section className="mb-4">
           <h2 className="text-base font-bold text-gray-900 mb-2 pb-1 border-b-2 border-blue-600">
-            Professional Summary
+            {data.sectionLabels?.summary || 'Professional Summary'}
           </h2>
           <p className="text-gray-700 leading-relaxed text-xs">{data.summary}</p>
         </section>
@@ -64,7 +64,7 @@ const ModernCleanResume = forwardRef<HTMLDivElement, { data: ResumeData }>((prop
       {data.experiences.length > 0 && data.experiences.some(exp => exp.company || exp.title || exp.description || exp.startDate || exp.endDate) && (
         <section className="mb-4">
           <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b-2 border-blue-600">
-            Professional Experience
+            {data.sectionLabels?.work || 'Professional Experience'}
           </h2>
           <div className="space-y-3">
             {data.experiences.map((experience) => (
@@ -97,7 +97,7 @@ const ModernCleanResume = forwardRef<HTMLDivElement, { data: ResumeData }>((prop
       {data.education.length > 0 && data.education.some(edu => edu.school || edu.degree || edu.field || edu.startDate || edu.endDate) && (
         <section className="mb-4">
           <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b-2 border-blue-600">
-            Education
+            {data.sectionLabels?.education || 'Education'}
           </h2>
           <div className="space-y-3">
             {data.education.map((education) => (
@@ -128,7 +128,7 @@ const ModernCleanResume = forwardRef<HTMLDivElement, { data: ResumeData }>((prop
       {data.skills.length > 0 && (
         <section className="mb-4">
           <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b-2 border-blue-600">
-            Skills & Technologies
+            {data.sectionLabels?.skills || 'Skills & Technologies'}
           </h2>
           <div className="text-gray-700 text-xs leading-relaxed">
             {data.skills.join(" • ")}
@@ -139,7 +139,7 @@ const ModernCleanResume = forwardRef<HTMLDivElement, { data: ResumeData }>((prop
       {data.certifications.length > 0 && (
         <section className="mb-4">
           <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b-2 border-blue-600">
-            Certifications
+            {data.sectionLabels?.certificates || 'Certifications'}
           </h2>
           <div className="space-y-2">
             {data.certifications.map((certification) => (
@@ -167,7 +167,7 @@ const ModernCleanResume = forwardRef<HTMLDivElement, { data: ResumeData }>((prop
       {data.languages.length > 0 && (
         <section className="mb-4">
           <h2 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b-2 border-blue-600">
-            Languages
+            {data.sectionLabels?.languages || 'Languages'}
           </h2>
           <div className="space-y-2">
             {data.languages.map((language) => (

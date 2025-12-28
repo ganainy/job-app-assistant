@@ -45,6 +45,20 @@ export interface CustomSection {
   content: string;
 }
 
+export interface SectionLabels {
+  summary?: string;
+  work?: string;
+  education?: string;
+  skills?: string;
+  languages?: string;
+  projects?: string;
+  certificates?: string;
+  awards?: string;
+  volunteer?: string;
+  interests?: string;
+  references?: string;
+}
+
 export interface ResumeData {
   firstName: string;
   lastName: string;
@@ -64,6 +78,7 @@ export interface ResumeData {
   languages: Language[];
   customSections: CustomSection[];
   selectedTemplate: string;
+  sectionLabels?: SectionLabels;
 }
 
 function generateId(): string {
@@ -193,6 +208,9 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
     };
   });
 
+  // Extract section labels from meta if available
+  const sectionLabels: SectionLabels | undefined = (jsonResume as any).meta?.sectionLabels;
+
   const customSections: CustomSection[] = [];
   if (jsonResume.projects && Array.isArray(jsonResume.projects) && jsonResume.projects.length > 0) {
     const projectContent = jsonResume.projects.map(project => {
@@ -207,7 +225,7 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
     if (projectContent.trim()) {
       customSections.push({
         id: generateId(),
-        heading: 'Projects',
+        heading: sectionLabels?.projects || 'Projects',
         content: projectContent.trim(),
       });
     }
@@ -232,6 +250,7 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
     languages,
     customSections,
     selectedTemplate,
+    sectionLabels,
   };
 }
 

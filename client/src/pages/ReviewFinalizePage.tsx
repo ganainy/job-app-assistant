@@ -3,11 +3,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { updateCustomPrompts } from '../services/settingsApi';
 import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, extractJobFromTextApi } from '../services/jobApi';
-import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments, generateCvOnly } from '../services/generatorApi';
+import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments, generateCvOnly, improveSection } from '../services/generatorApi';
 import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi';
 import { scanAts, getAtsScores, getAtsForJob, AtsScores, deleteAtsAnalysis } from '../services/atsApi';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
-import CvFormEditor from '../components/cv-editor/CvFormEditor';
+import ResumeBuilder from '../components/resume-builder/ResumeBuilder';
 import CvLivePreview, { CvLivePreviewRef } from '../components/cv-editor/CvLivePreview';
 import { downloadCvAsPdf } from '../services/pdfService';
 import { DEFAULT_CV_PROMPT, DEFAULT_COVER_LETTER_PROMPT } from '../constants/prompts';
@@ -62,7 +62,12 @@ const ReviewFinalizePage: React.FC = () => {
     const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
     const [isGeneratingCv, setIsGeneratingCv] = useState<boolean>(false);
     const [generateCvError, setGenerateCvError] = useState<string | null>(null);
-    const [tailoringChanges, setTailoringChanges] = useState<Array<{ section: string; description: string; reason: string; }> | null>(null);
+    const [tailoringChanges, setTailoringChanges] = useState<any[] | null>(null); // New state for changes
+
+    // New state for generation progress
+    type GenerationStep = 'idle' | 'analyzing' | 'matching' | 'tailoring' | 'finalizing';
+    const [generationStep, setGenerationStep] = useState<GenerationStep>('idle');
+    const [generationProgress, setGenerationProgress] = useState(0);
     const [hasMasterCv, setHasMasterCv] = useState<boolean>(false);
     const [notes, setNotes] = useState<string>('');
     const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
@@ -481,6 +486,26 @@ const ReviewFinalizePage: React.FC = () => {
         }
     }, []);
 
+    const [improvingSections, setImprovingSections] = useState<Record<string, boolean>>({});
+
+    const handleImproveSection = async (section: string, index: number, data: any, instructions?: string) => {
+        setImprovingSections(prev => ({ ...prev, [section]: true }));
+        try {
+            const result = await improveSection(section, data, instructions);
+
+            // Show success message
+            showToast(`${section.charAt(0).toUpperCase() + section.slice(1)} improved successfully!`, 'success');
+
+            return result;
+        } catch (error: any) {
+            console.error(`Error improving ${section}:`, error);
+            showToast(error.message || `Failed to improve ${section}`, 'error');
+            throw error;
+        } finally {
+            setImprovingSections(prev => ({ ...prev, [section]: false }));
+        }
+    };
+
     const handleScanAts = async () => {
         if (!jobApplication || !jobId) {
             showToast('Job application not loaded', 'error');
@@ -542,6 +567,30 @@ const ReviewFinalizePage: React.FC = () => {
             setAtsProgressMessage('');
         }
     };
+
+    // progress interval effect
+    useEffect(() => {
+        let interval: NodeJS.Timeout | undefined;
+        if (isGeneratingCv && generationProgress < 90) {
+            interval = setInterval(() => {
+                setGenerationProgress(prev => {
+                    const increment = Math.random() * 8; // Faster increment
+                    const newProgress = Math.min(prev + increment, 90);
+                    if (newProgress >= 20 && generationStep === 'analyzing') {
+                        setGenerationStep('matching');
+                    } else if (newProgress >= 50 && generationStep === 'matching') {
+                        setGenerationStep('tailoring');
+                    } else if (newProgress >= 80 && generationStep === 'tailoring') {
+                        setGenerationStep('finalizing');
+                    }
+                    return newProgress;
+                });
+            }, 500); // Faster interval
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [isGeneratingCv, generationProgress, generationStep]);
 
     const handleDeleteAts = async () => {
         if (!atsAnalysisId) return;
@@ -1147,8 +1196,15 @@ const ReviewFinalizePage: React.FC = () => {
     const handleGenerateSpecificCv = async () => {
         if (!jobId || !jobApplication) return;
 
+        if (!tailoredJobDescription) { // Simplified check as base CV is optional/defaults
+            showToast('Please ensure job description is present', 'error');
+            return;
+        }
+
         setIsGeneratingCv(true);
         setGenerateCvError(null);
+        setGenerationStep('analyzing');
+        setGenerationProgress(5); // Start at 5%
 
         try {
             // 1. Update Job Details if changed
@@ -1171,11 +1227,6 @@ const ReviewFinalizePage: React.FC = () => {
                 }) : null);
             }
 
-            if (!tailoredJobDescription) {
-                setGenerateCvError('Please provide a job description.');
-                return;
-            }
-
             if (!hasMasterCv) {
                 setGenerateCvError('Please upload your master CV first at the CV Management page.');
                 return;
@@ -1195,16 +1246,27 @@ const ReviewFinalizePage: React.FC = () => {
 
             const language = jobApplication.language || 'en';
 
-            // Determine Base CV Data
-            let baseCvDataToUse = undefined;
-            if (selectedBaseCvId !== 'master') {
-                const selectedOption = availableCvs.find(cv => cv.id === selectedBaseCvId);
-                if (selectedOption) {
-                    baseCvDataToUse = selectedOption.data;
-                }
-            }
+            // Simulate progress steps before the actual API call
+            await new Promise(resolve => setTimeout(resolve, 800)); // Analyzing
+            setGenerationStep('matching');
+            setGenerationProgress(25);
 
-            const response = await generateCvOnly(jobId, language as 'en' | 'de', baseCvDataToUse);
+            await new Promise(resolve => setTimeout(resolve, 800)); // Matching
+            setGenerationStep('tailoring');
+            setGenerationProgress(45);
+
+            const response = await generateCvOnly(jobId, language as 'en' | 'de', {
+                baseCvId: selectedBaseCvId === 'master' ? undefined : selectedBaseCvId,
+                jobDescription: tailoredJobDescription,
+                customInstructions: customInstructions,
+                maxOutputTokens: 16384 // Passed to the generator call
+            });
+
+            setGenerationStep('finalizing');
+            setGenerationProgress(100);
+
+            // Brief delay to show completion
+            await new Promise(resolve => setTimeout(resolve, 600));
 
             if (response.status === 'draft_ready') {
                 await fetchJobData();
@@ -1212,6 +1274,7 @@ const ReviewFinalizePage: React.FC = () => {
                     ? ` with ${response.changesCount} tailoring changes`
                     : '';
                 showToast(`CV generated successfully${changesMsg}`, 'success');
+                setCvViewMode('split'); // Switch to split view to see changes
             } else if (response.status === 'pending_input') {
                 setGenerateCvError('Generation requires additional input. Please check the console for details.');
             } else {
@@ -1222,6 +1285,8 @@ const ReviewFinalizePage: React.FC = () => {
             setGenerateCvError(error.message || 'Failed to generate job-specific CV.');
         } finally {
             setIsGeneratingCv(false);
+            setGenerationProgress(0);
+            setGenerationStep('idle');
         }
     };
 
@@ -2317,10 +2382,11 @@ const ReviewFinalizePage: React.FC = () => {
                                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                                         <div className="p-6">
                                             {cvViewMode === 'edit' && cvData && (
-                                                <CvFormEditor
+                                                <ResumeBuilder
                                                     data={cvData}
                                                     onChange={handleCvChange}
-                                                    analysisResult={analysisResult}
+                                                    onImproveSection={handleImproveSection}
+                                                    improvingSections={improvingSections}
                                                 />
                                             )}
                                             {cvViewMode === 'preview' && (
@@ -2337,10 +2403,11 @@ const ReviewFinalizePage: React.FC = () => {
                                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                     <div>
                                                         {cvData && (
-                                                            <CvFormEditor
+                                                            <ResumeBuilder
                                                                 data={cvData}
                                                                 onChange={handleCvChange}
-                                                                analysisResult={analysisResult}
+                                                                onImproveSection={handleImproveSection}
+                                                                improvingSections={improvingSections}
                                                             />
                                                         )}
                                                     </div>
@@ -2506,6 +2573,61 @@ const ReviewFinalizePage: React.FC = () => {
             </div>
 
 
+
+            {/* Tailoring Progress Modal */}
+            {isGeneratingCv && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-700">
+                        <div className="p-8">
+                            <div className="flex justify-center mb-8">
+                                <div className="relative">
+                                    <div className="w-20 h-20 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center animate-pulse">
+                                        <span className="material-symbols-outlined text-4xl text-purple-600 dark:text-purple-400">auto_awesome</span>
+                                    </div>
+                                    <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
+                                </div>
+                            </div>
+
+                            <h3 className="text-xl font-bold text-center text-gray-900 dark:text-gray-100 mb-2">
+                                {generationStep === 'analyzing' && 'Analyzing Job Requirements...'}
+                                {generationStep === 'matching' && 'Matching Skills & Experience...'}
+                                {generationStep === 'tailoring' && 'Tailoring Your Resume...'}
+                                {generationStep === 'finalizing' && 'Finalizing Document...'}
+                            </h3>
+
+                            <p className="text-center text-gray-500 dark:text-gray-400 mb-8 text-sm">
+                                {generationStep === 'analyzing' && 'Identifying key keywords and requirements from the job description.'}
+                                {generationStep === 'matching' && 'Finding the best projects and experiences from your history.'}
+                                {generationStep === 'tailoring' && 'Rewriting descriptions to highlight relevance and impact.'}
+                                {generationStep === 'finalizing' && 'Formatting your new CV for maximum impact.'}
+                            </p>
+
+                            {/* Progress Steps */}
+                            <div className="space-y-4">
+                                <div className="relative pt-1">
+                                    <div className="flex mb-2 items-center justify-between">
+                                        <div className="text-right">
+                                            <span className="text-xs font-semibold inline-block text-purple-600 dark:text-purple-400">
+                                                {Math.round(generationProgress)}%
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-purple-100 dark:bg-gray-700">
+                                        <div style={{ width: `${generationProgress}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-purple-600 transition-all duration-500 ease-out"></div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-2 text-center text-[10px] font-medium text-gray-400">
+                                    <div className={generationStep === 'analyzing' || generationStep === 'matching' || generationStep === 'tailoring' || generationStep === 'finalizing' ? "text-purple-600 dark:text-purple-400" : ""}>Analyze</div>
+                                    <div className={generationStep === 'matching' || generationStep === 'tailoring' || generationStep === 'finalizing' ? "text-purple-600 dark:text-purple-400" : ""}>Match</div>
+                                    <div className={generationStep === 'tailoring' || generationStep === 'finalizing' ? "text-purple-600 dark:text-purple-400" : ""}>Tailor</div>
+                                    <div className={generationStep === 'finalizing' ? "text-purple-600 dark:text-purple-400" : ""}>Finalize</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* CV Preview Modal */}
             <CvPreviewModal

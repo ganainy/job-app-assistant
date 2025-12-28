@@ -23,46 +23,46 @@ const CorporateProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeDat
         <h1 className="text-xl font-bold text-gray-900 mb-2" style={{ fontSize: '20px' }}>
           {data.firstName} {data.lastName}
         </h1>
-          
-          <div className="flex flex-wrap justify-center items-center gap-4 text-sm text-gray-600">
-            {data.email && (
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                <span>{data.email}</span>
-              </div>
-            )}
-            {data.phone && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4" />
-                <span>{data.phone}</span>
-              </div>
-            )}
-            {(data.city || data.state) && (
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                <span>{[data.city, data.state].filter(Boolean).join(', ')}</span>
-              </div>
-            )}
-            {data.website && (
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4" />
-                <span>{data.website}</span>
-              </div>
-            )}
-            {data.linkedIn && (
-              <div className="flex items-center gap-2">
-                <Linkedin className="h-4 w-4" />
-                <span>{data.linkedIn}</span>
-              </div>
-            )}
-          </div>
-        </header>
+
+        <div className="flex flex-wrap justify-center items-center gap-4 text-sm text-gray-600">
+          {data.email && (
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              <span>{data.email}</span>
+            </div>
+          )}
+          {data.phone && (
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4" />
+              <span>{data.phone}</span>
+            </div>
+          )}
+          {(data.city || data.state) && (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              <span>{[data.city, data.state].filter(Boolean).join(', ')}</span>
+            </div>
+          )}
+          {data.website && (
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              <span>{data.website}</span>
+            </div>
+          )}
+          {data.linkedIn && (
+            <div className="flex items-center gap-2">
+              <Linkedin className="h-4 w-4" />
+              <span>{data.linkedIn}</span>
+            </div>
+          )}
+        </div>
+      </header>
 
       <div className="space-y-6">
         {data.summary && (
           <section>
             <h2 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">
-              Professional Summary
+              {data.sectionLabels?.summary || 'Professional Summary'}
             </h2>
             <div
               style={{ borderLeft: '3px solid #3b82f6', paddingLeft: '12px' }}
@@ -78,7 +78,7 @@ const CorporateProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeDat
         {data.skills.length > 0 && (
           <section>
             <h2 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">
-              Technical Skills
+              {data.sectionLabels?.skills || 'Technical Skills'}
             </h2>
             <div
               style={{ borderLeft: '3px solid #10b981', paddingLeft: '12px' }}
@@ -94,9 +94,9 @@ const CorporateProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeDat
         {data.experiences.length > 0 && data.experiences.some(exp => exp.company || exp.title || exp.description || exp.startDate || exp.endDate) && (
           <section>
             <h2 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">
-              Professional Experience
+              {data.sectionLabels?.work || 'Professional Experience'}
             </h2>
-            
+
             <div className="space-y-4">
               {data.experiences.map((experience) => (
                 <div key={experience.id} className="relative">
@@ -114,7 +114,7 @@ const CorporateProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeDat
                       {formatDateRange(experience.startDate, experience.endDate, experience.current)}
                     </div>
                   </div>
-                  
+
                   {experience.description && (
                     <div className="mt-3 ml-0">
                       <div className="text-gray-700 leading-relaxed whitespace-pre-line" style={{ fontSize: '11px' }}>
@@ -133,7 +133,7 @@ const CorporateProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeDat
             {data.education.length > 0 && data.education.some(edu => edu.school || edu.degree || edu.field || edu.startDate || edu.endDate) && (
               <section>
                 <h2 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">
-                  Education
+                  {data.sectionLabels?.education || 'Education'}
                 </h2>
                 <div
                   style={{ borderLeft: '3px solid #8b5cf6', paddingLeft: '12px' }}
@@ -167,7 +167,7 @@ const CorporateProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeDat
             {data.certifications.length > 0 && (
               <section>
                 <h2 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">
-                  Certifications
+                  {data.sectionLabels?.certificates || 'Certifications'}
                 </h2>
                 <div
                   style={{ borderLeft: '3px solid #f59e0b', paddingLeft: '12px' }}
@@ -202,7 +202,7 @@ const CorporateProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeDat
             {data.languages.length > 0 && (
               <section>
                 <h2 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">
-                  Languages
+                  {data.sectionLabels?.languages || 'Languages'}
                 </h2>
                 <div
                   style={{ borderLeft: '3px solid #ef4444', paddingLeft: '12px' }}
@@ -218,7 +218,7 @@ const CorporateProfessionalResume = forwardRef<HTMLDivElement, { data: ResumeDat
                         case 'Basic': rating = 2; break;
                         default: rating = 1; break;
                       }
-                      
+
                       return (
                         <div key={language.id} className="flex justify-between items-center">
                           <div>

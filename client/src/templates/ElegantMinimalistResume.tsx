@@ -14,7 +14,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
       case 'Basic': rating = 2; break;
       default: rating = 1; break;
     }
-    
+
     return Array.from({ length: 5 }, (_, i) => {
       const isFilled = i < rating;
       return (
@@ -36,7 +36,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
         <h1 className="text-lg font-bold mb-1" style={{ color: '#1f2937' }}>
           {data.firstName} {data.lastName}
         </h1>
-        
+
         <div className="flex flex-wrap justify-center gap-3 text-xs text-gray-600 mb-2">
           {data.email && (
             <div className="flex items-center gap-1">
@@ -97,7 +97,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
               data-preserve="true"
             ></div>
             <h2 className="text-base font-bold uppercase tracking-wide" style={{ color: '#1f2937' }}>
-              Professional Summary
+              {data.sectionLabels?.summary || 'Professional Summary'}
             </h2>
           </div>
           <p className="text-gray-700 leading-relaxed text-xs pl-3">{data.summary}</p>
@@ -117,7 +117,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
               data-preserve="true"
             ></div>
             <h2 className="text-base font-bold uppercase tracking-wide" style={{ color: '#1f2937' }}>
-              Professional Experience
+              {data.sectionLabels?.work || 'Professional Experience'}
             </h2>
           </div>
           <div className="space-y-4 pl-4">
@@ -135,7 +135,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
                   }}
                   data-preserve="true"
                 ></div>
-                
+
                 <div className="flex justify-between items-start mb-1">
                   <div className="flex-1">
                     <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>
@@ -174,7 +174,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
               data-preserve="true"
             ></div>
             <h2 className="text-lg font-bold uppercase tracking-wide" style={{ color: '#1f2937' }}>
-              Education
+              {data.sectionLabels?.education || 'Education'}
             </h2>
           </div>
           <div className="space-y-3 pl-4">
@@ -192,7 +192,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
                   }}
                   data-preserve="true"
                 ></div>
-                
+
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>
@@ -229,7 +229,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
               data-preserve="true"
             ></div>
             <h2 className="text-lg font-bold uppercase tracking-wide" style={{ color: '#1f2937' }}>
-              Skills & Technologies
+              {data.sectionLabels?.skills || 'Skills & Technologies'}
             </h2>
           </div>
           <div className="flex flex-wrap gap-2 pl-4">
@@ -263,7 +263,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
               data-preserve="true"
             ></div>
             <h2 className="text-lg font-bold uppercase tracking-wide" style={{ color: '#1f2937' }}>
-              Certifications
+              {data.sectionLabels?.certificates || 'Certifications'}
             </h2>
           </div>
           <div className="space-y-3 pl-4">
@@ -281,7 +281,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
                   }}
                   data-preserve="true"
                 ></div>
-                
+
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>
@@ -319,7 +319,7 @@ const ElegantMinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>
               data-preserve="true"
             ></div>
             <h2 className="text-lg font-bold uppercase tracking-wide" style={{ color: '#1f2937' }}>
-              Languages
+              {data.sectionLabels?.languages || 'Languages'}
             </h2>
           </div>
           <div className="grid grid-cols-2 gap-3 pl-4">

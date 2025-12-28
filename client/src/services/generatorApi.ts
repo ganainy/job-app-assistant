@@ -79,12 +79,12 @@ export const generateDocuments = async (
 export const generateCvOnly = async (
     jobId: string,
     language: 'en' | 'de' = 'en',
-    baseCvData?: any
+    options: any = {}
 ): Promise<GenerateDraftReadyResponse> => {
     try {
         const response = await axios.post<GenerateDraftReadyResponse>(
             `${API_BASE_URL}/generator/${jobId}/generate-cv`,
-            { language, baseCvData }
+            { language, ...options }
         );
         return response.data;
     } catch (error: any) {
