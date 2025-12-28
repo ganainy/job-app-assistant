@@ -63,7 +63,7 @@ const SortableProjectItem: React.FC<SortableProjectItemProps> = ({ project, onTo
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-move"
+      className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-move"
     >
       <div className="flex items-center gap-3 flex-1">
         <div
@@ -588,7 +588,7 @@ const PortfolioSetupPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark p-8">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
         <LoadingSkeleton />
       </div>
     );
@@ -597,16 +597,16 @@ const PortfolioSetupPage: React.FC = () => {
   const progressPercentage = ((activeTab + 1) / 5) * 100;
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark font-display">
-      <main className="flex-grow flex justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-display">
+      <main className="flex-grow flex justify-center py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
         <div className="w-full flex flex-col">
           {/* Page Heading */}
           <div className="flex flex-wrap justify-between gap-4 p-4 items-center">
             <div className="flex flex-col gap-2">
-              <h1 className="text-gray-900 dark:text-white text-4xl font-black leading-tight tracking-[-0.033em]">
+              <h1 className="text-slate-900 dark:text-white text-2xl font-bold leading-tight">
                 Portfolio Setup
               </h1>
-              <p className="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">
+              <p className="text-slate-600 dark:text-slate-400 text-base font-normal leading-normal">
                 Connect your accounts, configure your data, and publish your professional portfolio in minutes.
               </p>
             </div>

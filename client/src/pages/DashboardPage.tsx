@@ -381,18 +381,18 @@ const DashboardPage: React.FC = () => {
 
   // --- Main Dashboard Content ---
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-950">
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-8 space-y-8">
+      <div className="flex-1 overflow-y-auto p-6 lg:p-8 space-y-6">
         <div className="mb-2">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Job Dashboard</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Manage your job applications and track your progress.</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Job Dashboard</h1>
+          <p className="mt-1 text-slate-600 dark:text-slate-400">Manage your job applications and track your progress.</p>
         </div>
 
 
         {/* Add Job Section */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 space-y-6">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-6">
           <div className="flex flex-col gap-4">
             <form onSubmit={handleCreateFromTextSubmit} className="w-full">
               <div className="relative">
@@ -511,7 +511,7 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Job List Section */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 space-y-6">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 space-y-6">
           {/* Filter Controls */}
           <div>
             <div className="flex flex-col md:flex-row items-center gap-4 mb-4">

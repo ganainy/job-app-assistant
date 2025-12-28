@@ -977,15 +977,15 @@ const generateCvOnlyHandler: RequestHandler = async (req: ValidatedRequest, res)
             *   **IMPORTANT:** Do NOT mention the specific name of the company you are applying to anywhere in the generated CV (e.g. in the summary, objective, or descriptions). Focus on the role and skills, but keep the document company-agnostic.
             *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in ${languageName}.
             *   SECTION LABELS TRANSLATION: Include a \`meta.sectionLabels\` object in the tailoredCv JSON with translated section names in ${languageName}. For example, for German: {"summary": "Zusammenfassung", "work": "Berufserfahrung", "education": "Ausbildung", "skills": "Fähigkeiten & Technologien", "languages": "Sprachen", "projects": "Projekte", "certificates": "Zertifikate", "awards": "Auszeichnungen", "volunteer": "Ehrenamt", "interests": "Interessen", "references": "Referenzen"}.
-            *   **IMPORTANT:** Also provide a list of changes you made, explaining what was modified and why it improves the CV for this specific job.
+            *   **IMPORTANT:** Also provide a list of changes you made. **The 'description' and 'reason' fields in this list MUST ALWAYS BE IN ENGLISH, regardless of the target language of the CV.**
 
             **Output Format:**
             Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain:
             1.  \`tailoredCv\`: The complete, tailored CV data as a valid JSON Resume Schema object (in ${languageName}).
             2.  \`changes\`: An array of change objects, each with:
-                - \`section\`: The CV section that was modified (e.g., "summary", "work", "skills", "education", "projects")
-                - \`description\`: A brief description of what was changed
-                - \`reason\`: Why this change was made, ideally referencing relevant job requirements
+                - \`section\`: The CV section that was modified (use English keys: "summary", "work", "skills", "education", "projects", etc.)
+                - \`description\`: A brief description of what was changed (IN ENGLISH)
+                - \`reason\`: Why this change was made, ideally referencing relevant job requirements (IN ENGLISH)
 
             Example output structure:
             \`\`\`json

@@ -367,6 +367,7 @@ const extractFromTextHandler: RequestHandler = async (req: ValidatedRequest, res
     const updateData: any = {
       jobDescriptionText: extractedData.jobDescriptionText,
       language: extractedData.language,
+      jobPrerequisites: extractedData.jobPrerequisites || undefined,
       extractedData: {
         ...existingExtractedData,
         location: extractedData.location || existingExtractedData.location,
@@ -454,6 +455,7 @@ const createJobFromUrlHandler: RequestHandler = async (req: ValidatedRequest, re
       companyName: extractedData.companyName,
       jobDescriptionText: extractedData.jobDescriptionText,
       language: extractedData.language,
+      jobPrerequisites: extractedData.jobPrerequisites || undefined,
       notes: extractedData.notes || '',
       jobUrl: url, // Save the original URL
       status: 'Not Applied', // Default status
@@ -525,6 +527,7 @@ const createJobFromTextHandler: RequestHandler = async (req: ValidatedRequest, r
       companyName: extractedData.companyName,
       jobDescriptionText: extractedData.jobDescriptionText,
       language: extractedData.language,
+      jobPrerequisites: extractedData.jobPrerequisites || undefined,
       notes: extractedData.notes || '',
       status: 'Not Applied',
       isAutoJob: false,

@@ -20,6 +20,7 @@ export interface JobApplication {
     contact?: string; // Email, URL, or name
     jobDescriptionText?: string;
     language?: 'en' | 'de'; // More specific type
+    jobPrerequisites?: string; // AI-extracted job requirements and prerequisites
     draftCvJson?: any | null; // Use JsonResumeSchema if imported, else any
     draftCoverLetterText?: string | null;
     generationStatus?: 'none' | 'pending_input' | 'pending_generation' | 'draft_ready' | 'finalized' | 'error'; // Added pending_generation

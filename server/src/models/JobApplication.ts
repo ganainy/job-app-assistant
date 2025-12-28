@@ -18,6 +18,7 @@ export interface IJobApplication extends Document {
     contact?: string; // Contact info (email, link, or name)
     jobDescriptionText?: string; // Store the scraped text
     language?: string; // Language of the job
+    jobPrerequisites?: string; // AI-extracted job requirements and prerequisites
 
     // --- Auto Job Fields (unified model) ---
     isAutoJob?: boolean; // true if auto-discovered
@@ -96,6 +97,7 @@ const JobApplicationSchema: Schema = new Schema(
         contact: { type: String, trim: true }, // Email, URL, or name
         jobDescriptionText: { type: String }, // Text from scraping
         language: { type: String, trim: true },
+        jobPrerequisites: { type: String }, // AI-extracted job requirements and prerequisites
 
         // --- Auto Job Fields (unified model) ---
         isAutoJob: { type: Boolean, default: false, index: true },

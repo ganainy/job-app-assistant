@@ -26,18 +26,31 @@ Your task is to tailor a provided base CV (in JSON Resume format) for a specific
 *   All textual content within the JSON object (names, summaries, descriptions, etc.) MUST be in {{language}}.
 *   SECTION LABELS TRANSLATION: Include a \`meta.sectionLabels\` object in the output JSON with translated section names in {{language}}. This object should map English section keys to their {{language}} translations. For example, for German: {"summary": "Zusammenfassung", "work": "Berufserfahrung", "education": "Ausbildung", "skills": "Fähigkeiten & Technologien", "languages": "Sprachen", "projects": "Projekte", "certificates": "Zertifikate", "awards": "Auszeichnungen", "volunteer": "Ehrenamt", "interests": "Interessen", "references": "Referenzen"}.
 *   IMPORTANT: Do NOT mention the specific name of the company you are applying to anywhere in the generated CV (e.g. in the summary, objective, or descriptions). Focus on the role and skills, but keep the document company-agnostic.
+*   **IMPORTANT:** Also provide a list of changes you made. **The 'description' and 'reason' fields in this list MUST ALWAYS BE IN ENGLISH, regardless of the target language of the CV.**
 
 **Output Format:**
-Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object should be the complete, tailored CV data as a valid JSON Resume Schema object (in {{language}}).
+Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain:
+1.  \`tailoredCv\`: The complete, tailored CV data as a valid JSON Resume Schema object (in {{language}}).
+2.  \`changes\`: An array of change objects, each with:
+    - \`section\`: The CV section that was modified (use English keys: "summary", "work", "skills", "education", "projects", etc.)
+    - \`description\`: A brief description of what was changed (IN ENGLISH)
+    - \`reason\`: Why this change was made, ideally referencing relevant job requirements (IN ENGLISH)
 
 Example output structure:
 \`\`\`json
 {
-  "basics": { ... },
-  "work": [ ... ],
-  "education": [ ... ],
-  "skills": [ ... ],
-  // ... other JSON Resume sections ...
+  "tailoredCv": {
+    "basics": { ... },
+    "work": [ ... ],
+    // ... other sections ...
+  },
+  "changes": [
+    {
+      "section": "summary",
+      "description": "Rewrote summary to focus on React skills",
+      "reason": "Job requires 5+ years of React experience"
+    }
+  ]
 }
 \`\`\``;
 

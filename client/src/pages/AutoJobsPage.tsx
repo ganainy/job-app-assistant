@@ -71,6 +71,10 @@ const AutoJobsPage: React.FC = () => {
     const [filterRelevance, setFilterRelevance] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState<string>('');
 
+    // Sorting
+    const [sortColumn, setSortColumn] = useState<'postDate' | 'skillMatch' | null>(null);
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
     // Location autocomplete
     const [locationInput, setLocationInput] = useState<string>('');
     const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
@@ -589,50 +593,98 @@ const AutoJobsPage: React.FC = () => {
         return <LoadingSkeleton />;
     }
 
+    // Handle column sort click
+    const handleSort = (column: 'postDate' | 'skillMatch') => {
+        if (sortColumn === column) {
+            // Toggle direction if same column
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            // New column, default to desc (highest first)
+            setSortColumn(column);
+            setSortDirection('desc');
+        }
+    };
+
+    // Sort jobs based on current sort settings
+    const sortedJobs = [...jobs].sort((a, b) => {
+        if (!sortColumn) return 0;
+
+        let comparison = 0;
+        if (sortColumn === 'postDate') {
+            const dateA = a.jobPostDate ? new Date(a.jobPostDate).getTime() : 0;
+            const dateB = b.jobPostDate ? new Date(b.jobPostDate).getTime() : 0;
+            comparison = dateA - dateB;
+        } else if (sortColumn === 'skillMatch') {
+            const scoreA = a.recommendation?.score ?? -1;
+            const scoreB = b.recommendation?.score ?? -1;
+            comparison = scoreA - scoreB;
+        }
+
+        return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    // Render sort indicator
+    const SortIndicator = ({ column }: { column: 'postDate' | 'skillMatch' }) => {
+        if (sortColumn !== column) {
+            return (
+                <svg className="w-4 h-4 ml-1 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+            );
+        }
+        return sortDirection === 'desc' ? (
+            <svg className="w-4 h-4 ml-1 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+        ) : (
+            <svg className="w-4 h-4 ml-1 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+        );
+    };
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto space-y-8">
-                {/* Header - Sticky */}
-                <div className="sticky top-0 z-40 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pt-8 pb-4 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95 border-b border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Auto Jobs</h1>
-                            <p className="mt-1 text-slate-600 dark:text-slate-400">
-                                Automated job discovery and application preparation
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {jobs.length > 0 && (
-                                <button
-                                    onClick={handleDeleteAll}
-                                    disabled={isWorkflowRunning || isTriggering}
-                                    className="px-4 py-2 bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-                                    title="Delete all auto jobs"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                    <span className="hidden sm:inline">Delete All</span>
-                                </button>
-                            )}
+        <div className="h-full overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 lg:p-8">
+            <div className="max-w-7xl mx-auto space-y-6">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Auto Jobs</h1>
+                        <p className="mt-1 text-slate-600 dark:text-slate-400">
+                            Automated job discovery and application preparation
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {jobs.length > 0 && (
                             <button
-                                onClick={handleTrigger}
+                                onClick={handleDeleteAll}
                                 disabled={isWorkflowRunning || isTriggering}
-                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 min-w-[120px] justify-center"
+                                className="px-4 py-2 bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                title="Delete all auto jobs"
                             >
-                                {(isWorkflowRunning || isTriggering) ? (
-                                    <>
-                                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        <span>{isTriggering ? 'Starting...' : 'Running...'}</span>
-                                    </>
-                                ) : (
-                                    <>🚀 Run Now</>
-                                )}
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span className="hidden sm:inline">Delete All</span>
                             </button>
-                        </div>
+                        )}
+                        <button
+                            onClick={handleTrigger}
+                            disabled={isWorkflowRunning || isTriggering}
+                            className="px-4 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 min-w-[120px] justify-center"
+                        >
+                            {(isWorkflowRunning || isTriggering) ? (
+                                <>
+                                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span>{isTriggering ? 'Starting...' : 'Running...'}</span>
+                                </>
+                            ) : (
+                                <>🚀 Run Now</>
+                            )}
+                        </button>
                     </div>
                 </div>
 
@@ -1073,13 +1125,29 @@ const AutoJobsPage: React.FC = () => {
                                 <tr>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">JOB</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">LOCATION</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">POST DATE</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">SKILL MATCH</th>
+                                    <th
+                                        className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors group"
+                                        onClick={() => handleSort('postDate')}
+                                    >
+                                        <span className="flex items-center">
+                                            POST DATE
+                                            <SortIndicator column="postDate" />
+                                        </span>
+                                    </th>
+                                    <th
+                                        className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors group"
+                                        onClick={() => handleSort('skillMatch')}
+                                    >
+                                        <span className="flex items-center">
+                                            SKILL MATCH
+                                            <SortIndicator column="skillMatch" />
+                                        </span>
+                                    </th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">ACTIONS</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                                {jobs.length === 0 ? (
+                                {sortedJobs.length === 0 ? (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-12 text-center">
                                             <div className="flex flex-col items-center gap-3">
@@ -1100,7 +1168,7 @@ const AutoJobsPage: React.FC = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    jobs.map((job) => (
+                                    sortedJobs.map((job) => (
                                         <tr key={job._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">

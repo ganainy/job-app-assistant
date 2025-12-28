@@ -851,7 +851,7 @@ const CVManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col bg-slate-50 dark:bg-slate-950">
       {/* Hide Sidebar when in upload/create mode */}
       {!isReplacing && (
         <Sidebar
@@ -875,15 +875,15 @@ const CVManagementPage: React.FC = () => {
       )}
 
       <div className="flex-1 flex flex-col min-w-0 relative">
-        <div className="flex-1 p-8 space-y-8">
+        <div className="flex-1 p-6 lg:p-8 space-y-6">
 
           {/* Header with CV name and tabs */}
           {currentCvData && !isReplacing && (
-            <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6 -mx-8 -mt-8 mb-8">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-8 py-6 -mx-6 lg:-mx-8 -mt-6 lg:-mt-8 mb-6 rounded-b-xl">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-3">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate max-w-2xl">
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white truncate max-w-2xl">
                       {activeCvData?.basics?.name ? `${activeCvData.basics.name}_CV.pdf` : 'CV_Document.pdf'}
                     </h1>
                     {activeCv?.isMasterCv && (

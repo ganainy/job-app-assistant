@@ -15,6 +15,7 @@ export interface ExtractedJobData {
     location?: string | null; // Extracted location
     salary?: string | null; // Extracted salary info
     keyDetails?: Array<{ key: string; value: string }> | null; // AI extracted highlights (key-value pairs)
+    jobPrerequisites?: string | null; // AI-extracted job requirements and prerequisites
     notes?: string; // Reserved for user, typically null from AI
 }
 
@@ -121,12 +122,14 @@ async function extractFieldsWithGemini(htmlContent: string, url: string, userId:
         4. Determine the primary language of the job posting (e.g., "en" for English, "de" for German, "es" for Spanish, etc.). Use standard ISO 639-1 language codes if possible.
         5. Extract the job location (e.g., "remote", "Berlin", "Hybrid").
         6. Extract any salary or compensation information provided (e.g., "€60k - €80k", "$120,000", "Competitive").
-        7. Extract key highlights such as Employment Type, Experience Level, Remote Policy, Benefits, Tech Stack, Location, Salary, and any other important details. Return them as a structured list of key-value pairs in the 'keyDetails' field. Leave the 'notes' field NULL.
+        7. Extract key highlights such as Employment Type, Experience Level, Remote Policy, Benefits, Tech Stack, Location, Salary, and any other important details. Return them as a structured list of key-value pairs in the 'keyDetails' field.
+        8. Extract the job prerequisites and requirements as a bullet-pointed list. Include required skills, qualifications, years of experience, education requirements, certifications, languages, and any "must-have" or "nice-to-have" items. IMPORTANT: This list MUST BE IN ENGLISH, even if the job description is in another language. Translate the requirements to English if necessary. Format as a clean bulleted list (using • or - characters). Leave the 'notes' field NULL.
 
         Output Format:
-        Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", "location", "salary", "keyDetails", and "notes".
-        - jobTitle, companyName, language, location, salary should be strings if found, or null.
+        Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", "location", "salary", "keyDetails", "jobPrerequisites", and "notes".
+        - jobTitle, companyName, language, location, salary, jobPrerequisites should be strings if found, or null.
         - keyDetails should be an array of objects with "key" and "value" strings, or null.
+        - jobPrerequisites should be a bulleted list string of requirements and qualifications (ALWAYS IN ENGLISH).
         - jobDescriptionText is REQUIRED.
         - 'notes' should be null.
 
@@ -145,6 +148,7 @@ async function extractFieldsWithGemini(htmlContent: string, url: string, userId:
             { "key": "Salary", "value": "€80k" },
             { "key": "Benefits", "value": "Health, Gym" }
           ],
+          "jobPrerequisites": "• 3+ years of experience in software development\\n• Proficiency in Java, JavaScript, or Python\\n• Bachelor's degree in Computer Science or related field\\n• Experience with cloud platforms (AWS, GCP, Azure)\\n• Strong communication skills\\n• Nice to have: Experience with Kubernetes",
           "notes": null
         }
         \`\`\`
@@ -226,12 +230,14 @@ export async function extractJobDataFromText(rawText: string, userId: string): P
         4. Determine the primary language of the job posting (e.g., "en" for English, "de" for German, "es" for Spanish). Use standard ISO 639-1 language codes.
         5. Extract the job location (e.g., "remote", "Berlin", "Hybrid").
         6. Extract any salary or compensation information provided.
-        7. Extract key highlights such as Employment Type, Experience Level, Remote Policy, Benefits, Tech Stack, Location, Salary, and any other important details. Return them as a structured list of key-value pairs in the 'keyDetails' field. Leave the 'notes' field NULL.
+        7. Extract key highlights such as Employment Type, Experience Level, Remote Policy, Benefits, Tech Stack, Location, Salary, and any other important details. Return them as a structured list of key-value pairs in the 'keyDetails' field.
+        8. Extract the job prerequisites and requirements as a bullet-pointed list. Include required skills, qualifications, years of experience, education requirements, certifications, languages, and any "must-have" or "nice-to-have" items. IMPORTANT: This list MUST BE IN ENGLISH, even if the job description is in another language. Translate the requirements to English if necessary. Format as a clean bulleted list (using • or - characters). Leave the 'notes' field NULL.
 
         Output Format:
-        Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", "location", "salary", "keyDetails", and "notes".
-        - jobTitle, companyName, language, location, salary should be strings if found, or null.
+        Return ONLY a single JSON object enclosed in triple backticks (\`\`\`json ... \`\`\`). This JSON object MUST contain exactly these top-level keys: "jobTitle", "companyName", "jobDescriptionText", "language", "location", "salary", "keyDetails", "jobPrerequisites", and "notes".
+        - jobTitle, companyName, language, location, salary, jobPrerequisites should be strings if found, or null.
         - keyDetails should be an array of objects with "key" and "value" strings, or null.
+        - jobPrerequisites should be a bulleted list string of requirements and qualifications (ALWAYS IN ENGLISH).
         - jobDescriptionText is REQUIRED.
         - 'notes' should be null.
 
@@ -250,6 +256,7 @@ export async function extractJobDataFromText(rawText: string, userId: string): P
             { "key": "Visa Sponsorship", "value": "Yes" },
             { "key": "Team", "value": "5 ppl" }
           ],
+          "jobPrerequisites": "• 3+ years of experience in software development\\n• Proficiency in Java, JavaScript, or Python\\n• Bachelor's degree in Computer Science or related field\\n• Experience with cloud platforms (AWS, GCP, Azure)\\n• Strong communication skills\\n• Nice to have: Experience with Kubernetes",
           "notes": null
         }
         \`\`\`

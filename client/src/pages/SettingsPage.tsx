@@ -442,22 +442,22 @@ const SettingsPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="flex justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-950">
         <Spinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-6 sm:py-8 px-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-6 sm:py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
               <KeyIcon />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
               API Keys Settings
             </h1>
           </div>

@@ -115,12 +115,12 @@ const AnalyticsPage: React.FC = () => {
     }
 
     return (
-        <div className="h-full overflow-y-auto bg-slate-50 dark:bg-black p-6 lg:p-8 space-y-6">
+        <div className="h-full overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 lg:p-8 space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Analytics Overview</h2>
 
-                <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-md px-3 py-1.5 shadow-sm">
+                <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3 py-1.5 shadow-sm">
                     <Calendar className="w-4 h-4 text-slate-500" />
                     <select
                         value={selectedMonth || ''}
@@ -143,7 +143,7 @@ const AnalyticsPage: React.FC = () => {
             {/* Middle Row: Velocity Chart + Weekly Goal */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Application Velocity Chart */}
-                <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-lg border border-slate-200 dark:border-zinc-800 flex flex-col h-[400px] min-w-0">
+                <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col h-[400px] min-w-0">
                     <div className="flex justify-between items-start mb-6">
                         <div>
                             <h3 className="font-semibold text-slate-900 dark:text-white">Application Velocity</h3>
@@ -191,9 +191,9 @@ const AnalyticsPage: React.FC = () => {
             </div>
 
             {/* Kanban Board Section */}
-            <div className="mt-8 pt-8 border-t border-slate-200 dark:border-zinc-800">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Application Pipeline</h3>
-                <div className="bg-slate-100 dark:bg-zinc-900/50 p-4 rounded-xl border border-slate-200 dark:border-zinc-800">
+            <div className="mt-8 pt-8 border-t border-slate-200 dark:border-slate-800">
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-6">Application Pipeline</h3>
+                <div className="bg-slate-100 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                     <ApplicationPipelineKanban
                         jobs={jobs}
                         isLoading={isLoadingJobs}

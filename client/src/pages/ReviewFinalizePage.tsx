@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { updateCustomPrompts } from '../services/settingsApi';
-import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, extractJobFromTextApi } from '../services/jobApi';
+import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, extractJobFromTextApi, deleteJob } from '../services/jobApi';
 import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments, generateCvOnly, improveSection } from '../services/generatorApi';
 import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi';
 import { scanAts, getAtsScores, getAtsForJob, AtsScores, deleteAtsAnalysis } from '../services/atsApi';
@@ -195,6 +195,7 @@ const ReviewFinalizePage: React.FC = () => {
     // Extract with AI State
     const [pastedJobText, setPastedJobText] = useState<string>('');
     const [isExtractingWithAi, setIsExtractingWithAi] = useState<boolean>(false);
+    const [showExtractWithAi, setShowExtractWithAi] = useState<boolean>(false);
 
     const ATS_POLLING_INTERVAL_MS = 3000; // Poll more frequently for ATS
     const ATS_POLLING_TIMEOUT_MS = 120000; // 2 minutes timeout
@@ -729,11 +730,33 @@ const ReviewFinalizePage: React.FC = () => {
             const updatedJob = await extractJobFromTextApi(jobId, pastedJobText.trim());
             setJobApplication(updatedJob);
             setPastedJobText(''); // Clear the textarea
+            setShowExtractWithAi(false); // Close the extract UI
             showToast('Job details extracted successfully', 'success');
         } catch (error: any) {
             console.error("Error extracting job details:", error);
             setRefreshError(error.message || 'Failed to extract job details.');
             showToast('Failed to extract job details', 'error');
+        } finally {
+            setIsExtractingWithAi(false);
+        }
+    };
+
+    // Re-extract from existing job description
+    const handleReExtractWithAi = async () => {
+        if (!jobId || !jobApplication?.jobDescriptionText || jobApplication.jobDescriptionText.trim().length < 50) return;
+
+        setIsExtractingWithAi(true);
+        setRefreshError(null);
+        try {
+            // Use AI to extract job data from the existing description
+            const updatedJob = await extractJobFromTextApi(jobId, jobApplication.jobDescriptionText.trim());
+            setJobApplication(updatedJob);
+            setShowExtractWithAi(false); // Close the extract UI
+            showToast('Job details re-extracted successfully', 'success');
+        } catch (error: any) {
+            console.error("Error re-extracting job details:", error);
+            setRefreshError(error.message || 'Failed to re-extract job details.');
+            showToast('Failed to re-extract job details', 'error');
         } finally {
             setIsExtractingWithAi(false);
         }
@@ -1324,6 +1347,21 @@ const ReviewFinalizePage: React.FC = () => {
         setNotesHasChanged(newNotes !== originalNotes);
     };
 
+    const handleDeleteJob = async () => {
+        if (!jobId || !window.confirm('Are you sure you want to delete this job application? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            await deleteJob(jobId);
+            showToast('Job application deleted successfully', 'success');
+            navigate('/dashboard');
+        } catch (error: any) {
+            console.error('Error deleting job:', error);
+            showToast(error.message || 'Failed to delete job application', 'error');
+        }
+    };
+
     // Calculate progress steps
     const getProgressSteps = () => {
         if (!jobApplication) return [];
@@ -1389,12 +1427,12 @@ const ReviewFinalizePage: React.FC = () => {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
                 <div className="container mx-auto p-4">
                     <div className="mb-6">
                         <LoadingSkeleton lines={2} />
                     </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6">
                         <LoadingSkeleton lines={5} />
                     </div>
                 </div>
@@ -1404,12 +1442,12 @@ const ReviewFinalizePage: React.FC = () => {
 
     if (fetchError) {
         return (
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
                 <div className="container mx-auto p-4">
                     <div className="mb-4">
                         <button
                             onClick={() => navigate('/dashboard')}
-                            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-4"
+                            className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 mb-4"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -1428,12 +1466,12 @@ const ReviewFinalizePage: React.FC = () => {
 
     if (!jobApplication) {
         return (
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
                 <div className="container mx-auto p-4 text-center">
-                    <p className="text-gray-900 dark:text-gray-300 mb-4">Job application data not found.</p>
+                    <p className="text-slate-900 dark:text-slate-300 mb-4">Job application data not found.</p>
                     <button
                         onClick={() => navigate('/dashboard')}
-                        className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-800"
+                        className="px-4 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors"
                     >
                         Back to Dashboard
                     </button>
@@ -1445,7 +1483,7 @@ const ReviewFinalizePage: React.FC = () => {
     const progressSteps = getProgressSteps();
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-24">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24">
             {/* Toast Notification */}
             {toast && (
                 <Toast
@@ -1527,13 +1565,22 @@ const ReviewFinalizePage: React.FC = () => {
                                 <span>Mark as Applied</span>
                             </button>
                         )}
+
+                        {/* Delete Job Button */}
+                        <button
+                            onClick={handleDeleteJob}
+                            className="p-3 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded-lg shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95 self-stretch"
+                            title="Delete this job application"
+                        >
+                            <span className="material-symbols-outlined text-[20px]">delete</span>
+                        </button>
                     </div>
                 </div>
 
 
 
                 {/* Tabs Navigation with Integrated Progress Indicators */}
-                <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div className="mb-6 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4">
                     <div className="relative flex items-center justify-between w-full max-w-4xl mx-auto">
                         <div className="absolute left-0 top-1/2 w-full h-0.5 bg-gray-200 dark:bg-gray-700 -z-10 transform -translate-y-1/2"></div>
 
@@ -1829,6 +1876,23 @@ const ReviewFinalizePage: React.FC = () => {
                                     </ul>
                                 </div>
 
+                                {/* Job Prerequisites Card */}
+                                {jobApplication.jobPrerequisites && (
+                                    <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h2 className="text-lg font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-indigo-500">checklist</span>
+                                                Requirements
+                                            </h2>
+                                        </div>
+                                        <div className="text-sm text-text-main-light dark:text-text-main-dark leading-relaxed">
+                                            <div className="whitespace-pre-wrap">
+                                                {jobApplication.jobPrerequisites}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Notes Card */}
                                 <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 relative">
                                     <div className="flex justify-between items-center mb-4">
@@ -1863,6 +1927,39 @@ const ReviewFinalizePage: React.FC = () => {
                                 <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                                     <div className="flex justify-between items-center mb-4">
                                         <h2 className="text-lg font-bold text-text-main-light dark:text-text-main-dark">Description</h2>
+                                        <button
+                                            onClick={() => {
+                                                // If job description exists, start extraction immediately
+                                                if (jobApplication.jobDescriptionText && jobApplication.jobDescriptionText.trim().length >= 50) {
+                                                    handleReExtractWithAi();
+                                                } else {
+                                                    // Otherwise, toggle the paste dialog
+                                                    setShowExtractWithAi(!showExtractWithAi);
+                                                }
+                                            }}
+                                            disabled={isExtractingWithAi}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${isExtractingWithAi
+                                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                                : showExtractWithAi
+                                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                                    : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                                                }`}
+                                            title="Extract job details using AI"
+                                        >
+                                            {isExtractingWithAi ? (
+                                                <>
+                                                    <Spinner size="sm" />
+                                                    <span>Extracting...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5A2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5a2.5 2.5 0 0 0 2.5 2.5a2.5 2.5 0 0 0 2.5-2.5a2.5 2.5 0 0 0-2.5-2.5Z" />
+                                                    </svg>
+                                                    <span>{showExtractWithAi ? 'Cancel' : 'Extract with AI'}</span>
+                                                </>
+                                            )}
+                                        </button>
                                     </div>
 
                                     {refreshError && (
@@ -1872,6 +1969,97 @@ const ReviewFinalizePage: React.FC = () => {
                                                 onDismiss={() => setRefreshError(null)}
                                                 onRetry={handleRefreshJobDetails}
                                             />
+                                        </div>
+                                    )}
+
+                                    {/* Extract with AI Section - Toggleable */}
+                                    {showExtractWithAi && (
+                                        <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                                            {jobApplication.jobDescriptionText ? (
+                                                // When job description already exists - show simple re-extract option
+                                                <>
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div className="flex-1">
+                                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                                                Re-extract job details
+                                                            </p>
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                                Use AI to re-analyze the existing job description and update the job title, company, and other details.
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleReExtractWithAi}
+                                                            disabled={isExtractingWithAi}
+                                                            className="bg-indigo-600 text-white font-medium py-2 px-4 rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm flex items-center gap-2 flex-shrink-0"
+                                                        >
+                                                            {isExtractingWithAi ? (
+                                                                <>
+                                                                    <Spinner size="sm" />
+                                                                    <span>Extracting...</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                                                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5A2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5a2.5 2.5 0 0 0 2.5 2.5a2.5 2.5 0 0 0 2.5-2.5a2.5 2.5 0 0 0-2.5-2.5Z" />
+                                                                    </svg>
+                                                                    <span>Re-extract</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                // When no job description - show paste option
+                                                <>
+                                                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                                                        Paste the job description text below and click "Extract" to update the job details using AI.
+                                                    </p>
+                                                    <div className="relative">
+                                                        <textarea
+                                                            value={pastedJobText}
+                                                            onChange={(e) => setPastedJobText(e.target.value)}
+                                                            placeholder="Paste job description here..."
+                                                            className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg px-4 py-3 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 disabled:opacity-50 resize-y min-h-[120px] text-sm transition-all"
+                                                            rows={5}
+                                                            disabled={isExtractingWithAi}
+                                                        />
+                                                        {isExtractingWithAi && (
+                                                            <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center gap-2">
+                                                                <Spinner size="md" />
+                                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Extracting job details...</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center justify-between mt-3">
+                                                        <div>
+                                                            {pastedJobText && pastedJobText.trim().length > 0 && pastedJobText.trim().length < 50 && (
+                                                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                                                    Please paste more text (at least 50 characters)
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            onClick={handleExtractWithAi}
+                                                            disabled={isExtractingWithAi || !pastedJobText || pastedJobText.trim().length < 50}
+                                                            className="bg-indigo-600 text-white font-medium py-2 px-5 rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm flex items-center gap-2"
+                                                        >
+                                                            {isExtractingWithAi ? (
+                                                                <>
+                                                                    <Spinner size="sm" />
+                                                                    <span>Extracting...</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                                                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5A2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5a2.5 2.5 0 0 0 2.5 2.5a2.5 2.5 0 0 0 2.5-2.5a2.5 2.5 0 0 0-2.5-2.5Z" />
+                                                                    </svg>
+                                                                    <span>Extract with AI</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     )}
 
@@ -1948,6 +2136,8 @@ const ReviewFinalizePage: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
+
+
                             </div>
                         </div>
                     )}
