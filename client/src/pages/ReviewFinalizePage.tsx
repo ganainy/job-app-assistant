@@ -1515,7 +1515,7 @@ const ReviewFinalizePage: React.FC = () => {
 
 
 
-            <div className="container mx-auto px-4 py-6">
+            <div className="p-6 lg:p-8">
                 {/* Page Header */}
                 <div className="flex items-start justify-between gap-4 mb-6">
                     {/* Left: Job Info */}

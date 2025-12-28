@@ -66,7 +66,7 @@ export const FormSection: React.FC<FormSectionProps> = ({
                             <button
                                 type="button"
                                 onClick={onAdd}
-                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                                className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors uppercase tracking-wide"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -112,7 +112,7 @@ export const FormItem: React.FC<FormItemProps> = ({
                 <div className="mb-4 mt-2 border-t border-dashed border-gray-200 dark:border-gray-600" />
             )}
 
-            <div className="grid grid-cols-6 gap-3">
+            <div className="grid grid-cols-6 gap-4">
                 {children}
 
                 {/* Controls */}

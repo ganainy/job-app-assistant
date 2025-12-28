@@ -85,35 +85,27 @@ export const WorkExperiencesForm: React.FC<WorkExperiencesFormProps> = ({
                             onMoveDown={() => moveWorkExperience(index, 'down')}
                             onDelete={() => deleteWorkExperience(index)}
                         >
-                            {/* Company Name */}
+                            {/* Job Title - Half Width */}
+                            <Input
+                                label="Job Title"
+                                labelClassName="col-span-3"
+                                name={`position-${index}`}
+                                placeholder="Software Engineer"
+                                value={item.position || item.jobTitle || ''}
+                                onChange={(v) => handleWorkChange(index, 'position', v)}
+                            />
+
+                            {/* Company Name - Half Width */}
                             <Input
                                 label="Company"
-                                labelClassName="col-span-6"
+                                labelClassName="col-span-3"
                                 name={`company-${index}`}
                                 placeholder="Company Name"
                                 value={item.name || item.company || ''}
                                 onChange={(v) => handleWorkChange(index, 'name', v)}
                             />
 
-                            {/* Job Title and Dates */}
-                            <Input
-                                label="Job Title"
-                                labelClassName="col-span-4"
-                                name={`position-${index}`}
-                                placeholder="Software Engineer"
-                                value={item.position || item.jobTitle || ''}
-                                onChange={(v) => handleWorkChange(index, 'position', v)}
-                            />
-                            <Input
-                                label="Location"
-                                labelClassName="col-span-2"
-                                name={`location-${index}`}
-                                placeholder="New York, NY"
-                                value={item.location || ''}
-                                onChange={(v) => handleWorkChange(index, 'location', v)}
-                            />
-
-                            {/* Dates */}
+                            {/* Start Date - Half Width */}
                             <Input
                                 label="Start Date"
                                 labelClassName="col-span-3"
@@ -122,6 +114,8 @@ export const WorkExperiencesForm: React.FC<WorkExperiencesFormProps> = ({
                                 value={item.startDate || ''}
                                 onChange={(v) => handleWorkChange(index, 'startDate', v)}
                             />
+
+                            {/* End Date - Half Width */}
                             <Input
                                 label="End Date"
                                 labelClassName="col-span-3"
@@ -131,11 +125,21 @@ export const WorkExperiencesForm: React.FC<WorkExperiencesFormProps> = ({
                                 onChange={(v) => handleWorkChange(index, 'endDate', v)}
                             />
 
+                            {/* Location - Full Width */}
+                            <Input
+                                label="Location"
+                                labelClassName="col-span-6"
+                                name={`location-${index}`}
+                                placeholder="New York, NY"
+                                value={item.location || ''}
+                                onChange={(v) => handleWorkChange(index, 'location', v)}
+                            />
+
                             {/* Description/Highlights */}
                             <div className="col-span-6">
                                 <div className="flex items-center justify-between mb-1">
-                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Key Achievements & Responsibilities
+                                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-0.5">
+                                        DESCRIPTION
                                     </label>
                                     {onImprove && (
                                         <button

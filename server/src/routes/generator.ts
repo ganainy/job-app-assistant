@@ -659,7 +659,15 @@ const downloadFileHandler: RequestHandler = async (req: ValidatedRequest, res) =
     try {
         await fs.promises.access(filePath);
         console.log(`Serving file for download: ${filePath}`);
-        res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+        // Create a user-friendly filename by removing the timestamp (e.g. "_1766957547866")
+        // Logic: Replace the last underscore followed by digits and extension with just the extension
+        let downloadFilename = safeFilename;
+        const timestampRegex = /_\d+\.pdf$/;
+        if (timestampRegex.test(safeFilename)) {
+            downloadFilename = safeFilename.replace(timestampRegex, '.pdf');
+        }
+
+        res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename}"`);
         res.setHeader('Content-Type', 'application/pdf');
         const fileStream = fs.createReadStream(filePath);
         fileStream.pipe(res);
