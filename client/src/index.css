@@ -25,17 +25,20 @@
 
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
-      width: 8px;
+    width: 8px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-track {
-      background: transparent;
+    background: transparent;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
-      background-color: #cbd5e1;
-      border-radius: 20px;
+    background-color: #cbd5e1;
+    border-radius: 20px;
   }
+
   .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-      background-color: #475569;
+    background-color: #475569;
   }
 }
 
@@ -53,4 +56,44 @@
 
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
+}
+
+@media print {
+  @page {
+    size: auto;
+    margin: 0mm;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Utilities for page breaks */
+  .print-break-inside-avoid,
+  .avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-break-before {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .print-break-after {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  /* Hide scrollbars and non-printable elements */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Ensure background colors are printed */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }

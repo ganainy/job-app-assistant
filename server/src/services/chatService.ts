@@ -33,7 +33,7 @@ export async function getAiChatResponse(
 
     // Get existing chat history for context
     const chatHistory = jobApplication.chatHistory || [];
-    
+
     // Build context from recent chat history (last 10 messages for context)
     const recentHistory = chatHistory.slice(-10);
     let historyContext = '';
@@ -45,7 +45,13 @@ export async function getAiChatResponse(
     }
 
     // Construct the prompt for Gemini
-    const prompt = `You are a helpful assistant that answers questions about job postings. Your task is to answer the user's question based ONLY on the provided job description text. Do not use external knowledge or make assumptions beyond what is stated in the job description.
+    const prompt = `You are a helpful human assistant answering questions about a job posting. Your task is to answer the user's question based ONLY on the provided job description text.
+
+Rules:
+1. Act as a human: clearly and naturally.
+2. Keep it short: Provide concise answers.
+3. NO MARKDOWN: Do NOT use asterisks (** or *), hashtags (#), or other markdown syntax. Use plain text only.
+4. Do not use external knowledge or make assumptions beyond what is stated in the job description.
 
 **Job Description:**
 ${jobApplication.jobDescriptionText}${historyContext}
@@ -53,7 +59,7 @@ ${jobApplication.jobDescriptionText}${historyContext}
 **User Question:**
 ${userQuestion}
 
-Please provide a clear and helpful answer based solely on the job description above. If the job description doesn't contain enough information to answer the question, please say so.`;
+Please answer the question based solely on the job description above.`;
 
     try {
         // Generate response using provider-agnostic AI service

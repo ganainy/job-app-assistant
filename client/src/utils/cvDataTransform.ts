@@ -69,11 +69,13 @@ export interface ResumeData {
   state: string;
   zipCode: string;
   linkedIn: string;
+  github: string;
   website: string;
   summary: string;
   experiences: Experience[];
   education: Education[];
   skills: string[];
+  projects: Project[];
   certifications: Certification[];
   languages: Language[];
   customSections: CustomSection[];
@@ -134,11 +136,35 @@ function extractWebsite(basics?: { url?: string; profiles?: Array<{ network?: st
 }
 
 function formatDescription(workItem: { summary?: string; highlights?: string[] }): string {
-  if (workItem.summary) return workItem.summary;
-  if (workItem.highlights && Array.isArray(workItem.highlights) && workItem.highlights.length > 0) {
-    return workItem.highlights.join('\n');
+  const parts: string[] = [];
+  if (workItem.summary) {
+    parts.push(workItem.summary);
   }
-  return '';
+  if (workItem.highlights && Array.isArray(workItem.highlights) && workItem.highlights.length > 0) {
+    // Check if highlights already have bullets, otherwise add them
+    const formattedHighlights = workItem.highlights.map(h => h.trim().startsWith('•') || h.trim().startsWith('-') ? h : `• ${h}`).join('\n');
+    parts.push(formattedHighlights);
+  }
+  return parts.join('\n\n');
+}
+
+
+function extractGitHub(profiles?: Array<{ network?: string; url?: string }>): string {
+  if (!profiles || !Array.isArray) return '';
+  const githubProfile = profiles.find(p =>
+    p.network && p.network.toLowerCase().includes('github')
+  );
+  return githubProfile?.url || '';
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  highlights: string[];
+  url?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, selectedTemplate: string = 'modern-clean'): ResumeData {
@@ -211,8 +237,57 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
   // Extract section labels from meta if available
   const sectionLabels: SectionLabels | undefined = (jsonResume as any).meta?.sectionLabels;
 
+  // Parse projects into structured data
+  const projects: Project[] = (jsonResume.projects || []).map(project => ({
+    id: generateId(),
+    name: project.name || '',
+    description: project.description || '',
+    highlights: project.highlights || [],
+    url: project.url,
+    startDate: project.startDate,
+    endDate: project.endDate
+  }));
+
   const customSections: CustomSection[] = [];
+  // Only add projects to custom sections if NOT using a template that handles them natively
+  // But for backward compatibility we might want to keep it or handle it in the template.
+  // The 'GermanLatexResume' will use 'projects' array.
+  // Other templates might still rely on 'customSections'.
+  // Ideally, we update all templates to use 'projects' and remove this fallback,
+  // but to avoid breaking changes, we can selectively add it or just duplicate it 
+  // (templates that prioritize 'projects' prop will use that).
+
+  // However, simpler approach: Always provide 'projects'. 
+  // If a template uses 'customSections' for projects, it will still work if we keep the logic below.
+  // BUT the user reported "Projekte" and "PROJECTS" appearing. 
+  // If we pass 'projects' property, 'GermanLatexResume' should use it and IGNORE the 'projects' in customSections (if we filter it out there).
+
+  // Strategy: Pass structured 'projects'. 
+  // DO NOT add 'projects' to 'customSections' if we are passing it as a top-level prop?
+  // Or let the template decide?
+  // If I keep the code below, 'customSections' will contain a "Projects" section which is a blob.
+  // 'GermanLatexResume' renders `customSections` at the bottom.
+  // If `GermanLatexResume` ALSO renders `data.projects` explicitly, we might get duplicates
+  // if we don't filter it out from `customSections`.
+  // Let's REMOVE projects from `customSections` generation here.
+  // Why? Because we want to treat Projects as a first-class citizen now.
+  // Caveat: If other templates DO NOT support `data.projects` yet, they will lose the Projects section.
+  // Checking `ModernCleanResume` (step 347): it renders `customSections` at the end. It doesn't seem to have a dedicated Projects section block.
+  // So if I allow `projects` to NOT be in `customSections`, `ModernCleanResume` will lose it.
+  // Solution: I must check if I should update ALL templates or just keep it in text blob for others.
+  // Better: Keep it in `customSections` for NOW, but in `GermanLatexResume` specifically, explicitely FILTER OUT the "Projects" section from `customSections` loop if `data.projects` is present? 
+  // Or just modify `GermanLatexResume` to NOT render the "Projects" custom section?
+  // Actually, standardizing `projects` is better.
+
+  // Let's keep the `customSections` logic for now for backward compat, 
+  // but maybe rename the heading to something else if we want to distinguish? No.
+
   if (jsonResume.projects && Array.isArray(jsonResume.projects) && jsonResume.projects.length > 0) {
+    // We will NOT add to customSections if we want strict control, but for safety of other templates
+    // let's KEEP IT for now. 
+    // Wait, if `GermanLatexResume` iterates `customSections`, it will show double.
+    // I will modify `GermanLatexResume` to EXCLUDE "Projects" from its custom section loop.
+
     const projectContent = jsonResume.projects.map(project => {
       let content = project.name ? `**${project.name}**\n` : '';
       content += project.description ? `${project.description}\n` : '';
@@ -241,11 +316,13 @@ export function transformJsonResumeToResumeData(jsonResume: JsonResumeSchema, se
     state: location.region || '',
     zipCode: location.postalCode || '',
     linkedIn: extractLinkedIn(basics.profiles),
+    github: extractGitHub(basics.profiles),
     website: extractWebsite(basics),
     summary: basics.summary || '',
     experiences,
     education,
     skills,
+    projects, // ADDED
     certifications,
     languages,
     customSections,

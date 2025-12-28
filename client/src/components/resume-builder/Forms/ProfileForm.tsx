@@ -133,12 +133,52 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
                 {/* Website */}
                 <Input
                     label="Website / Portfolio"
-                    labelClassName="col-span-6"
+                    labelClassName="col-span-2"
                     name="url"
                     type="url"
-                    placeholder="https://yourportfolio.com or linkedin.com/in/you"
+                    placeholder="yourportfolio.com"
                     value={basics.url || ''}
                     onChange={(v) => handleBasicsChange('url', v)}
+                />
+
+                {/* LinkedIn */}
+                <Input
+                    label="LinkedIn"
+                    labelClassName="col-span-2"
+                    name="linkedin"
+                    type="url"
+                    placeholder="linkedin.com/in/you"
+                    value={basics.profiles?.find(p => p.network?.toLowerCase() === 'linkedin')?.url || ''}
+                    onChange={(v) => {
+                        const profiles = basics.profiles || [];
+                        const otherProfiles = profiles.filter(p => p.network?.toLowerCase() !== 'linkedin');
+                        const newProfiles = v ? [...otherProfiles, { network: 'LinkedIn', url: v, username: v.split('/').pop() || '' }] : otherProfiles;
+
+                        onChange({
+                            ...data,
+                            basics: { ...basics, profiles: newProfiles }
+                        });
+                    }}
+                />
+
+                {/* GitHub */}
+                <Input
+                    label="GitHub"
+                    labelClassName="col-span-2"
+                    name="github"
+                    type="url"
+                    placeholder="github.com/you"
+                    value={basics.profiles?.find(p => p.network?.toLowerCase() === 'github')?.url || ''}
+                    onChange={(v) => {
+                        const profiles = basics.profiles || [];
+                        const otherProfiles = profiles.filter(p => p.network?.toLowerCase() !== 'github');
+                        const newProfiles = v ? [...otherProfiles, { network: 'GitHub', url: v, username: v.split('/').pop() || '' }] : otherProfiles;
+
+                        onChange({
+                            ...data,
+                            basics: { ...basics, profiles: newProfiles }
+                        });
+                    }}
                 />
 
                 {/* Location */}

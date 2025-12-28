@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { Mail, Phone, MapPin, Globe, Star } from "lucide-react";
+import { Mail, Phone, MapPin, Globe, Star, Github } from "lucide-react";
 import { ResumeData } from "../utils/cvDataTransform";
 
 const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props, ref) => {
@@ -87,6 +87,12 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
             <div className="flex items-center gap-2">
               <Globe className="h-3 w-3" />
               <span>{data.website}</span>
+            </div>
+          )}
+          {data.github && (
+            <div className="flex items-center gap-2">
+              <Github className="h-3 w-3" />
+              <span>{data.github}</span>
             </div>
           )}
           {(data.city || data.state) && (
@@ -301,30 +307,102 @@ const MinimalistResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props
         </section>
       )}
 
+
+      {data.projects && data.projects.length > 0 && (
+        <section className="mb-8">
+          <h2 className="font-bold text-black mb-4" style={{ fontSize: '16px', letterSpacing: '1px' }}>
+            PROJECTS
+          </h2>
+
+          <div className="space-y-6">
+            {data.projects.map((project) => (
+              <div key={project.id} className="flex gap-4">
+                <div className="flex flex-col items-center" style={{ minWidth: '120px' }}>
+                  <div className="text-gray-700 font-medium mb-2" style={{ fontSize: '12px' }}>
+                    {formatDateRange(project.startDate || '', project.endDate || '', false)}
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <div
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        backgroundColor: '#000000',
+                      }}
+                      data-preserve="true"
+                    ></div>
+                    <div
+                      style={{
+                        width: '2px',
+                        height: '100%',
+                        backgroundColor: '#e5e7eb',
+                        marginTop: '8px',
+                        minHeight: '40px'
+                      }}
+                      data-preserve="true"
+                    ></div>
+                  </div>
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="font-bold text-black mb-1" style={{ fontSize: '14px' }}>
+                    {project.name}
+                  </h3>
+                  {project.url && (
+                    <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:underline mb-1 block" style={{ fontSize: '11px' }}>
+                      {project.url}
+                    </a>
+                  )}
+                  {project.description && (
+                    <p className="text-gray-700 font-medium mb-2" style={{ fontSize: '12px' }}>
+                      {project.description}
+                    </p>
+                  )}
+
+                  {project.highlights && project.highlights.length > 0 && (
+                    <div>
+                      <ul className="list-disc ml-4 space-y-1">
+                        {project.highlights.map((highlight, idx) => (
+                          <li key={idx} className="text-gray-700" style={{ fontSize: '11px' }}>
+                            {highlight}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {data.customSections && data.customSections.length > 0 && (
         <div className="space-y-8">
-          {data.customSections.map((section) => (
-            <section key={section.id}>
-              <h2 className="font-bold text-black mb-4" style={{ fontSize: '16px', letterSpacing: '1px' }}>
-                {section.heading.toUpperCase()}
-              </h2>
-              <div className="text-gray-800 leading-relaxed whitespace-pre-line" style={{ fontSize: '12px' }}>
-                {section.content.split('\n').map((line, i) => {
-                  const parts = line.split(/(\*\*.*?\*\*)/g);
-                  return (
-                    <div key={i} style={{ minHeight: '1.2em' }}>
-                      {parts.map((part, j) => {
-                        if (part.startsWith('**') && part.endsWith('**')) {
-                          return <strong key={j}>{part.slice(2, -2)}</strong>;
-                        }
-                        return <span key={j}>{part}</span>;
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+          {data.customSections
+            .filter(section => section.heading?.toLowerCase() !== 'projects')
+            .map((section) => (
+              <section key={section.id}>
+                <h2 className="font-bold text-black mb-4" style={{ fontSize: '16px', letterSpacing: '1px' }}>
+                  {section.heading.toUpperCase()}
+                </h2>
+                <div className="text-gray-800 leading-relaxed whitespace-pre-line" style={{ fontSize: '12px' }}>
+                  {section.content.split('\n').map((line, i) => {
+                    const parts = line.split(/(\*\*.*?\*\*)/g);
+                    return (
+                      <div key={i} style={{ minHeight: '1.2em' }}>
+                        {parts.map((part, j) => {
+                          if (part.startsWith('**') && part.endsWith('**')) {
+                            return <strong key={j}>{part.slice(2, -2)}</strong>;
+                          }
+                          return <span key={j}>{part}</span>;
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
         </div>
       )}
     </div>

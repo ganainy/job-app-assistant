@@ -566,13 +566,15 @@ const CVManagementPage: React.FC = () => {
   };
 
   const handleCvChange = (updatedCv: JsonResumeSchema) => {
-    if (activeCv?.isMasterCv) {
-      setCurrentCvData(updatedCv);
-    } else if (activeCvId) {
-      // Optimistically update job CV in allCvs
+    // Optimistically update CV in allCvs (for both Master and Job CVs)
+    if (activeCvId) {
       setAllCvs((prev: CVDocument[]) => prev.map((cv: CVDocument) =>
         cv._id === activeCvId ? { ...cv, cvJson: updatedCv } : cv
       ));
+    }
+
+    if (activeCv?.isMasterCv) {
+      setCurrentCvData(updatedCv);
     }
 
     setSaveStatus('idle'); // Reset save status when changes are made

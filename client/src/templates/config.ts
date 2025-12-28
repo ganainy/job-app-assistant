@@ -2,7 +2,7 @@ import { ForwardRefExoticComponent, RefAttributes } from 'react';
 import { ResumeData } from '../utils/cvDataTransform';
 import ModernCleanResume from './ModernCleanResume';
 import ATSOptimizedResume from './ATSOptimizedResume';
-import ClassicProfessionalResume from './ClassicProfessionalResume';
+
 import MinimalistResume from './MinimalistResume';
 import BoldCreativeResume from './BoldCreativeResume';
 import CorporateProfessionalResume from './CorporateProfessionalResume';
@@ -39,13 +39,7 @@ export const TEMPLATES: Record<string, TemplateConfig> = {
     category: 'ats-optimized',
     component: ATSOptimizedResume,
   },
-  'classic-professional': {
-    id: 'classic-professional',
-    name: 'Classic Professional',
-    description: 'Traditional professional layout',
-    category: 'professional',
-    component: ClassicProfessionalResume,
-  },
+
   'minimalist': {
     id: 'minimalist',
     name: 'Minimalist',

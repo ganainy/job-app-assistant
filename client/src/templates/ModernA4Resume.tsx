@@ -145,6 +145,24 @@ const ModernA4Resume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ data 
                 <span>{data.linkedIn}</span>
               </div>
             )}
+            {data.github && (
+              <div className="flex items-center gap-2">
+                <div
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: '6px',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  data-preserve="true"
+                >
+                  <img src="https://cdn.jsdelivr.net/npm/simple-icons@v11/icons/github.svg" alt="GitHub" className="h-3 w-3 invert" />
+                </div>
+                <span>{data.github}</span>
+              </div>
+            )}
             {data.website && (
               <div className="flex items-center gap-2">
                 <div

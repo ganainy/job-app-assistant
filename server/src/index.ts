@@ -21,6 +21,7 @@ import profileRoutes from './routes/profile';
 import projectRoutes from './routes/projects';
 import settingsRoutes from './routes/settings';
 import autoJobRoutes from './routes/autoJobRoutes';
+import chatRoutes from './routes/chat';
 // Correct the import for the default export
 import protect from './middleware/authMiddleware'; // Import default export and alias it as 'protect'
 import { errorHandler } from './middleware/errorHandler';
@@ -88,6 +89,7 @@ app.use('/api/profile', profileRoutes); // Profile routes (public aggregated, pr
 app.use('/api/projects', projectRoutes); // Project routes (public viewing, protected for CRUD)
 app.use('/api/settings', settingsRoutes); // Settings routes (protected)
 app.use('/api/auto-jobs', autoJobRoutes); // Auto-jobs routes (protected)
+app.use('/api/chat', protect, chatRoutes); // Chat routes (protected)
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

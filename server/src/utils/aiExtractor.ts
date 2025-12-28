@@ -70,36 +70,51 @@ async function fetchHtml(url: string, retries: number = 3): Promise<string> {
 
 // Parse Gemini's JSON response for extracted data
 function parseExtractionResponse(responseText: string): ExtractedJobData {
-    const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+    // Try to find JSON in code blocks (with or without "json" language specifier)
+    const jsonRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
     const jsonMatch = responseText.match(jsonRegex);
+
+    let extractedJsonString = '';
+
     if (jsonMatch && jsonMatch[1]) {
-        const extractedJsonString = jsonMatch[1].trim();
-        try {
-            const parsed = JSON.parse(extractedJsonString);
-            // Basic validation - check for essential fields (allow null for jobDescriptionText as fallback)
-            if (typeof parsed.jobTitle === 'string' &&
-                typeof parsed.companyName === 'string' &&
-                (typeof parsed.jobDescriptionText === 'string' || parsed.jobDescriptionText === null) &&
-                typeof parsed.language === 'string') {
-                // If jobDescriptionText is null, provide a fallback
-                if (parsed.jobDescriptionText === null) {
-                    console.warn("AI returned null for jobDescriptionText. Using fallback description.");
-                    parsed.jobDescriptionText = parsed.notes
-                        ? `Job details: ${parsed.notes}`
-                        : `Job posting at ${parsed.companyName || 'the company'}. Please refer to the original job posting for full details.`;
-                }
-                return parsed as ExtractedJobData; // Assume structure matches if key fields exist
-            } else {
-                console.warn("Parsed JSON from AI missing essential fields (jobTitle, companyName, jobDescriptionText, language):", parsed);
-                throw new Error("AI response structure validation failed.");
-            }
-        } catch (e: any) {
-            console.error("JSON.parse failed on extracted content:", e.message);
-            throw new Error("AI response was not valid JSON.");
+        extractedJsonString = jsonMatch[1].trim();
+    } else {
+        // Fallback: Try to find the first '{' and last '}'
+        const firstBrace = responseText.indexOf('{');
+        const lastBrace = responseText.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            extractedJsonString = responseText.substring(firstBrace, lastBrace + 1);
+        } else {
+            // Just try the whole text if it looks somewhat like JSON
+            extractedJsonString = responseText.trim();
         }
     }
-    console.error("AI response did not contain expected ```json formatting. Raw:", responseText);
-    throw new Error("AI failed to return data in the expected JSON format.");
+
+    try {
+        const parsed = JSON.parse(extractedJsonString);
+        // Basic validation - check for essential fields (allow null for jobDescriptionText as fallback)
+        if (typeof parsed.jobTitle === 'string' &&
+            typeof parsed.companyName === 'string' &&
+            (typeof parsed.jobDescriptionText === 'string' || parsed.jobDescriptionText === null) &&
+            typeof parsed.language === 'string') {
+            // If jobDescriptionText is null, provide a fallback
+            if (parsed.jobDescriptionText === null) {
+                console.warn("AI returned null for jobDescriptionText. Using fallback description.");
+                parsed.jobDescriptionText = parsed.notes
+                    ? `Job details: ${parsed.notes}`
+                    : `Job posting at ${parsed.companyName || 'the company'}. Please refer to the original job posting for full details.`;
+            }
+            return parsed as ExtractedJobData; // Assume structure matches if key fields exist
+        } else {
+            console.warn("Parsed JSON from AI missing essential fields (jobTitle, companyName, jobDescriptionText, language):", parsed);
+            throw new Error("AI response structure validation failed. Missing required fields.");
+        }
+    } catch (e: any) {
+        console.error("JSON.parse failed on extracted content:", e.message);
+        console.error("Raw response was:", responseText);
+        throw new Error("AI response was not valid JSON.");
+    }
 }
 
 
@@ -110,18 +125,17 @@ async function extractFieldsWithGemini(htmlContent: string, url: string, userId:
     // Clean HTML to remove noise and extract main content before truncation
     htmlContent = cleanHtmlForAi(htmlContent, maxHtmlLength);
 
-    // Detailed prompt asking for multiple fields and specific JSON output
     const prompt = `
-        Analyze the following HTML source code from the webpage URL "${url}".
-        Your task is to extract specific details about the job posting found on the page.
+        Analyze the following HTML content from a job posting webpage.
+        Your task is to extract specific details about the job posting.
 
         Instructions:
         1. Identify the main job title.
         2. Identify the hiring company's name.
-        3. Extract the full job description text, focusing on responsibilities, qualifications, requirements, benefits, and any other relevant details. This is CRITICAL - make every effort to extract the complete job description text. Look for sections like "Job Description", "Responsibilities", "Requirements", "Qualifications", "What we offer", etc. Ignore irrelevant page elements like headers, footers, navigation, ads, and unrelated content, but DO extract all job-related content.
-        4. Determine the primary language of the job posting (e.g., "en" for English, "de" for German, "es" for Spanish, etc.). Use standard ISO 639-1 language codes if possible.
+        3. Extract the full job description text, focusing on responsibilities, qualifications, requirements, benefits, and any other relevant details. Remove any HTML tags and return clean text.
+        4. Determine the primary language of the job posting (e.g., "en" for English, "de" for German, "es" for Spanish). Use standard ISO 639-1 language codes.
         5. Extract the job location (e.g., "remote", "Berlin", "Hybrid").
-        6. Extract any salary or compensation information provided (e.g., "€60k - €80k", "$120,000", "Competitive").
+        6. Extract any salary or compensation information provided.
         7. Extract key highlights such as Employment Type, Experience Level, Remote Policy, Benefits, Tech Stack, Location, Salary, and any other important details. Return them as a structured list of key-value pairs in the 'keyDetails' field.
         8. Extract the job prerequisites and requirements as a bullet-pointed list. Include required skills, qualifications, years of experience, education requirements, certifications, languages, and any "must-have" or "nice-to-have" items. IMPORTANT: This list MUST BE IN ENGLISH, even if the job description is in another language. Translate the requirements to English if necessary. Format as a clean bulleted list (using • or - characters). Leave the 'notes' field NULL.
 

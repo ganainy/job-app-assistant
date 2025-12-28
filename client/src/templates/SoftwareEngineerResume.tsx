@@ -146,6 +146,12 @@ const SoftwareEngineerResume = forwardRef<HTMLDivElement, { data: ResumeData }>(
                 <span>linkedin: "{data.linkedIn}"</span>
               </div>
             )}
+            {data.github && (
+              <div className="flex items-center gap-1" style={{ color: '#e5e7eb' }} data-preserve="true">
+                <Github className="h-3 w-3" />
+                <span>github: "{data.github}"</span>
+              </div>
+            )}
           </div>
         </div>
 

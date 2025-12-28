@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { Mail, Phone, MapPin, Globe, Linkedin, Star } from "lucide-react";
+import { Mail, Phone, MapPin, Globe, Linkedin, Star, Github } from "lucide-react";
 import { ResumeData } from "../utils/cvDataTransform";
 
 const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((props, ref) => {
@@ -26,7 +26,7 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
       case 'Basic': rating = 2; break;
       default: rating = 1; break;
     }
-    
+
     return Array.from({ length: 5 }, (_, i) => {
       const isFilled = i < rating;
       return (
@@ -45,23 +45,23 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
   return (
     <div ref={ref} className="bg-white text-black mx-auto" style={{ fontFamily: 'Georgia, serif', fontSize: '12px', lineHeight: '1.4', maxWidth: '8.27in', width: '100%' }}>
       <header className="relative mb-4" style={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', padding: '16px', borderRadius: '0 0 8px 8px' }}>
-        <div 
-          data-preserve="true" 
-          style={{ 
-            position: 'absolute', 
-            top: '0', 
-            left: '0', 
-            right: '0', 
-            height: '3px', 
-            background: 'linear-gradient(90deg, #fbbf24, #f59e0b, #d97706)' 
+        <div
+          data-preserve="true"
+          style={{
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            right: '0',
+            height: '3px',
+            background: 'linear-gradient(90deg, #fbbf24, #f59e0b, #d97706)'
           }}
         ></div>
-        
+
         <div className="text-center text-white">
           <h1 className="font-bold mb-1" style={{ fontSize: '24px', letterSpacing: '1px', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
             {data.firstName} {data.lastName}
           </h1>
-          
+
           <div className="flex flex-wrap justify-center gap-4 text-xs mb-3" style={{ opacity: '0.95' }}>
             {data.email && (
               <div className="flex items-center gap-2">
@@ -92,8 +92,32 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
             )}
             {data.website && (
               <div className="flex items-center gap-2">
-                <Globe className="h-3 w-3" />
+                <div
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: '4px',
+                    padding: '3px',
+                  }}
+                  data-preserve="true"
+                >
+                  <Globe className="h-3 w-3" />
+                </div>
                 <span>{data.website}</span>
+              </div>
+            )}
+            {data.github && (
+              <div className="flex items-center gap-2">
+                <div
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: '4px',
+                    padding: '3px',
+                  }}
+                  data-preserve="true"
+                >
+                  <Github className="h-3 w-3" />
+                </div>
+                <span>{data.github}</span>
               </div>
             )}
           </div>
@@ -107,12 +131,12 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
               <h2 className="font-bold text-gray-900 mr-3" style={{ fontSize: '14px', letterSpacing: '0.5px' }}>
                 EXECUTIVE SUMMARY
               </h2>
-              <div 
-                data-preserve="true" 
-                style={{ 
-                  flex: '1', 
-                  height: '2px', 
-                  background: 'linear-gradient(90deg, #1e40af, transparent)' 
+              <div
+                data-preserve="true"
+                style={{
+                  flex: '1',
+                  height: '2px',
+                  background: 'linear-gradient(90deg, #1e40af, transparent)'
                 }}
               ></div>
             </div>
@@ -128,33 +152,33 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
               <h2 className="font-bold text-gray-900 mr-3" style={{ fontSize: '14px', letterSpacing: '0.5px' }}>
                 PROFESSIONAL EXPERIENCE
               </h2>
-              <div 
-                data-preserve="true" 
-                style={{ 
-                  flex: '1', 
-                  height: '2px', 
-                  background: 'linear-gradient(90deg, #1e40af, transparent)' 
+              <div
+                data-preserve="true"
+                style={{
+                  flex: '1',
+                  height: '2px',
+                  background: 'linear-gradient(90deg, #1e40af, transparent)'
                 }}
               ></div>
             </div>
             <div className="space-y-4">
               {data.experiences.map((experience, index) => (
                 <div key={experience.id} className="relative">
-                  <div 
-                    data-preserve="true" 
-                    style={{ 
-                      position: 'absolute', 
-                      left: '-12px', 
-                      top: '6px', 
-                      width: '8px', 
-                      height: '8px', 
-                      background: '#1e40af', 
+                  <div
+                    data-preserve="true"
+                    style={{
+                      position: 'absolute',
+                      left: '-12px',
+                      top: '6px',
+                      width: '8px',
+                      height: '8px',
+                      background: '#1e40af',
                       borderRadius: '50%',
                       border: '2px solid white',
                       boxShadow: '0 0 0 2px #1e40af'
                     }}
                   ></div>
-                  
+
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900" style={{ fontSize: '16px' }}>
@@ -188,12 +212,12 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
                   <h2 className="font-bold text-gray-900 mr-3" style={{ fontSize: '16px', letterSpacing: '0.5px' }}>
                     EDUCATION
                   </h2>
-                  <div 
-                    data-preserve="true" 
-                    style={{ 
-                      flex: '1', 
-                      height: '1.5px', 
-                      background: 'linear-gradient(90deg, #1e40af, transparent)' 
+                  <div
+                    data-preserve="true"
+                    style={{
+                      flex: '1',
+                      height: '1.5px',
+                      background: 'linear-gradient(90deg, #1e40af, transparent)'
                     }}
                   ></div>
                 </div>
@@ -227,12 +251,12 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
                   <h2 className="font-bold text-gray-900 mr-3" style={{ fontSize: '16px', letterSpacing: '0.5px' }}>
                     CERTIFICATIONS
                   </h2>
-                  <div 
-                    data-preserve="true" 
-                    style={{ 
-                      flex: '1', 
-                      height: '1.5px', 
-                      background: 'linear-gradient(90deg, #1e40af, transparent)' 
+                  <div
+                    data-preserve="true"
+                    style={{
+                      flex: '1',
+                      height: '1.5px',
+                      background: 'linear-gradient(90deg, #1e40af, transparent)'
                     }}
                   ></div>
                 </div>
@@ -267,12 +291,12 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
                   <h2 className="font-bold text-gray-900 mr-3" style={{ fontSize: '16px', letterSpacing: '0.5px' }}>
                     CORE COMPETENCIES
                   </h2>
-                  <div 
-                    data-preserve="true" 
-                    style={{ 
-                      flex: '1', 
-                      height: '1.5px', 
-                      background: 'linear-gradient(90deg, #1e40af, transparent)' 
+                  <div
+                    data-preserve="true"
+                    style={{
+                      flex: '1',
+                      height: '1.5px',
+                      background: 'linear-gradient(90deg, #1e40af, transparent)'
                     }}
                   ></div>
                 </div>
@@ -281,8 +305,8 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
                     <span
                       key={index}
                       className="px-3 py-1 text-white font-medium rounded-full"
-                      style={{ 
-                        background: 'linear-gradient(135deg, #1e40af, #3b82f6)', 
+                      style={{
+                        background: 'linear-gradient(135deg, #1e40af, #3b82f6)',
                         fontSize: '12px',
                         boxShadow: '0 2px 4px rgba(30, 64, 175, 0.3)'
                       }}
@@ -300,12 +324,12 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
                   <h2 className="font-bold text-gray-900 mr-3" style={{ fontSize: '16px', letterSpacing: '0.5px' }}>
                     LANGUAGES
                   </h2>
-                  <div 
-                    data-preserve="true" 
-                    style={{ 
-                      flex: '1', 
-                      height: '1.5px', 
-                      background: 'linear-gradient(90deg, #1e40af, transparent)' 
+                  <div
+                    data-preserve="true"
+                    style={{
+                      flex: '1',
+                      height: '1.5px',
+                      background: 'linear-gradient(90deg, #1e40af, transparent)'
                     }}
                   ></div>
                 </div>
@@ -331,37 +355,108 @@ const ElitePremiumResume = forwardRef<HTMLDivElement, { data: ResumeData }>((pro
           </div>
         </div>
 
-        {data.customSections && data.customSections.length > 0 && (
-          <div className="mt-6 space-y-6">
-            {data.customSections.map((section) => (
-              <section key={section.id}>
-                <div className="flex items-center mb-3">
-                  <h2 className="font-bold text-gray-900 mr-3" style={{ fontSize: '16px', letterSpacing: '0.5px' }}>
-                    {section.heading.toUpperCase()}
-                  </h2>
-                  <div 
-                    data-preserve="true" 
-                    style={{ 
-                      flex: '1', 
-                      height: '1.5px', 
-                      background: 'linear-gradient(90deg, #1e40af, transparent)' 
+
+        {data.projects && data.projects.length > 0 && (
+          <section className="mt-6 mb-4">
+            <div className="flex items-center mb-3">
+              <h2 className="font-bold text-gray-900 mr-3" style={{ fontSize: '14px', letterSpacing: '0.5px' }}>
+                PROJECTS
+              </h2>
+              <div
+                data-preserve="true"
+                style={{
+                  flex: '1',
+                  height: '2px',
+                  background: 'linear-gradient(90deg, #1e40af, transparent)'
+                }}
+              ></div>
+            </div>
+            <div className="space-y-4">
+              {data.projects.map((project, index) => (
+                <div key={project.id} className="relative">
+                  <div
+                    data-preserve="true"
+                    style={{
+                      position: 'absolute',
+                      left: '-12px',
+                      top: '6px',
+                      width: '8px',
+                      height: '8px',
+                      background: '#1e40af',
+                      borderRadius: '50%',
+                      border: '2px solid white',
+                      boxShadow: '0 0 0 2px #1e40af'
                     }}
                   ></div>
+
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900" style={{ fontSize: '16px' }}>
+                        {project.name}
+                      </h3>
+                      {project.url && (
+                        <a href={project.url} target="_blank" rel="noopener noreferrer" className="font-medium mb-1 hover:underline" style={{ color: '#1e40af', fontSize: '14px' }}>
+                          {project.url}
+                        </a>
+                      )}
+                    </div>
+                    <div className="text-gray-600 text-right ml-4" style={{ fontSize: '12px', minWidth: '120px' }}>
+                      {formatDateRange(project.startDate || '', project.endDate || '', false)}
+                    </div>
+                  </div>
+                  {project.description && (
+                    <div className="text-gray-700 leading-relaxed whitespace-pre-line ml-4" style={{ fontSize: '13px' }}>
+                      {project.description}
+                    </div>
+                  )}
+                  {project.highlights && project.highlights.length > 0 && (
+                    <ul className="list-disc ml-8 mt-2 space-y-1">
+                      {project.highlights.map((highlight, idx) => (
+                        <li key={idx} className="text-gray-700 text-xs">
+                          {highlight}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-                <div className="text-gray-700 leading-relaxed whitespace-pre-line" style={{ fontSize: '13px' }}>
-                  {section.content}
-                </div>
-              </section>
-            ))}
+              ))}
+            </div>
+          </section>
+        )}
+
+        {data.customSections && data.customSections.length > 0 && (
+          <div className="mt-6 space-y-6">
+            {data.customSections
+              .filter(section => section.heading?.toLowerCase() !== 'projects')
+              .map((section) => (
+                <section key={section.id}>
+                  <div className="flex items-center mb-3">
+                    <h2 className="font-bold text-gray-900 mr-3" style={{ fontSize: '16px', letterSpacing: '0.5px' }}>
+                      {section.heading.toUpperCase()}
+                    </h2>
+                    <div
+                      data-preserve="true"
+                      style={{
+                        flex: '1',
+                        height: '1.5px',
+                        background: 'linear-gradient(90deg, #1e40af, transparent)'
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-gray-700 leading-relaxed whitespace-pre-line" style={{ fontSize: '13px' }}>
+                    {section.content}
+                  </div>
+                </section>
+              ))}
           </div>
         )}
 
-        <div 
-          data-preserve="true" 
+        <div
+          data-preserve="true"
           className="mt-8"
-          style={{ 
-            height: '3px', 
-            background: 'linear-gradient(90deg, #1e40af, #3b82f6, #fbbf24)', 
+          style={{
+            height: '3px',
+            background: 'linear-gradient(90deg, #1e40af, #3b82f6, #fbbf24)',
             borderRadius: '2px',
             margin: '24px -24px 0 -24px'
           }}

@@ -11,12 +11,9 @@ interface CvLivePreviewProps {
 }
 
 /** Ref API exposed by CvLivePreview */
-export interface CvLivePreviewRef {
-  /** Returns the preview container element for PDF generation */
-  getPreviewElement: () => HTMLDivElement | null;
-}
+export type CvLivePreviewRef = HTMLDivElement;
 
-const CvLivePreview = forwardRef<CvLivePreviewRef, CvLivePreviewProps>(({
+const CvLivePreview = forwardRef<HTMLDivElement, CvLivePreviewProps>(({
   data,
   templateId,
   onTemplateChange,
@@ -27,10 +24,10 @@ const CvLivePreview = forwardRef<CvLivePreviewRef, CvLivePreviewProps>(({
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateConfig | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<TemplateConfig[]>([]);
 
-  // Expose the preview element via ref
-  useImperativeHandle(ref, () => ({
-    getPreviewElement: () => previewContainerRef.current,
-  }), []);
+  // Expose the preview element via ref - Forwarding direct DOM ref now for react-to-print
+  // useImperativeHandle(ref, () => ({
+  //   getPreviewElement: () => previewContainerRef.current,
+  // }), []);
 
   useEffect(() => {
     const template = getTemplate(templateId);
@@ -94,7 +91,7 @@ const CvLivePreview = forwardRef<CvLivePreviewRef, CvLivePreviewProps>(({
 
       <div className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 p-4 rounded-lg">
         <div
-          ref={previewContainerRef}
+          ref={ref as React.RefObject<HTMLDivElement>}
           className="bg-white dark:bg-white shadow-lg mx-auto"
           style={{ maxWidth: '816px', width: '100%' }}
           id="cv-preview-container"

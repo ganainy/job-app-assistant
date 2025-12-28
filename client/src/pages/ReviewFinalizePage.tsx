@@ -1,6 +1,7 @@
 // client/src/pages/ReviewFinalizePage.tsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useReactToPrint } from 'react-to-print';
 import { updateCustomPrompts } from '../services/settingsApi';
 import { getJobById, updateJob, JobApplication, scrapeJobDescriptionApi, extractJobFromTextApi, deleteJob } from '../services/jobApi';
 import { renderFinalPdfs, renderCvPdf, renderCoverLetterPdf, getDownloadUrl, generateDocuments, generateCvOnly, improveSection } from '../services/generatorApi';
@@ -8,8 +9,8 @@ import { analyzeCv, AnalysisResult, getAnalysis } from '../services/analysisApi'
 import { scanAts, getAtsScores, getAtsForJob, AtsScores, deleteAtsAnalysis } from '../services/atsApi';
 import { JsonResumeSchema } from '../../../server/src/types/jsonresume';
 import ResumeBuilder from '../components/resume-builder/ResumeBuilder';
-import CvLivePreview, { CvLivePreviewRef } from '../components/cv-editor/CvLivePreview';
-import { downloadCvAsPdf } from '../services/pdfService';
+import CvLivePreview from '../components/cv-editor/CvLivePreview';
+// import { downloadCvAsPdf } from '../services/pdfService'; // Removed as we use react-to-print now
 import { DEFAULT_CV_PROMPT, DEFAULT_COVER_LETTER_PROMPT } from '../constants/prompts';
 import { getAllTemplates, TemplateConfig } from '../templates/config';
 import { generateCoverLetter } from '../services/coverLetterApi';
@@ -25,6 +26,7 @@ import JobStatusBadge from '../components/jobs/JobStatusBadge';
 import { getJobRecommendation, JobRecommendation } from '../services/jobRecommendationApi';
 import CoverLetterEditor from '../components/CoverLetterEditor';
 import { JobChatWindow, FloatingChatButton } from '../components/chat';
+
 import PromptCustomizer from '../components/common/PromptCustomizer';
 import { PromptTemplateSelector } from '../components/common/PromptTemplateSelector';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
@@ -87,6 +89,7 @@ const ReviewFinalizePage: React.FC = () => {
     const [isLoadingRecommendation, setIsLoadingRecommendation] = useState<boolean>(false);
     const [isRefreshingRecommendation, setIsRefreshingRecommendation] = useState<boolean>(false);
     const [isRecommendationModalOpen, setIsRecommendationModalOpen] = useState<boolean>(false);
+    const [isClCopied, setIsClCopied] = useState<boolean>(false);
     const [activeTab, setActiveTab] = useState<'ai-review' | 'job-description' | 'cover-letter' | 'cv'>(() => {
         // Priority 1: URL Param
         if (tab && ['ai-review', 'job-description', 'cover-letter', 'cv'].includes(tab)) {
@@ -178,8 +181,32 @@ const ReviewFinalizePage: React.FC = () => {
     const [isDownloadingCvPdf, setIsDownloadingCvPdf] = useState<boolean>(false);
 
     // Ref for accessing the CV preview element for PDF generation
-    const cvPreviewRef = useRef<CvLivePreviewRef>(null);
-    const splitViewCvPreviewRef = useRef<CvLivePreviewRef>(null);
+    const cvPreviewRef = useRef<HTMLDivElement>(null);
+    const splitViewCvPreviewRef = useRef<HTMLDivElement>(null);
+
+    // Helper to generate a clean filename
+    const getPdfFilename = () => {
+        if (!jobApplication) return 'CV_Export';
+
+        const sanitize = (str: string) => str?.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_') || 'Unknown';
+        const companyName = sanitize(jobApplication.companyName);
+        const jobTitle = sanitize(jobApplication.jobTitle);
+        // Determine document type based on language (default to Resume if not de)
+        const docType = (jobApplication.language === 'de') ? 'Lebenslauf' : 'Resume';
+
+        return `${docType}_${companyName}_${jobTitle}`;
+    };
+
+    // React-to-print hook
+    const handlePrintCv = useReactToPrint({
+        contentRef: cvPreviewRef,
+        documentTitle: getPdfFilename(),
+    });
+
+    const handlePrintSplitCv = useReactToPrint({
+        contentRef: splitViewCvPreviewRef,
+        documentTitle: getPdfFilename(),
+    });
 
     // Tailor Job CV Form State
     const [tailoredJobTitle, setTailoredJobTitle] = useState<string>('');
@@ -1025,6 +1052,9 @@ const ReviewFinalizePage: React.FC = () => {
             setFinalPdfFiles(prev => ({ ...prev, cl: result.coverLetterFilename }));
             setJobApplication(prev => prev ? { ...prev, generationStatus: 'finalized', generatedCoverLetterFilename: result.coverLetterFilename } : null);
             showToast('Cover Letter PDF generated successfully', 'success');
+
+            // Auto-download the file
+            handleDownload(result.coverLetterFilename);
         } catch (error: any) {
             console.error("Error generating Cover Letter PDF:", error);
             setRenderError(error.message || 'Failed to generate Cover Letter PDF.');
@@ -1063,36 +1093,17 @@ const ReviewFinalizePage: React.FC = () => {
      * Downloads the CV as PDF by capturing the exact preview element.
      * This ensures WYSIWYG - the downloaded PDF matches exactly what's shown in the preview.
      */
-    const handleDownloadCvPdf = async () => {
-        if (!jobApplication || !cvData) {
-            showToast('No CV data available to download', 'error');
-            return;
-        }
-
-        // Get the preview element from either the preview or split view ref
-        const previewElement = cvPreviewRef.current?.getPreviewElement() ||
-            splitViewCvPreviewRef.current?.getPreviewElement();
-
-        if (!previewElement) {
-            showToast('Please switch to Preview or Split view to download the PDF', 'info');
-            return;
-        }
-
-        setIsDownloadingCvPdf(true);
-        try {
-            const language = (jobApplication.language === 'de') ? 'de' : 'en';
-            await downloadCvAsPdf(
-                previewElement,
-                jobApplication.companyName || 'Company',
-                jobApplication.jobTitle,
-                language
-            );
-            showToast('CV PDF downloaded successfully', 'success');
-        } catch (error: any) {
-            console.error('Error downloading CV PDF:', error);
-            showToast(error.message || 'Failed to download CV PDF', 'error');
-        } finally {
-            setIsDownloadingCvPdf(false);
+    /**
+     * Downloads the CV as PDF using native browser print (via react-to-print).
+     * This ensures correct pagination and better quality than html2canvas.
+     */
+    const handleDownloadCvPdf = () => {
+        if (cvViewMode === 'split' && splitViewCvPreviewRef.current) {
+            handlePrintSplitCv();
+        } else if (cvPreviewRef.current) {
+            handlePrintCv();
+        } else {
+            showToast('CV Preview not ready. Please wait for preview to load.', 'info');
         }
     };
 
@@ -1165,12 +1176,21 @@ const ReviewFinalizePage: React.FC = () => {
 
             await fetchJobData();
             showToast('Cover letter generated successfully', 'success');
+
         } catch (error: any) {
             console.error('Error generating cover letter:', error);
             setCoverLetterError(error.message || 'Failed to generate cover letter');
         } finally {
             setIsGeneratingCoverLetter(false);
         }
+    };
+
+    const handleCopyCoverLetter = () => {
+        if (!coverLetterText) return;
+        navigator.clipboard.writeText(coverLetterText);
+        setIsClCopied(true);
+        showToast('Cover letter copied to clipboard', 'success');
+        setTimeout(() => setIsClCopied(false), 2000);
     };
 
     const handleDownloadWord = async () => {
@@ -1554,6 +1574,20 @@ const ReviewFinalizePage: React.FC = () => {
                             </p>
                         </button>
 
+
+                        {/* Open Job Link Button */}
+                        {jobApplication.jobUrl && (
+                            <a
+                                href={jobApplication.jobUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-3 text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 rounded-lg shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95 self-stretch"
+                                title="View Original Job Posting"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">open_in_new</span>
+                            </a>
+                        )}
+
                         {/* Mark as Applied Button */}
                         {jobApplication.status !== 'Applied' && (
                             <button
@@ -1863,16 +1897,7 @@ const ReviewFinalizePage: React.FC = () => {
                                                 ))
                                             )
                                         )}
-                                        {jobApplication.jobUrl && (
-                                            <li className="flex items-start gap-3">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0"></span>
-                                                <span className="text-sm text-text-sub-light dark:text-text-sub-dark">
-                                                    <a href={jobApplication.jobUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                                                        View Original Job Posting
-                                                    </a>
-                                                </span>
-                                            </li>
-                                        )}
+
                                     </ul>
                                 </div>
 
@@ -2157,6 +2182,20 @@ const ReviewFinalizePage: React.FC = () => {
                                                 <div className="flex items-center gap-3">
                                                     {/* Download Buttons Group */}
                                                     <div className="flex items-center gap-2">
+                                                        {/* Copy Button */}
+                                                        <button
+                                                            onClick={handleCopyCoverLetter}
+                                                            className="group flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-all duration-200 font-medium text-xs shadow-sm hover:shadow-md"
+                                                            title="Copy to clipboard"
+                                                        >
+                                                            {isClCopied ? (
+                                                                <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-sm">check</span>
+                                                            ) : (
+                                                                <span className="material-symbols-outlined text-sm">content_copy</span>
+                                                            )}
+                                                            <span>{isClCopied ? 'Copied' : 'Copy'}</span>
+                                                        </button>
+
                                                         {/* Download PDF Button */}
                                                         <button
                                                             onClick={finalPdfFiles.cl ? () => handleDownload(finalPdfFiles.cl) : handleGenerateCoverLetterPdf}
@@ -2861,6 +2900,21 @@ const ReviewFinalizePage: React.FC = () => {
                     />
                 )
             }
+
+            {/* Cover Letter Generation Loading Overlay */}
+            {isGeneratingCoverLetter && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-2xl flex flex-col items-center gap-4 max-w-sm w-full mx-4 border border-gray-200 dark:border-gray-700 animate-in fade-in zoom-in duration-200">
+                        <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mb-2">
+                            <Spinner size="lg" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Generating Cover Letter</h3>
+                        <p className="text-gray-500 dark:text-gray-400 text-center text-sm">
+                            Analyzing job details and crafting your personalized letter...
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* AI Application Advice Modal */}
             {isRecommendationModalOpen && (

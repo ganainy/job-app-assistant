@@ -69,8 +69,9 @@ const GermanLatexResume = forwardRef<HTMLDivElement, GermanLatexResumeProps>(
                         <div style={{ textAlign: 'right', fontSize: '9pt', lineHeight: '1.4', color: '#000' }}>
                             {data.phone && <div>☎ {data.phone}</div>}
                             {data.email && <div>✉ {data.email}</div>}
-                            {data.website && <div>🔗 Portfolio</div>}
-                            {data.linkedIn && <div> LinkedIn</div>}
+                            {data.website && <div><a href={data.website} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗 Portfolio</a></div>}
+                            {data.linkedIn && <div><a href={data.linkedIn} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>LinkedIn</a></div>}
+                            {data.github && <div><a href={data.github} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>GitHub</a></div>}
                         </div>
                     </div>
                 </div>
@@ -174,8 +175,8 @@ const GermanLatexResume = forwardRef<HTMLDivElement, GermanLatexResumeProps>(
                     </div>
                 )}
 
-                {/* Projects - ALL custom sections grouped under one heading */}
-                {data.customSections && data.customSections.length > 0 && (
+                {/* Projects - Structured */}
+                {data.projects && data.projects.length > 0 && (
                     <div style={{ marginBottom: '15px' }}>
                         <h2 style={{
                             fontSize: '11pt',
@@ -188,10 +189,52 @@ const GermanLatexResume = forwardRef<HTMLDivElement, GermanLatexResumeProps>(
                         }}>
                             {language === 'de' ? 'Projekte' : 'Projects'}
                         </h2>
-                        <div>
-                            {data.customSections.map((section) => (
+                        <ul style={{ margin: '0', paddingLeft: '20px', listStyleType: 'disc' }}>
+                            {data.projects.map((project) => (
+                                <li key={project.id} style={{ marginBottom: '10px' }}>
+                                    <div style={{ marginBottom: '2px' }}>
+                                        <strong>{project.name}</strong>
+                                        {project.url && <span style={{ fontSize: '9pt', marginLeft: '6px' }}><a href={project.url} style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a></span>}
+                                        {((project.startDate && project.endDate) || project.description) && (
+                                            <div style={{ display: 'inline', marginLeft: '10px', fontSize: '9pt', fontStyle: 'italic' }}>
+                                                {project.startDate && project.endDate && `${project.startDate} - ${project.endDate}`}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div style={{ fontSize: '10pt' }}>
+                                        {project.description}
+                                    </div>
+                                    {project.highlights && project.highlights.length > 0 && (
+                                        <ul style={{ marginTop: '2px', marginBottom: '0', paddingLeft: '15px' }}>
+                                            {project.highlights.map((highlight, idx) => (
+                                                <li key={idx} style={{ fontSize: '10pt' }}>{highlight}</li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {/* Custom Sections - Filter out 'Projects' to avoid duplication */}
+                {data.customSections && data.customSections.length > 0 && (
+                    <div style={{ marginBottom: '15px' }}>
+                        {data.customSections
+                            .filter(section => section.heading?.toLowerCase() !== 'projects' && section.heading?.toLowerCase() !== 'projekte')
+                            .map((section) => (
                                 <div key={section.id} style={{ marginBottom: '10px' }}>
-                                    <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '10pt', textTransform: 'uppercase' }}>{section.heading}</div>
+                                    <h2 style={{
+                                        fontSize: '11pt',
+                                        fontWeight: 'bold',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em',
+                                        borderBottom: '1px solid #000',
+                                        marginBottom: '8px',
+                                        paddingBottom: '2px',
+                                    }}>
+                                        {section.heading}
+                                    </h2>
                                     <div style={{ fontSize: '10pt' }}>
                                         {section.content.split('\n').filter(line => line.trim()).map((line, lineIdx) => (
                                             <div key={lineIdx} style={{ marginBottom: '2px' }}>
@@ -201,7 +244,6 @@ const GermanLatexResume = forwardRef<HTMLDivElement, GermanLatexResumeProps>(
                                     </div>
                                 </div>
                             ))}
-                        </div>
                     </div>
                 )}
 

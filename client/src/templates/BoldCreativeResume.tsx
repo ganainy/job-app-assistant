@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { Mail, Phone, MapPin, Globe, Linkedin, Star, Award, Calendar } from "lucide-react";
+import { Mail, Phone, MapPin, Globe, Linkedin, Star, Award, Calendar, Github } from "lucide-react";
 import { ResumeData } from "../utils/cvDataTransform";
 
 const BoldCreativeResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ data }, ref) => {
@@ -24,7 +24,7 @@ const BoldCreativeResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
       case 'Basic': rating = 2; break;
       default: rating = 1; break;
     }
-    
+
     return Array.from({ length: 5 }, (_, i) => {
       const isFilled = i < rating;
       return (
@@ -94,12 +94,12 @@ const BoldCreativeResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
           }}
           data-preserve="true"
         ></div>
-        
+
         <div className="relative z-10">
           <h1 className="text-lg font-bold mb-1" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
             {data.firstName} {data.lastName}
           </h1>
-          
+
           <div className="grid grid-cols-2 gap-3 mt-3 text-xs">
             {data.email && (
               <div className="flex items-center gap-2">
@@ -159,6 +159,21 @@ const BoldCreativeResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
                   <Linkedin className="h-3 w-3" />
                 </div>
                 <span>{data.linkedIn}</span>
+              </div>
+            )}
+            {data.github && (
+              <div className="flex items-center gap-2">
+                <div
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: '4px',
+                    padding: '3px',
+                  }}
+                  data-preserve="true"
+                >
+                  <Github className="h-3 w-3" />
+                </div>
+                <span>{data.github}</span>
               </div>
             )}
           </div>
@@ -221,7 +236,7 @@ const BoldCreativeResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
               ></div>
               PROFESSIONAL EXPERIENCE
             </h2>
-            
+
             <div className="space-y-6">
               {data.experiences.map((experience, index) => (
                 <div key={experience.id} className="relative">
@@ -456,36 +471,110 @@ const BoldCreativeResume = forwardRef<HTMLDivElement, { data: ResumeData }>(({ d
           </section>
         )}
 
-        {data.customSections && data.customSections.length > 0 && (
-          <div className="space-y-6">
-            {data.customSections.map((section) => (
-              <section key={section.id} className="mb-6">
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#1e40af' }}>
+
+        {data.projects && data.projects.length > 0 && (
+          <section className="mb-6">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#1e40af' }}>
+              <div
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  backgroundColor: '#f59e0b',
+                  borderRadius: '50%',
+                }}
+                data-preserve="true"
+              ></div>
+              PROJECTS
+            </h2>
+
+            <div className="space-y-6">
+              {data.projects.map((project, index) => (
+                <div key={project.id} className="relative">
                   <div
                     style={{
-                      width: '8px',
-                      height: '8px',
-                      backgroundColor: '#f59e0b',
-                      borderRadius: '50%',
+                      backgroundColor: '#fefefe',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      border: '1px solid #e5e7eb',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                     }}
                     data-preserve="true"
-                  ></div>
-                  {section.heading.toUpperCase()}
-                </h2>
-                <div
-                  className="p-4 rounded-lg"
-                  style={{
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #e2e8f0',
-                  }}
-                  data-preserve="true"
-                >
-                  <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
-                    {section.content}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="text-base font-bold" style={{ color: '#1f2937' }}>
+                          {project.name}
+                        </h3>
+                        {project.url && (
+                          <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold hover:underline" style={{ color: '#3b82f6' }}>
+                            {project.url}
+                          </a>
+                        )}
+                      </div>
+                      <div
+                        className="text-xs px-2 py-1 rounded-full"
+                        style={{
+                          backgroundColor: '#dbeafe',
+                          color: '#1e40af',
+                          border: '1px solid #bfdbfe',
+                        }}
+                      >
+                        {formatDateRange(project.startDate || '', project.endDate || '', false)}
+                      </div>
+                    </div>
+                    {project.description && (
+                      <div className="text-gray-700 text-xs leading-relaxed whitespace-pre-line mb-2">
+                        {project.description}
+                      </div>
+                    )}
+                    {project.highlights && project.highlights.length > 0 && (
+                      <ul className="list-disc ml-4 space-y-1">
+                        {project.highlights.map((highlight, idx) => (
+                          <li key={idx} className="text-gray-700 text-xs">
+                            {highlight}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
-              </section>
-            ))}
+              ))}
+            </div>
+          </section>
+        )}
+
+        {data.customSections && data.customSections.length > 0 && (
+          <div className="space-y-6">
+            {data.customSections
+              .filter(section => section.heading?.toLowerCase() !== 'projects')
+              .map((section) => (
+                <section key={section.id} className="mb-6">
+                  <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#1e40af' }}>
+                    <div
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        backgroundColor: '#f59e0b',
+                        borderRadius: '50%',
+                      }}
+                      data-preserve="true"
+                    ></div>
+                    {section.heading.toUpperCase()}
+                  </h2>
+                  <div
+                    className="p-4 rounded-lg"
+                    style={{
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                    }}
+                    data-preserve="true"
+                  >
+                    <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
+                      {section.content}
+                    </div>
+                  </div>
+                </section>
+              ))}
           </div>
         )}
       </div>
